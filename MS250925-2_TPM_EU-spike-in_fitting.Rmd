@@ -1,0 +1,71 @@
+---
+title: "fot expoential decay to EU pulse-chase data"
+author: "MS"
+date: "250925"
+output: html_document
+file  names should be formatted: 
+---
+```{r setup}
+rm(list=ls())
+library(broom)
+library(tidyverse)
+library(nls.multstart)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes we are in scripts folder 
+load('plotting_functions.rda')
+load('fitting_function.rda')
+```
+
+import data and filtering
+```{r}
+df_EU_rescaled <- read_tsv("../tables/df_sc_combined_EU_rescaled.txt", show_col_types=FALSE)
+
+df_EU_rescaled2 <- df_EU_rescaled %>% filter(sample_id != "exp250624_MS1039_SCGEuri_1.5hr-arrest_1hr-DMSO_07min-EU-chase" & sample_id != "exp250624_MS1039_SCGEuri_7.5hr-arrest_1hr-DMSO_07min-EU-chase")  
+
+df_EU_rescaled_filtered <- df_EU_rescaled2 %>% filter(TPM_EU_min>2) %>% filter(TPM_input>5) 
+```
+
+```{r}
+df_fit_input <- df_EU_rescaled %>% filter(timepoint!="Tbackground") %>% filter(T7_rescaled < 0.5) %>% 
+  select(experiment_strain_condition, gene_id, t="time", y="TPM_rescaled") %>% 
+  mutate(weights = (abs(1/y)))
+ 
+
+df_fit_output <- df_fit_input %>% fit_decay() %>% decay_parameters()
+write_tsv(df_fit_output, "../output_tables/df_fit_output_a1.txt")
+```
+
+```{r}
+df_fit_input <- df_EU_rescaled2 %>% filter(timepoint!="Tbackground") %>% filter(T7_rescaled < 0.5) %>% 
+  select(experiment_strain_condition, gene_id, t="time", y="TPM_rescaled") %>% 
+  mutate(weights = (abs(1/y)))  
+
+df_fit_output <- df_fit_input %>% fit_decay() %>% decay_parameters()
+write_tsv(df_fit_output, "../output_tables/df_fit_output_b1.txt")
+```
+
+```{r}
+df_fit_input <- df_EU_rescaled_filtered %>% filter(timepoint!="Tbackground") %>% filter(T7_rescaled < 0.5) %>% 
+  select(experiment_strain_condition, gene_id, t="time", y="TPM_rescaled")  %>% 
+  mutate(weights = (abs(1/y))) 
+
+df_fit_output <- df_fit_input %>% fit_decay() %>% decay_parameters()
+write_tsv(df_fit_output, "../output_tables/df_fit_output_c1.txt")
+```
+
+```{r}
+df_fit_input <- df_EU_rescaled2 %>% filter(timepoint!="Tbackground") %>% filter(T7_rescaled < 0.5) %>% 
+  select(experiment_strain_condition, gene_id, t="time", y="TPM_rescaled") %>% 
+  mutate(weights = 1) 
+
+df_fit_output <- df_fit_input %>% fit_decay() %>% decay_parameters()
+write_tsv(df_fit_output, "../output_tables/df_fit_output_b2.txt")
+```
+
+```{r}
+df_fit_input <- df_EU_rescaled2 %>% filter(timepoint!="Tbackground") %>% filter(T7_rescaled < 0.5) %>% 
+  select(experiment_strain_condition, gene_id, t="time", y="TPM_rescaled") %>% 
+  mutate(weights = (abs(1/(y^2)))) 
+
+df_fit_output <- df_fit_input %>% fit_decay() %>% decay_parameters()
+write_tsv(df_fit_output, "../output_tables/df_fit_output_b3.txt")
+```

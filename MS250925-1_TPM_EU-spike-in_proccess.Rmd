@@ -1,0 +1,61 @@
+---
+title: "TPM ratios for EU enrich optimisation"
+author: "MS"
+date: "250925"
+output: html_document
+file  names should be formatted: 
+---
+```{r setup}
+rm(list=ls())
+library(broom)
+library(corrr)
+library(tidyverse)
+library(nls.multstart)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes we are in scripts folder 
+load('plotting_functions.rda')
+```
+
+load TPM data, merge with annotation data and normalize data to global spike in
+```{r}
+import_express <- function(path) {read_tsv(path, show_col_types=FALSE) %>% rename(species=1, gene_name=2, gene_id=3) %>% pivot_longer(cols=contains("exp"), names_to="sample", values_to="TPM")}
+
+verified_ORF <- read_tsv("../tables/2230128_verified_ORF.txt", show_col_types=FALSE)
+
+express_files <- dir(path="../tables/", pattern="*express.*.txt", full.names=TRUE)
+df_combined <- express_files %>% map(~import_express(.)) %>% set_names(substr(basename(express_files), 1, 8)) %>% bind_rows(., .id = "seq_run") %>% left_join(., verified_ORF, join_by(gene_id, species))
+
+si_files <-  dir(path="../tables/", pattern="*sample_info.txt", full.names=TRUE)
+sample_info <- si_files %>% map(~read_tsv(., show_col_types=FALSE)) %>% set_names(substr(basename(si_files), 1, 8)) %>% bind_rows(., .id = "seq_run")
+
+norm_table1 <- df_combined %>% filter(verified_ORF==TRUE) %>% group_by(species, sample) %>% summarise(TPMsum=sum(TPM)) %>% pivot_wider(names_from=species, names_glue="{species}_{.value}", values_from="TPMsum") %>% mutate(sp_ratio=S_cerevisiae_TPMsum/S_pombe_TPMsum) %>% left_join(., sample_info, by="sample")
+
+input_table <- norm_table1 %>% filter(fraction=="input") %>% dplyr::select(sample_id, input_sp_ratio=sp_ratio)
+norm_table <- left_join(norm_table1, input_table , by="sample_id") %>% mutate(norm_ratio=sp_ratio/input_sp_ratio)
+
+df_sc <- df_combined %>% left_join(., norm_table, join_by("sample", "seq_run")) %>% filter(., verified_ORF==TRUE, species=="S_cerevisiae") %>% mutate(TPMsc=((TPM/S_cerevisiae_TPMsum)*10^6)) %>% mutate(TPMnorm=(TPMsc*norm_ratio))
+
+write_tsv(norm_table, "../tables/norm_table.txt")
+write_tsv(df_sc, "../tables/df_sc_combined.txt")
+```
+
+Rescale each time course by subtracting background and normalising to T0
+```{r}
+#background sub. on EU labelled samples
+df_bg <- df_sc %>% filter(fraction=="EU", timepoint=="Tbackground") %>% dplyr::select("gene_id", "experiment_strain_condition", bg_TPMnorm="TPMnorm")
+df_EU <- df_sc %>% filter(fraction=="EU") %>% left_join(., df_bg, join_by("gene_id", "experiment_strain_condition")) %>% mutate(TPMnorm_bgsub=TPMnorm-bg_TPMnorm)
+
+#rescaled to T1 for EU labelled samples
+df_T1 <- filter(df_EU, timepoint=="T1") %>% dplyr::select("gene_id", "experiment_strain_condition", TPMnorm_T1="TPMnorm", TPMnorm_T1_bg="TPMnorm_bgsub") 
+
+df_EU_min <- filter(df_EU, timepoint!="Tbackground") %>% group_by(gene_id, experiment_strain_condition) %>% summarise(TPM_EU_min=min(TPMsc)) 
+
+df_input <- df_sc %>% filter(fraction=="input") %>% group_by(gene_id, experiment_strain_condition) %>% summarise(TPM_input=mean(TPMsc, na.rm=TRUE)) 
+
+df_EU_rescaled1 <- df_EU %>% left_join(., df_T1, join_by("gene_id", "experiment_strain_condition")) %>% mutate(TPM_rescaled = TPMnorm/TPMnorm_T1, TPM_bg_rescaled = TPMnorm_bgsub/TPMnorm_T1_bg) %>% left_join(., df_EU_min, join_by("gene_id", "experiment_strain_condition")) %>% left_join(., df_input, join_by("gene_id", "experiment_strain_condition"))
+
+df_T7 <- filter(df_EU_rescaled1, timepoint=="T7") %>% dplyr::select("gene_id", "experiment_strain_condition", T7_rescaled="TPM_rescaled", T7_bg_rescaled="TPM_bg_rescaled")
+
+df_EU_rescaled <- left_join(df_EU_rescaled1, df_T7, join_by("gene_id", "experiment_strain_condition"))
+
+write_tsv(df_EU_rescaled, "../tables/df_sc_combined_EU_rescaled.txt")
+```

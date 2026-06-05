@@ -1,0 +1,68 @@
+---
+title: "fot expoential decay to EU pulse-chase data"
+author: "MS"
+date: "250925"
+output: html_document
+file  names should be formatted: 
+---
+```{r setup}
+rm(list=ls())
+library(broom)
+library(tidyverse)
+library(nls.multstart)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes we are in scripts folder 
+load('plotting_functions.rda')
+load('fitting_function.rda')
+```
+
+import data and filtering
+```{r}
+df_hl <- read_tsv("../output_tables/df_fit_output_c1.txt", show_col_types=FALSE)
+df_EU <- read_tsv("../tables/df_sc_combined_EU_rescaled.txt", show_col_types=FALSE)
+rescaling_table <- read_tsv("../tables/rescaling_table.txt", show_col_types=FALSE)
+
+df_EU_hl_filtered <- df_hl %>% left_join(df_EU, ., join_by("experiment_strain_condition", "gene_id"))
+
+df_ref <- df_EU_hl_filtered %>% filter(experiment_strain_condition == "exp221207_MS96_1.5hr_arrest") %>% filter(timepoint == "T1") %>% filter(TPM_input>1) 
+
+df_ref_bins <- Hmisc::cut2(df_ref$TPM_input, g=20) %>% bind_cols(., df_ref) %>%  dplyr::rename("gene_bins"=1) %>% select(gene_id, gene_bins) 
+
+df_bin_mean <- df_EU_hl_filtered %>% left_join(., df_ref_bins, join_by("gene_id")) %>% filter(strain == "MS96" | strain == "MS908") %>% group_by(gene_bins, experiment_strain_condition, experiment, strain, condition, timepoint, time) %>% summarise(TPM_input = mean(TPM_input), TPMnorm = mean(TPMnorm_bgsub))
+?summarise()
+
+#assuming 50000 molecules per cells of mRNA
+df_bin_sum <- df_bin_mean %>% filter(timepoint == "T1") %>% group_by(experiment_strain_condition) %>% summarise(sumTPMnorm_T1 = sum(TPMnorm)) %>% left_join(., rescaling_table, join_by(experiment_strain_condition)) %>% mutate(RNA_per_cell =(RNA_per_cell/1.719169)*45000, RNA_per_fL = (RNA_per_fL/1.719169)*45000)
+
+df_bin_mean_rescaled <- left_join(df_bin_mean, df_bin_sum, join_by(experiment_strain_condition)) %>% mutate(molecules_per_cell = (TPMnorm/sumTPMnorm_T1)*RNA_per_cell, molecules_per_fL = (TPMnorm/sumTPMnorm_T1)*RNA_per_fL)
+
+binned_data <- df_bin_mean_rescaled %>% select(gene_bins, time, molecules_per_fL, size, translation)
+
+binned_data %>% select(size, translation, time, molecules_per_fL) %>% write_tsv("../output_tables/binned_data_20_genes_MS908.txt")
+```
+
+```{r}
+ggplot(df_plot, aes(x = time, y = (molecules_per_fL), color = gene_bins, group = gene_bins)) + facet_wrap(~ size + translation, ncol = 2) + geom_point(size = 2) + scale_color_viridis_d(option = "D", end = 0.9)
+```
+graph of the half life of the average of genes in each bin
+```{r}
+fit_output <- binned_data %>% ungroup() %>% select(gene_id = "gene_bins", experiment_strain_condition, t="time", y=molecules_per_fL) %>% fit_decay() %>% decay_parameters() 
+
+df_plot2 <- fit_output %>% filter(!is.na(gene_id)) %>% left_join(., rescaling_table)
+
+ggplot(df_plot2, aes(x = gene_id, y = estimate_half_life, fill = translation)) + geom_col(position = "dodge", width = 0.85) + facet_wrap(~size) + scale_fill_viridis_d(option= "D", end=0.95) + theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + ggtitle("half life of the average of genes in each bin")
+```
+graph of average half life for genes in each bin
+```{r}
+df_filtered_joined <- df_EU_hl_filtered %>% filter(., timepoint == "T1") %>% filter(strain == "MS96" | strain == "MS908") %>% left_join(., df_ref_bins, join_by("gene_id")) %>% left_join(., rescaling_table) %>% filter(TPM_EU_min > 1 & std.error_log_k < 1)
+
+df_plot3 <- df_filtered_joined %>% filter(!is.na(gene_bins)) %>%  filter(translation!="OFF_short") %>% group_by(gene_bins, size, translation) %>% summarise(mean_half_life = mean(estimate_half_life, na.rm = TRUE))
+
+ggplot(df_plot3, aes(x = gene_bins, y = mean_half_life, fill = translation)) + geom_col(position = "dodge", width = 0.85) + facet_wrap(~size) + scale_fill_viridis_d(option="D", end=0.95) +
+  theme_minimal() + theme(axis.text.x = element_text(angle = 45, hjust = 1)) + ggtitle("average of the half life the genes in each bin")
+```
+
+```{r}
+df_plot4 <- df_EU_hl_filtered %>% filter(., timepoint == "T1") %>% filter(strain == "MS96" | strain == "MS908") %>% left_join(., df_ref_bins, join_by("gene_id")) %>% left_join(., rescaling_table) %>% filter(TPM_EU_min > 1 & std.error_log_k < 1) #%>% filter(translation!="OFF_short")
+
+ggplot(df_plot4, aes(x = estimate_half_life, color = size)) + stat_ecdf(geom = "step", linewidth = 1) + facet_wrap(~translation) + coord_cartesian(xlim = c(0, 30))
+```

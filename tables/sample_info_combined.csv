@@ -1,0 +1,15 @@
+experiment_strain_condition,experiment_date,strain,size,condition,label
+exp221207_MS96_1.5hr_arrest,221207,MS96,small,WT,MS96_small
+exp221207_MS96_7hr_arrest,221207,MS96,large,WT,MS96_large
+exp241101_MS917_1.5hr-arrest_PhIAA,241101,MS917,small,Xrn1_dep_30min,MS917_small_Xrn1_dep_30min
+exp241101_MS917_7.5hr-arrest_PhIAA,241101,MS917,large,Xrn1_dep_30min,MS917_large_Xrn1_dep_30min
+exp241204_MS908_1.5hr_arrest_60min-PhIAA,241204,MS908,small,eIF4G_dep_1hr,MS908_small_eIF4G_dep_1hr_rep1
+exp241204_MS908_7.5hr_arrest_60min-PhIAA,241204,MS908,large,eIF4G_dep_1hr,MS908_large_eIF4G_dep_1hr_rep1
+exp250423_MS908_1.5hr_arrest_60min-PhIAA,250423,MS908,small,eIF4G_dep_1hr,MS908_small_eIF4G_dep_1hr_rep2
+exp250423_MS908_7.5hr_arrest_60min-PhIAA,250423,MS908,large,eIF4G_dep_1hr,MS908_large_eIF4G_dep_1hr_rep2
+exp250624_MS1039_1.5hr_arrest_60min-PhIAA,250624,MS1039,small,eIF4G_dep_1hr,MS1039_small_eIF4G_dep_1hr
+exp250624_MS1039_7.5hr_arrest_60min-PhIAA,250624,MS1039,large,eIF4G_dep_1hr,MS1039_large_eIF4G_dep_1hr
+exp250624_MS1039_1.5hr-arrest_30min-PhIAA,250624,MS1039,small,eIF4G_dep_30min,MS1039_small_eIF4G_dep_30min
+exp250624_MS1039_7.5hr-arrest_30min-PhIAA,250624,MS1039,large,eIF4G_dep_30min,MS1039_large_eIF4G_dep_30min
+exp250624_MS1039_1.5hr-arrest_1hr-DMSO,250624,MS1039,small,WT,MS1039_small
+exp250624_MS1039_7.5hr-arrest_1hr-DMSO,250624,MS1039,large,WT,MS1039_large

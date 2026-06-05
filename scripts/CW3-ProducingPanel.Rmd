@@ -1,0 +1,489 @@
+---
+title: "Figure Panel for Matthew"
+author: "CW"
+date: "2026-05-27"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+setwd("/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis/scripts")
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+library(cowplot)
+library(ggtext)
+library(Hmisc)
+
+col_small <- "#784283"
+col_large <- "#ffa8cb"
+col_A     <- "#e5000c"
+```
+
+```{r load}
+sample_info <- read_csv("../tables/sample_info_combined.csv", show_col_types = FALSE)
+df_TE       <- read_csv("../tables/translation_efficiency.csv", show_col_types = FALSE)
+df_ONT      <- read_csv("../tables/gene_fraction&tail_length.csv", show_col_types = FALSE)
+
+df_c1_raw <- read_tsv("../output_tables/df_fit_output_c1.txt",
+                      show_col_types = FALSE) %>%
+  left_join(sample_info, join_by(experiment_strain_condition)) %>%
+  filter(condition == "WT")
+
+df_consensus <- df_c1_raw %>%
+  filter(std.error_log_k < 0.75) %>%
+  pivot_wider(id_cols     = gene_id,
+              names_from  = label,
+              values_from = estimate_half_life,
+              names_glue  = "{label}_hl") %>%
+  filter(
+    !is.na(MS96_small_hl), !is.na(MS1039_small_hl),
+    !is.na(MS96_large_hl), !is.na(MS1039_large_hl),
+    MS96_small_hl  > 0,    MS1039_small_hl  > 0,
+    MS96_large_hl  > 0,    MS1039_large_hl  > 0) %>%
+  mutate(
+    WT_small_hl = rowMeans(across(c(MS96_small_hl, MS1039_small_hl)), na.rm = TRUE),
+    WT_large_hl = rowMeans(across(c(MS96_large_hl, MS1039_large_hl)), na.rm = TRUE),
+    WT_hl_fc    = log2(WT_large_hl / WT_small_hl)
+  ) %>%
+  filter(!is.na(WT_hl_fc), is.finite(WT_hl_fc)) %>%
+  dplyr::select(gene_id, WT_small_hl, WT_large_hl, WT_hl_fc)
+
+df_combined <- df_consensus %>%
+  left_join(
+    df_TE %>% dplyr::select(gene_id,
+                             TE_rRNAdep_MandP_small_YM,
+                             TE_rRNAdep_MandP_large_YM,
+                             TPMsc_input_small_YM,
+                             TPMsc_input_large_YM),
+    join_by(gene_id)) %>%
+  left_join(df_ONT, join_by(gene_id))
+
+## Load replicate data for reproducibility panels
+hl_files <- dir(path = "../output_tables/",
+                pattern = ".*output.*\\.txt",
+                full.names = TRUE)
+
+df_hl_wide <- hl_files %>%
+  map(~read_tsv(., show_col_types = FALSE)) %>%
+  set_names(substr(basename(hl_files),
+                   nchar(basename(hl_files)) - 5,
+                   nchar(basename(hl_files)) - 4)) %>%
+  bind_rows(.id = "fitting_strategy") %>%
+  left_join(sample_info, join_by(experiment_strain_condition)) %>%
+  filter(condition == "WT") %>%
+  pivot_wider(id_cols     = gene_id,
+              names_from  = c(label, fitting_strategy),
+              values_from = estimate_half_life,
+              names_glue  = "{label}_estimate_half_life_by_{fitting_strategy}")
+
+df_rep <- df_hl_wide %>%
+  dplyr::select(gene_id,
+                MS96_small   = MS96_small_estimate_half_life_by_c1,
+                MS96_large   = MS96_large_estimate_half_life_by_c1,
+                MS1039_small = MS1039_small_estimate_half_life_by_c1,
+                MS1039_large = MS1039_large_estimate_half_life_by_c1) %>%
+  filter(
+    !is.na(MS96_small),  !is.na(MS1039_small),
+    !is.na(MS96_large),  !is.na(MS1039_large),
+    MS96_small  > 0,     MS1039_small  > 0,
+    MS96_large  > 0,     MS1039_large  > 0)
+
+n_genes <- nrow(df_consensus)
+n_rep   <- nrow(df_rep)
+cat("Consensus genes:", n_genes, "\n")
+cat("Replicate genes:", n_rep, "\n")
+```
+
+```{r helpers}
+cell_theme <- theme_classic(base_size = 26) +
+  theme(
+    axis.title        = element_text(size = 22, colour = "black"),
+    axis.text         = element_text(size = 20, colour = "black"),
+    axis.line         = element_line(colour = "black", linewidth = 0.6),
+    axis.ticks        = element_line(colour = "black", linewidth = 0.6),
+    axis.ticks.length = unit(4, "pt"),
+    panel.border      = element_blank(),
+    plot.tag          = element_text(size = 28, face = "bold", colour = "black"),
+    plot.tag.position = "topleft",
+    plot.title        = element_blank(),
+    legend.position   = "none",
+    plot.margin       = margin(16, 16, 16, 16),
+    plot.background   = element_rect(fill = "white", colour = NA)
+  )
+
+r_label <- function(x, y) {
+  keep <- !is.na(x) & !is.na(y) & is.finite(x) & is.finite(y)
+  r    <- round(cor(x[keep], y[keep], method = "spearman"), 3)
+  paste0("R = ", r)
+}
+
+n_label <- function(x, y) {
+  keep <- !is.na(x) & !is.na(y) & is.finite(x) & is.finite(y)
+  paste0("n = ", format(sum(keep), big.mark = ","))
+}
+
+make_panel_binned <- function(data, x_col, y_col, x_lab, y_lab,
+                              point_col     = "royalblue3",
+                              filter_y_pos  = TRUE,
+                              show_diagonal = FALSE,
+                              bins          = 20,
+                              ylim          = NULL,
+                              xlim          = NULL) {
+  df <- data %>%
+    filter(!is.na(.data[[x_col]]), !is.na(.data[[y_col]]),
+           is.finite(.data[[x_col]]), is.finite(.data[[y_col]]),
+           .data[[x_col]] > 0)
+  if (filter_y_pos) {
+    df <- df %>% filter(.data[[y_col]] > 0)
+  }
+  df <- df %>%
+    mutate(x = log2(.data[[x_col]]),
+           y = if (filter_y_pos) log2(.data[[y_col]]) else .data[[y_col]])
+
+  df_bin <- if (!is.null(xlim)) filter(df, x >= xlim[1], x <= xlim[2]) else df
+
+  bin_sum <- Hmisc::cut2(df_bin$x, g = bins) %>%
+    bind_cols(df_bin$x, df_bin$y) %>%
+    dplyr::rename(bin = 1, x = 2, y = 3) %>%
+    drop_na() %>%
+    group_by(bin) %>%
+    summarise(x = mean(x), y = mean(y), .groups = "drop")
+
+  r_text <- r_label(df$x, df$y)
+  n_text <- n_label(df$x, df$y)
+
+  p <- ggplot(df, aes(x = x, y = y)) +
+    geom_point(size = 2, alpha = 0.25, colour = point_col) +
+    geom_line(data = bin_sum, aes(x = x, y = y),
+              colour = "black", linewidth = 1.2) +
+    annotate("text", x = -Inf, y = Inf,
+             label = r_text, hjust = -0.1, vjust = 1.5,
+             size  = 10, colour = "black") +
+    annotate("text", x = -Inf, y = Inf,
+             label = n_text, hjust = -0.1, vjust = 3.5,
+             size  = 8, colour = "grey40") +
+    labs(x = x_lab, y = y_lab) +
+    cell_theme
+
+  if (show_diagonal) {
+    p <- p + geom_abline(slope = 1, intercept = 0,
+                         colour    = "grey60",
+                         linewidth = 0.5,
+                         linetype  = "dashed")
+  }
+  if (!is.null(ylim) & !is.null(xlim)) {
+    p <- p + coord_cartesian(xlim = xlim, ylim = ylim)
+  } else if (!is.null(ylim)) {
+    p <- p + coord_cartesian(ylim = ylim)
+  } else if (!is.null(xlim)) {
+    p <- p + coord_cartesian(xlim = xlim)
+  }
+  p
+}
+```
+
+```{r build_panels}
+## Panel A -- replicate reproducibility, small and large cells
+pA1 <- make_panel_binned(df_rep,
+                         "MS96_small", "MS1039_small",
+                         "MS96 hl, small (log2(min))",
+                         "MS1039 hl, small (log2(min))",
+                         point_col     = col_small,
+                         show_diagonal = TRUE) +
+  labs(tag = "A")
+
+pA2 <- make_panel_binned(df_rep,
+                         "MS96_large", "MS1039_large",
+                         "MS96 hl, large (log2(min))",
+                         "MS1039 hl, large (log2(min))",
+                         point_col     = col_large,
+                         show_diagonal = TRUE)
+
+## Panel B -- half-life small vs large
+pB <- make_panel_binned(df_combined,
+                        "WT_small_hl", "WT_large_hl",
+                        "Half-life, small cells (log2(min))",
+                        "Half-life, large cells (log2(min))",
+                        point_col     = col_A,
+                        show_diagonal = TRUE) +
+  labs(tag = "B")
+
+## Panel C -- half-life vs TPM
+pC1 <- make_panel_binned(df_combined,
+                         "TPMsc_input_small_YM", "WT_small_hl",
+                         "TPM, input (log2)",
+                         "Half-life (log2(min))",
+                         point_col = col_small) +
+  labs(tag = "C")
+
+pC2 <- make_panel_binned(df_combined,
+                         "TPMsc_input_large_YM", "WT_large_hl",
+                         "TPM, input (log2)",
+                         "Half-life (log2(min))",
+                         point_col = col_large)
+
+## Panel D -- half-life vs TE
+pD1 <- make_panel_binned(df_combined,
+                         "TE_rRNAdep_MandP_small_YM", "WT_small_hl",
+                         "Translation efficiency (log2)",
+                         "Half-life (log2(min))",
+                         point_col = col_small) +
+  labs(tag = "D")
+
+pD2 <- make_panel_binned(df_combined,
+                         "TE_rRNAdep_MandP_large_YM", "WT_large_hl",
+                         "Translation efficiency (log2)",
+                         "Half-life (log2(min))",
+                         point_col = col_large)
+
+## Panel E -- half-life vs poly(A) tail, cropped x axis
+pE1 <- make_panel_binned(df_combined,
+                         "MS69_small_mrl100_mean_tail_length", "WT_small_hl",
+                         "poly(A) tail length (log2(nt))",
+                         "Half-life (log2(min))",
+                         point_col = col_small,
+                         xlim      = c(4, 6.5)) +
+  labs(tag = "E")
+
+pE2 <- make_panel_binned(df_combined,
+                         "MS69_large_mrl100_mean_tail_length", "WT_large_hl",
+                         "poly(A) tail length (log2(nt))",
+                         "Half-life (log2(min))",
+                         point_col = col_large,
+                         xlim      = c(4, 6.5))
+
+## Panel F -- fold change vs half-life
+pF1 <- make_panel_binned(df_combined,
+                         "WT_small_hl", "WT_hl_fc",
+                         "Half-life (log2(min))",
+                         "log2(large/small) half-life FC",
+                         point_col    = col_small,
+                         filter_y_pos = FALSE,
+                         ylim         = c(-4, 4)) +
+  labs(tag = "F")
+
+pF2 <- make_panel_binned(df_combined,
+                         "WT_large_hl", "WT_hl_fc",
+                         "Half-life (log2(min))",
+                         "log2(large/small) half-life FC",
+                         point_col    = col_large,
+                         filter_y_pos = FALSE,
+                         ylim         = c(-4, 4))
+
+## Panel G -- fold change vs TE
+pG1 <- make_panel_binned(df_combined,
+                         "TE_rRNAdep_MandP_small_YM", "WT_hl_fc",
+                         "Translation efficiency (log2)",
+                         "log2(large/small) half-life FC",
+                         point_col    = col_small,
+                         filter_y_pos = FALSE,
+                         ylim         = c(-4, 4)) +
+  labs(tag = "G")
+
+pG2 <- make_panel_binned(df_combined,
+                         "TE_rRNAdep_MandP_large_YM", "WT_hl_fc",
+                         "Translation efficiency (log2)",
+                         "log2(large/small) half-life FC",
+                         point_col    = col_large,
+                         filter_y_pos = FALSE,
+                         ylim         = c(-4, 4))
+```
+
+```{r assemble}
+## Same layout and dimensions as the version that worked
+## Row 1: A pair (replicate) + B (wide, consensus hl)
+## Row 2: C pair (TPM) + D pair (TE)
+## Row 3: E pair (polyA) + F pair (FC vs hl)
+## Row 4: G pair (FC vs TE) + spacers
+
+row1 <- (pA1 | pA2 | pB | plot_spacer()) +
+  plot_layout(widths = c(1, 1, 2, 1))
+
+row2 <- (pC1 | pC2 | pD1 | pD2) +
+  plot_layout(widths = c(1, 1, 1, 1))
+
+row3 <- (pE1 | pE2 | pF1 | pF2) +
+  plot_layout(widths = c(1, 1, 1, 1))
+
+row4 <- (pG1 | pG2 | plot_spacer() | plot_spacer()) +
+  plot_layout(widths = c(1, 1, 1, 1))
+
+caption_text <- paste0(
+  "(A) Replicate reproducibility of mRNA half-life estimates between MS96 and MS1039 ",
+  "in small (purple, left) and large (pink, right) cells (c1 fitting, SE < 0.75, n = ",
+  n_rep, "). Dashed line indicates identity. Binned mean shown in black. ",
+  "(B) mRNA half-life in small versus large WT cells (n = ", n_genes, "). ",
+  "Points above the dashed diagonal indicate global stabilisation in large cells ",
+  "(Spearman R = 0.79). Binned mean shown in black. ",
+  "(C) mRNA half-life versus input TPM in small (purple, left) and large (pink, right) cells. ",
+  "Positive correlation confirms highly expressed genes have more stable mRNA. ",
+  "(D) mRNA half-life versus size-separated translation efficiency (monosome + polysome) ",
+  "in small (purple, left) and large (pink, right) cells. Positive correlation is consistent ",
+  "with codon-optimality-mediated co-translational decay. ",
+  "(E) mRNA half-life versus mean poly(A) tail length in small (purple, left) and large ",
+  "(pink, right) cells. x-axis cropped to show bulk of distribution, one outlier excluded. ",
+  "Negative correlation reflects deadenylation-dependent decay, maintained across cell sizes. ",
+  "(F) Half-life fold change (log2 large/small) versus consensus half-life in small ",
+  "(purple, left) and large (pink, right) cells. Binned mean shown in black. ",
+  "Opposite sign of Spearman R indicates genes stable in small cells do not gain ",
+  "further stability in large cells. ",
+  "(G) Half-life fold change versus translation efficiency in small (purple, left) and ",
+  "large (pink, right) cells. Near-zero R indicates TE does not predict size-dependent ",
+  "changes in mRNA stability. All correlations Spearman, binned mean shown in all panels.")
+
+p_caption <- ggplot() +
+  geom_textbox(
+    aes(x = 0, y = 1, label = caption_text),
+    hjust      = 0, vjust = 1,
+    width      = unit(24, "inch"),
+    size       = 9,
+    lineheight = 1.6,
+    fill       = "white",
+    colour     = "black",
+    box.colour = NA) +
+  scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+  theme_void() +
+  theme(plot.background = element_rect(fill = "white", colour = NA))
+
+panel_plots <- row1 / row2 / row3 / row4 +
+  plot_layout(heights = c(1, 1, 1, 1))
+
+final <- cowplot::plot_grid(
+  panel_plots,
+  p_caption,
+  ncol        = 1,
+  rel_heights = c(14, 5))
+
+ggsave("../figures/Figure_panel1.png",
+       plot   = final,
+       width  = 24,
+       height = 34,
+       dpi    = 150)
+
+cat("Saved Figure_panel1.png\n")
+```
+
+```{r correlation_matrix}
+load("reproducibility_functions.rda")
+
+fitting_strategies <- c("a1", "b1", "b2", "b3", "c1")
+
+r_summary <- map_dfr(fitting_strategies, function(fs) {
+  df <- df_hl_wide %>%
+    filter(
+      !is.na(.data[[paste0("MS96_small_estimate_half_life_by_",   fs)]]),
+      !is.na(.data[[paste0("MS1039_small_estimate_half_life_by_", fs)]]),
+      !is.na(.data[[paste0("MS96_large_estimate_half_life_by_",   fs)]]),
+      !is.na(.data[[paste0("MS1039_large_estimate_half_life_by_", fs)]]),
+      .data[[paste0("MS96_small_estimate_half_life_by_",   fs)]] > 0,
+      .data[[paste0("MS1039_small_estimate_half_life_by_", fs)]] > 0,
+      .data[[paste0("MS96_large_estimate_half_life_by_",   fs)]] > 0,
+      .data[[paste0("MS1039_large_estimate_half_life_by_", fs)]] > 0)
+
+  tibble(
+    fitting_strategy = fs,
+    R_small_hl = cor(
+      log2(df[[paste0("MS96_small_estimate_half_life_by_",   fs)]]),
+      log2(df[[paste0("MS1039_small_estimate_half_life_by_", fs)]]),
+      method = "spearman", use = "complete.obs"),
+    R_large_hl = cor(
+      log2(df[[paste0("MS96_large_estimate_half_life_by_",   fs)]]),
+      log2(df[[paste0("MS1039_large_estimate_half_life_by_", fs)]]),
+      method = "spearman", use = "complete.obs"),
+    R_fc = cor(
+      log2(df[[paste0("MS96_small_estimate_half_life_by_",   fs)]]) -
+      log2(df[[paste0("MS96_large_estimate_half_life_by_",   fs)]]),
+      log2(df[[paste0("MS1039_small_estimate_half_life_by_", fs)]]) -
+      log2(df[[paste0("MS1039_large_estimate_half_life_by_", fs)]]),
+      method = "spearman", use = "complete.obs")
+  )
+})
+
+r_long <- r_summary %>%
+  pivot_longer(cols      = c(R_small_hl, R_large_hl, R_fc),
+               names_to  = "metric",
+               values_to = "R") %>%
+  mutate(
+    metric = recode(metric,
+                    R_small_hl = "Half-life, small cells",
+                    R_large_hl = "Half-life, large cells",
+                    R_fc       = "Fold change"),
+    metric           = factor(metric, levels = c("Half-life, small cells",
+                                                  "Half-life, large cells",
+                                                  "Fold change")),
+    fitting_strategy = factor(fitting_strategy,
+                              levels = c("a1", "b1", "b2", "b3", "c1")))
+
+p_matrix <- ggplot(r_long, aes(x = fitting_strategy, y = metric, fill = R)) +
+  geom_tile(colour = "white", linewidth = 1) +
+  geom_text(aes(label = round(R, 3)),
+            size = 10, colour = "white", fontface = "bold") +
+ scale_fill_gradient(low  = "#ffa8cb",
+                    high = "#4575b4",
+                    limits = c(0, 1),
+                    name   = "Spearman R") +
+  labs(x = "Fitting strategy",
+       y = NULL) +
+  theme_classic(base_size = 26) +
+  theme(
+    axis.title      = element_text(size = 22, colour = "black"),
+    axis.text       = element_text(size = 20, colour = "black"),
+    axis.line       = element_blank(),
+    axis.ticks      = element_blank(),
+    legend.position = "right",
+    legend.title    = element_text(size = 18),
+    legend.text     = element_text(size = 16),
+    plot.background = element_rect(fill = "white", colour = NA),
+    plot.margin     = margin(20, 20, 20, 20))
+
+p_matrix
+
+ggsave("../figures/correlation_matrix.png",
+       plot   = p_matrix,
+       width  = 14,
+       height = 8,
+       dpi    = 150)
+caption_matrix <- paste0(
+  "Spearman R between biological replicates (MS96 and MS1039) for mRNA half-life estimates ",
+  "across five fitting strategies (a1, b1, b2, b3, c1) in small and large WT yeast cells, ",
+  "and for the log2 half-life fold change (large/small). ",
+  "Half-life estimates were derived from EU pulse-chase mRNA-seq time course data using ",
+  "exponential decay fitting, fitting strategies differ in sample filtering and weighting. ",
+  "c1 applies the most stringent filtering (TPM input > 5, TPM EU min > 2, exclusion of ",
+  "two low-quality MS1039 samples) and shows the highest replicate reproducibility across ",
+  "all three metrics. c1 was therefore selected for all subsequent analyses. ",
+  "Colour scale ranges from low (pink) to high (blue) Spearman R.")
+
+p_matrix_caption <- ggplot() +
+  geom_textbox(
+    aes(x = 0, y = 1, label = caption_matrix),
+    hjust      = 0, vjust = 1,
+    width      = unit(13, "inch"),
+    size       = 5.5,
+    lineheight = 1.6,
+    fill       = "white",
+    colour     = "black",
+    box.colour = NA) +
+  scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
+  theme_void() +
+  theme(plot.background = element_rect(fill = "white", colour = NA))
+
+matrix_final <- cowplot::plot_grid(
+  p_matrix,
+  p_matrix_caption,
+  ncol        = 1,
+  rel_heights = c(6, 2))
+
+ggsave("../figures/correlation_matrix.png",
+       plot   = matrix_final,
+       width  = 14,
+       height = 10,
+       dpi    = 150)
+
+cat("Saved CW_correlation_matrix.png\n")
+cat("Saved CW_correlation_matrix.png\n")
+```
+

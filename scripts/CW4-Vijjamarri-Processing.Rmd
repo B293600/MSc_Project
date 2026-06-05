@@ -1,0 +1,267 @@
+---
+title: "Vijjamarri et al. 2023 GBA Dataset Processing"
+author: "CW"
+date: "2026-05-28"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+setwd("/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis/scripts")
+library(tidyverse)
+library(DESeq2)
+```
+
+```{r load}
+## GSE216831 -- Vijjamarri et al. 2023 (eLife)
+## Raw counts extracted to tables/GSE216831/
+## Data types:
+##   T_RNA -- total RNA-Seq: WT, dcp2D, xrn1D (duplicates) -- KEY for GBA
+##   RNA   -- mRNA RNA-Seq:  WT, dcp2D, dcp2-EE (duplicates)
+##   Ribo  -- ribosome profiling: WT, dcp2D, dcp2-EE (duplicates)
+##
+## Conditions:
+##   dcp2D   -- Dcp2 deletion (decapping enzyme)
+##   xrn1D   -- Xrn1 deletion (5'-3' exonuclease)
+##   dcp2-EE -- Dcp2 catalytic mutant
+##
+## All strains grown in YPD at 30C to OD600 ~0.6
+## NOTE: deletion mutants in replete media, not AID depletion in G1-arrested cells
+## Conditions differ from our EU pulse-chase data -- interpret correlations with caution
+
+read_counts <- function(data_dir, pattern) {
+  files <- list.files(data_dir, pattern = pattern, full.names = TRUE)
+  if (length(files) == 0) stop(paste("No files found for pattern:", pattern))
+  files %>%
+    map(function(f) {
+      df <- read_csv(f, show_col_types = FALSE)
+      colnames(df)[1] <- "gene_id"
+      df %>% mutate(gene_id = str_trim(gene_id))
+    }) %>%
+    purrr::reduce(full_join, by = "gene_id")
+}
+
+data_dir <- "../tables/GSE216831/"
+
+## T_RNA -- total RNA-Seq (key for GBA)
+t_rna_wt   <- read_counts(data_dir, "RawCounts_T_RNA_WT")
+t_rna_dcp2 <- read_counts(data_dir, "RawCounts_T_RNA_dcp2D")
+t_rna_xrn1 <- read_counts(data_dir, "RawCounts_T_RNA_xrn1D")
+
+## RNA-Seq (for TE calculation with Ribo)
+rna_wt     <- read_counts(data_dir, "RawCounts_RNA_WT")
+rna_dcp2   <- read_counts(data_dir, "RawCounts_RNA_dcp2D")
+
+## Ribo profiling (for TE calculation)
+ribo_wt    <- read_counts(data_dir, "RawCounts_Ribo_WT")
+ribo_dcp2  <- read_counts(data_dir, "RawCounts_Ribo_dcp2D")
+
+cat("T_RNA WT genes:",    nrow(t_rna_wt),   "\n")
+cat("T_RNA dcp2D genes:", nrow(t_rna_dcp2), "\n")
+cat("T_RNA xrn1D genes:", nrow(t_rna_xrn1), "\n")
+cat("RNA WT genes:",      nrow(rna_wt),     "\n")
+cat("Ribo WT genes:",     nrow(ribo_wt),    "\n")
+```
+
+```{r deseq2_t_rna}
+## Differential expression: dcp2D vs WT and xrn1D vs WT
+## Using T_RNA (total RNA-Seq) counts
+## log2FC > 0 in dcp2D vs WT = transcript stabilised when Dcp2 lost = Dcp2 target
+## log2FC > 0 in xrn1D vs WT = transcript stabilised when Xrn1 lost = Xrn1 target
+
+## Build count matrix
+gene_ids <- t_rna_wt$gene_id
+
+count_matrix <- cbind(
+  t_rna_wt   %>% select(-gene_id),
+  t_rna_dcp2 %>% select(-gene_id),
+  t_rna_xrn1 %>% select(-gene_id)
+) %>% as.matrix()
+
+rownames(count_matrix) <- gene_ids
+colnames(count_matrix) <- c("WT_1", "WT_2",
+                             "dcp2D_1", "dcp2D_2",
+                             "xrn1D_1", "xrn1D_2")
+
+## Remove genes with zero counts across all samples
+keep <- rowSums(count_matrix) > 0
+count_matrix <- count_matrix[keep, ]
+cat("Genes retained after zero filter:", nrow(count_matrix), "\n")
+
+## Sample metadata
+col_data <- data.frame(
+  condition = factor(c("WT", "WT", "dcp2D", "dcp2D", "xrn1D", "xrn1D")),
+  row.names = colnames(count_matrix))
+
+## DESeq2
+dds <- DESeqDataSetFromMatrix(
+  countData = count_matrix,
+  colData   = col_data,
+  design    = ~ condition)
+
+dds <- DESeq(dds)
+
+## dcp2D vs WT
+res_dcp2 <- results(dds,
+                    contrast = c("condition", "dcp2D", "WT"),
+                    alpha    = 0.05) %>%
+  as.data.frame() %>%
+  rownames_to_column("gene_id") %>%
+  as_tibble() %>%
+  dplyr::rename(log2FC_dcp2D_vs_WT = log2FoldChange,
+                padj_dcp2D         = padj,
+                pval_dcp2D         = pvalue) %>%
+  dplyr::select(gene_id, log2FC_dcp2D_vs_WT, padj_dcp2D, pval_dcp2D)
+
+## xrn1D vs WT
+res_xrn1 <- results(dds,
+                    contrast = c("condition", "xrn1D", "WT"),
+                    alpha    = 0.05) %>%
+  as.data.frame() %>%
+  rownames_to_column("gene_id") %>%
+  as_tibble() %>%
+  dplyr::rename(log2FC_xrn1D_vs_WT = log2FoldChange,
+                padj_xrn1D         = padj,
+                pval_xrn1D         = pvalue) %>%
+  dplyr::select(gene_id, log2FC_xrn1D_vs_WT, padj_xrn1D, pval_xrn1D)
+
+cat("dcp2D sig genes (padj < 0.05):",
+    sum(res_dcp2$padj_dcp2D < 0.05, na.rm = TRUE), "\n")
+cat("xrn1D sig genes (padj < 0.05):",
+    sum(res_xrn1$padj_xrn1D < 0.05, na.rm = TRUE), "\n")
+
+cat("\ndcp2D vs WT log2FC summary:\n")
+summary(res_dcp2$log2FC_dcp2D_vs_WT)
+cat("\nxrn1D vs WT log2FC summary:\n")
+summary(res_xrn1$log2FC_xrn1D_vs_WT)
+```
+
+```{r te}
+## Translation efficiency from RNA-Seq + Ribo profiling
+## Read files individually rather than using read_counts to avoid join issues
+
+read_single <- function(f) {
+  df <- read_csv(f, show_col_types = FALSE)
+  colnames(df)[1] <- "gene_id"
+  df %>% mutate(gene_id = str_trim(gene_id))
+}
+
+files_rna_wt    <- list.files(data_dir, pattern = "RawCounts_RNA_WT",    full.names = TRUE)
+files_rna_dcp2  <- list.files(data_dir, pattern = "RawCounts_RNA_dcp2D", full.names = TRUE)
+files_ribo_wt   <- list.files(data_dir, pattern = "RawCounts_Ribo_WT",   full.names = TRUE)
+files_ribo_dcp2 <- list.files(data_dir, pattern = "RawCounts_Ribo_dcp2D",full.names = TRUE)
+
+rna_wt_1   <- read_single(files_rna_wt[1])
+rna_wt_2   <- read_single(files_rna_wt[2])
+rna_dcp2_1 <- read_single(files_rna_dcp2[1])
+rna_dcp2_2 <- read_single(files_rna_dcp2[2])
+
+ribo_wt_1   <- read_single(files_ribo_wt[1])
+ribo_wt_2   <- read_single(files_ribo_wt[2])
+ribo_dcp2_1 <- read_single(files_ribo_dcp2[1])
+ribo_dcp2_2 <- read_single(files_ribo_dcp2[2])
+
+## Join by gene_id then convert to matrix
+gene_ids_common <- purrr::reduce(
+  list(rna_wt_1$gene_id, rna_wt_2$gene_id,
+       ribo_wt_1$gene_id, ribo_wt_2$gene_id),
+  intersect)
+
+get_counts <- function(df, genes) {
+  df %>% filter(gene_id %in% genes) %>%
+    arrange(gene_id) %>%
+    pull(2)
+}
+
+rna_mat <- cbind(
+  get_counts(rna_wt_1,   gene_ids_common),
+  get_counts(rna_wt_2,   gene_ids_common),
+  get_counts(rna_dcp2_1, gene_ids_common),
+  get_counts(rna_dcp2_2, gene_ids_common))
+rownames(rna_mat) <- sort(gene_ids_common)
+colnames(rna_mat) <- c("WT_1", "WT_2", "dcp2D_1", "dcp2D_2")
+
+ribo_mat <- cbind(
+  get_counts(ribo_wt_1,   gene_ids_common),
+  get_counts(ribo_wt_2,   gene_ids_common),
+  get_counts(ribo_dcp2_1, gene_ids_common),
+  get_counts(ribo_dcp2_2, gene_ids_common))
+rownames(ribo_mat) <- sort(gene_ids_common)
+colnames(ribo_mat) <- c("WT_1", "WT_2", "dcp2D_1", "dcp2D_2")
+
+## Remove zero rows
+keep <- rowSums(rna_mat) > 0 & rowSums(ribo_mat) > 0
+rna_mat  <- rna_mat[keep, ]
+ribo_mat <- ribo_mat[keep, ]
+
+## Library-size normalisation
+sf_rna  <- colSums(rna_mat)  / mean(colSums(rna_mat))
+sf_ribo <- colSums(ribo_mat) / mean(colSums(ribo_mat))
+
+rna_norm  <- sweep(rna_mat,  2, sf_rna,  "/")
+ribo_norm <- sweep(ribo_mat, 2, sf_ribo, "/")
+
+df_te <- tibble(
+  gene_id          = rownames(rna_norm),
+  rna_mean_wt      = rowMeans(rna_norm[,  c("WT_1", "WT_2")]),
+  ribo_mean_wt     = rowMeans(ribo_norm[, c("WT_1", "WT_2")])) %>%
+  mutate(TE_vijjamarri_WT = log2(ribo_mean_wt / rna_mean_wt)) %>%
+  filter(is.finite(TE_vijjamarri_WT)) %>%
+  dplyr::select(gene_id, TE_vijjamarri_WT)
+
+cat("Genes with TE estimate:", nrow(df_te), "\n")
+summary(df_te$TE_vijjamarri_WT)
+```
+
+```{r combine}
+## Combine into one GBA reference table
+## gene_id               -- systematic yeast gene name (YAL012W format)
+## log2FC_dcp2D_vs_WT    -- log2FC in T_RNA dcp2D vs WT (positive = Dcp2 target)
+## padj_dcp2D            -- adjusted p-value for dcp2D effect
+## log2FC_xrn1D_vs_WT    -- log2FC in T_RNA xrn1D vs WT (positive = Xrn1 target)
+## padj_xrn1D            -- adjusted p-value for xrn1D effect
+## TE_vijjamarri_WT      -- log2 TE in WT from Ribo/RNA-Seq
+
+df_gba <- res_dcp2 %>%
+  full_join(res_xrn1, by = "gene_id") %>%
+  left_join(df_te,   by = "gene_id")
+
+cat("GBA reference table genes:", nrow(df_gba), "\n")
+cat("Columns:", paste(colnames(df_gba), collapse = ", "), "\n")
+
+write_tsv(df_gba, "../tables/df_vijjamarri_gba.txt")
+cat("Saved df_vijjamarri_gba.txt\n")
+```
+
+```{r qc_plots}
+## QC -- distribution of log2FC values and TE
+p1 <- ggplot(res_dcp2, aes(x = log2FC_dcp2D_vs_WT)) +
+  geom_histogram(bins = 100, fill = "#784283", alpha = 0.7) +
+  geom_vline(xintercept = 0, colour = "black", linetype = "dashed") +
+  labs(x     = "log2 FC (dcp2D vs WT)",
+       y     = "Number of genes",
+       title = "mRNA abundance change after Dcp2 deletion") +
+  theme_classic(base_size = 14)
+
+p2 <- ggplot(res_xrn1, aes(x = log2FC_xrn1D_vs_WT)) +
+  geom_histogram(bins = 100, fill = "#ffa8cb", alpha = 0.7) +
+  geom_vline(xintercept = 0, colour = "black", linetype = "dashed") +
+  labs(x     = "log2 FC (xrn1D vs WT)",
+       y     = "Number of genes",
+       title = "mRNA abundance change after Xrn1 deletion") +
+  theme_classic(base_size = 14)
+
+p3 <- ggplot(df_te, aes(x = TE_vijjamarri_WT)) +
+  geom_histogram(bins = 100, fill = "#e5000c", alpha = 0.7) +
+  geom_vline(xintercept = 0, colour = "black", linetype = "dashed") +
+  labs(x     = "log2 TE (Ribo/RNA)",
+       y     = "Number of genes",
+       title = "Translation efficiency in WT (Vijjamarri et al.)") +
+  theme_classic(base_size = 14)
+
+p1 / p2 / p3
+
+ggsave("../figures/vijjamarri_gba_qc.png",
+       width = 8, height = 12, dpi = 150)
+cat("Saved vijjamarri_gba_qc.png\n")
+```

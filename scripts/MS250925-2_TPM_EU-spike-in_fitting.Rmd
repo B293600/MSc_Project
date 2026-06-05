@@ -1,0 +1,180 @@
+---
+title: "Fit exponential decay to EU pulse-chase data"
+author: "MS / CW"
+date: "250925"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+library(broom)
+library(tidyverse)
+library(nls.multstart)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+load('plotting_functions.rda')
+load('fitting_function.rda')
+```
+
+```{r load}
+df_EU_rescaled <- read_tsv("../tables/df_sc_combined_EU_rescaled.txt",
+                           show_col_types = FALSE)
+
+## Remove two problematic MS1039 DMSO samples
+df_EU_rescaled2 <- df_EU_rescaled %>%
+  filter(sample_id != "exp250624_MS1039_SCGEuri_1.5hr-arrest_1hr-DMSO_07min-EU-chase" &
+         sample_id != "exp250624_MS1039_SCGEuri_7.5hr-arrest_1hr-DMSO_07min-EU-chase")
+
+## Additional TPM filters for c1
+df_EU_rescaled_filtered <- df_EU_rescaled2 %>%
+  filter(TPM_EU_min > 2) %>%
+  filter(TPM_input > 5)
+```
+
+```{r rsq_function}
+## Extended decay_parameters function that also extracts R-squared
+## Uses broom::glance() on each nls fit object
+## R-squared here is pseudo R-squared: 1 - (SS_res / SS_tot)
+## Added by CW
+
+decay_parameters_with_rsq <- function(fit_df) {
+  fit_df %>%
+    mutate(
+      tidied   = map(fit, ~tryCatch(tidy(.), error = function(e) NULL)),
+      glanced  = map(fit, ~tryCatch(glance(.), error = function(e) NULL)),
+      augmented = map(fit, ~tryCatch(augment(.), error = function(e) NULL))
+    ) %>%
+    filter(!map_lgl(tidied, is.null)) %>%
+    mutate(
+      ## Extract R-squared from residuals since nls glance may not give it
+      r_squared = map_dbl(augmented, function(aug) {
+        if (is.null(aug)) return(NA_real_)
+        ss_res <- sum((aug$y - aug$.fitted)^2, na.rm = TRUE)
+        ss_tot <- sum((aug$y - mean(aug$y, na.rm = TRUE))^2, na.rm = TRUE)
+        if (ss_tot == 0) return(NA_real_)
+        1 - ss_res / ss_tot
+      }),
+      sigma = map_dbl(glanced, ~if (!is.null(.)) .$sigma else NA_real_)
+    ) %>%
+    unnest(tidied) %>%
+    select(gene_id, experiment_strain_condition,
+           term, estimate, std.error, r_squared, sigma) %>%
+    pivot_wider(names_from  = term,
+                values_from = c(estimate, std.error)) %>%
+    mutate(
+      estimate_k         = exp(estimate_log_k),
+      estimate_half_life = log(2) / estimate_k
+    )
+}
+```
+
+```{r c1}
+## c1 -- removes two bad MS1039 samples + TPM filters, 1/y weights
+## Most stringent filtering -- selected for all downstream analyses
+df_fit_input <- df_EU_rescaled_filtered %>%
+  filter(timepoint != "Tbackground",
+         T7_rescaled < 0.5) %>%
+  select(experiment_strain_condition, gene_id,
+         t = "time", y = "TPM_rescaled") %>%
+  mutate(weights = abs(1/y))
+
+df_fit_output <- df_fit_input %>% fit_decay() %>% decay_parameters()
+write_tsv(df_fit_output, "../output_tables/df_fit_output_c1.txt")
+cat("c1 done --", nrow(df_fit_output), "genes\n")
+```
+
+```{r c1_rsq}
+## c1 with R-squared -- same filtering as c1 but extracts R-squared from fit
+## R-squared calculated from residuals: 1 - SS_res/SS_tot
+## Used to test R-squared as an additional filter for downstream analysis
+## Added by CW
+
+df_fit_input_c1 <- df_EU_rescaled_filtered %>%
+  filter(timepoint != "Tbackground",
+         T7_rescaled < 0.5) %>%
+  select(experiment_strain_condition, gene_id,
+         t = "time", y = "TPM_rescaled") %>%
+  mutate(weights = abs(1/y))
+
+df_fit_output_c1_rsq <- df_fit_input_c1 %>%
+  fit_decay() %>%
+  decay_parameters_with_rsq()
+
+write_tsv(df_fit_output_c1_rsq,
+          "../output_tables/df_fit_output_c1_rsq.txt")
+
+cat("c1 with R-squared done --", nrow(df_fit_output_c1_rsq), "genes\n")
+
+## Distribution of R-squared values
+summary(df_fit_output_c1_rsq$r_squared)
+
+ggplot(df_fit_output_c1_rsq, aes(x = r_squared)) +
+  geom_histogram(bins = 50, fill = "#784283", alpha = 0.7) +
+  geom_vline(xintercept = 0.8, colour = "red", linetype = "dashed") +
+  geom_vline(xintercept = 0.9, colour = "pink", linetype = "dashed") +
+  labs(x     = "R-squared",
+       y     = "Number of genes",
+       title = "Distribution of R-squared values (c1 fitting)",
+       caption = "Dashed lines at R-squared = 0.8 (red) and 0.9 (orange)") +
+  theme_classic(base_size = 14)
+
+ggsave("../figures/c1_rsq_distribution.png",
+       width = 6, height = 5, dpi = 150)
+```
+```{r a1}
+## a1 -- full dataset, 1/y weights
+df_fit_input <- df_EU_rescaled %>%
+  filter(timepoint != "Tbackground",
+         T7_rescaled < 0.5) %>%
+  select(experiment_strain_condition, gene_id,
+         t = "time", y = "TPM_rescaled") %>%
+  mutate(weights = abs(1/y))
+
+df_fit_output <- df_fit_input %>% fit_decay() %>% decay_parameters()
+write_tsv(df_fit_output, "../output_tables/df_fit_output_a1.txt")
+cat("a1 done --", nrow(df_fit_output), "genes\n")
+```
+
+```{r b1}
+## b1 -- removes two bad MS1039 samples, 1/y weights
+df_fit_input <- df_EU_rescaled2 %>%
+  filter(timepoint != "Tbackground",
+         T7_rescaled < 0.5) %>%
+  select(experiment_strain_condition, gene_id,
+         t = "time", y = "TPM_rescaled") %>%
+  mutate(weights = abs(1/y))
+
+df_fit_output <- df_fit_input %>% fit_decay() %>% decay_parameters()
+write_tsv(df_fit_output, "../output_tables/df_fit_output_b1.txt")
+cat("b1 done --", nrow(df_fit_output), "genes\n")
+```
+
+```{r b2}
+## b2 -- removes two bad MS1039 samples, equal weights
+df_fit_input <- df_EU_rescaled2 %>%
+  filter(timepoint != "Tbackground",
+         T7_rescaled < 0.5) %>%
+  select(experiment_strain_condition, gene_id,
+         t = "time", y = "TPM_rescaled") %>%
+  mutate(weights = 1)
+
+df_fit_output <- df_fit_input %>% fit_decay() %>% decay_parameters()
+write_tsv(df_fit_output, "../output_tables/df_fit_output_b2.txt")
+cat("b2 done --", nrow(df_fit_output), "genes\n")
+```
+
+```{r b3}
+## b3 -- removes two bad MS1039 samples, 1/y^2 weights
+df_fit_input <- df_EU_rescaled2 %>%
+  filter(timepoint != "Tbackground",
+         T7_rescaled < 0.5) %>%
+  select(experiment_strain_condition, gene_id,
+         t = "time", y = "TPM_rescaled") %>%
+  mutate(weights = abs(1/(y^2)))
+
+df_fit_output <- df_fit_input %>% fit_decay() %>% decay_parameters()
+write_tsv(df_fit_output, "../output_tables/df_fit_output_b3.txt")
+cat("b3 done --", nrow(df_fit_output), "genes\n")
+```
+
+
+

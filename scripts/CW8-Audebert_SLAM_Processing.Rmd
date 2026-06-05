@@ -1,0 +1,255 @@
+---
+title: "Audebert et al. 2024 SLAM-seq Processing"
+author: "CW"
+date: "2026-06-05"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+setwd("/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis/scripts")
+library(tidyverse)
+library(nls.multstart)
+library(broom)
+
+load("gba_functions.rda")
+```
+
+```{r parse_metadata}
+meta_raw <- readLines("../tables/GSE247954.txt")
+gsm        <- grep("^\\^SAMPLE",           meta_raw, value = TRUE)
+titles     <- grep("!Sample_title",        meta_raw, value = TRUE)
+times      <- grep("time after_chase",     meta_raw, value = TRUE)
+reps       <- grep("biological replicate", meta_raw, value = TRUE)
+treatments <- grep("treatment:",           meta_raw, value = TRUE)
+files      <- grep("!Sample_supplementary", meta_raw, value = TRUE)
+
+df_meta <- tibble(
+  gsm       = str_extract(gsm,       "GSM\\d+"),
+  title     = str_extract(titles,    "(?<= = ).*"),
+  ## time is at the END of the title after _t
+  time_min  = as.numeric(str_extract(title, "(?<=_t)\\d+")),
+  replicate = str_extract(reps,      "\\d+"),
+  treatment = str_extract(treatments, "(?<=treatment: ).*"),
+  file_base = basename(str_extract(files, "(?<=suppl/).*\\.gz"))
+) %>%
+  dplyr::mutate(
+    condition = case_when(
+      str_detect(title, "POP2/CCR4") & str_detect(treatment, "Auxin")   ~ "pop2_ccr4_depleted",
+      str_detect(title, "POP2/CCR4") & str_detect(treatment, "Ethanol") ~ "pop2_ccr4_control",
+      str_detect(title, "DCP2")      & str_detect(treatment, "Auxin")   ~ "dcp2_depleted",
+      str_detect(title, "DCP2")      & str_detect(treatment, "Ethanol") ~ "dcp2_control",
+      TRUE ~ "unknown"))
+
+cat("Metadata rows:", nrow(df_meta), "\n")
+print(df_meta %>% dplyr::count(condition, replicate, sort = TRUE))
+print(df_meta %>% dplyr::select(title, time_min, condition) %>% head(10))
+
+## Peek at one file to check column structure
+f1 <- file.path("../tables/GSE247954_RAW/", df_meta$file_base[1])
+peek <- read_tsv(f1, show_col_types = FALSE, comment = "#",
+                 col_names = FALSE, n_max = 3)
+print(peek)
+cat("Columns in tcount file:", ncol(peek), "\n")
+```
+
+Paste the output and I can fix the column names and rewrite the full loading chunk.
+```{r load_tcount}
+## Load T>C conversion rates from tcount files
+## Column of interest: ConversionRate (fraction of T>C reads = labelled mRNA fraction)
+## This gives the proportion of old (pre-chase) mRNA remaining at each time point
+## Fitting exponential decay to this gives half-life estimates
+
+data_dir <- "../tables/GSE247954_RAW/"
+
+cat("Loading tcount files -- this may take a moment...\n")
+
+df_tc <- df_meta %>%
+  dplyr::mutate(data = map(file_base, function(f) {
+    path <- file.path(data_dir, f)
+    if (!file.exists(path)) {
+      warning(paste("File not found:", f))
+      return(NULL)
+    }
+    ## Read tcount file -- skip header lines starting with #
+    raw <- read_tsv(path, show_col_types = FALSE, comment = "#",
+                    col_names = TRUE)
+    ## Rename columns -- format: Chromosome Start End Name Length Strand ConversionRate ...
+    colnames(raw)[1:7] <- c("chr", "start", "end", "gene_id", "length",
+                             "strand", "conversion_rate")
+    raw %>%
+      dplyr::select(gene_id, conversion_rate) %>%
+      dplyr::filter(grepl("^Y", gene_id),
+                    !is.na(conversion_rate),
+                    is.finite(conversion_rate))
+  })) %>%
+  dplyr::filter(!map_lgl(data, is.null)) %>%
+  tidyr::unnest(data)
+
+cat("Total rows loaded:", nrow(df_tc), "\n")
+cat("Genes:", length(unique(df_tc$gene_id)), "\n")
+cat("Conditions:", paste(unique(df_tc$condition), collapse = ", "), "\n")
+```
+
+```{r fit_halflives}
+## Fit exponential decay to T>C conversion rates across time points
+## Model: conversion_rate ~ A * exp(-k * time)
+## where A = initial labelling fraction, k = decay rate constant
+## half-life = log(2) / k
+##
+## Fit separately for each gene x condition x replicate
+## Then average across replicates and compare depleted vs control
+
+fit_slam_decay <- function(df) {
+  ## Requires columns: time_min, conversion_rate
+  df <- df %>% dplyr::filter(conversion_rate > 0, time_min > 0)
+  if (nrow(df) < 4) return(NULL)
+  tryCatch({
+    fit <- nls_multstart(
+      conversion_rate ~ A * exp(-k * time_min),
+      data         = df,
+      iter         = 50,
+      start_lower  = c(A = 0.001, k = 0.001),
+      start_upper  = c(A = 1.0,   k = 1.0),
+      lower        = c(A = 0,     k = 0),
+      supp_errors  = "Y",
+      na.action    = na.omit)
+    tidy(fit) %>%
+      dplyr::select(term, estimate) %>%
+      pivot_wider(names_from = term, values_from = estimate) %>%
+      dplyr::mutate(half_life = log(2) / k)
+  }, error = function(e) NULL)
+}
+
+cat("Fitting decay models -- this will take a few minutes...\n")
+
+df_fits <- df_tc %>%
+  dplyr::group_by(condition, replicate, gene_id) %>%
+  tidyr::nest() %>%
+  dplyr::mutate(fit = map(data, fit_slam_decay)) %>%
+  dplyr::filter(!map_lgl(fit, is.null)) %>%
+  tidyr::unnest(fit) %>%
+  dplyr::select(condition, replicate, gene_id, A, k, half_life) %>%
+  dplyr::filter(half_life > 0, is.finite(half_life))
+
+cat("Genes with fit:", length(unique(df_fits$gene_id)), "\n")
+summary(df_fits$half_life)
+
+## Distribution of fitted half-lives
+ggplot(df_fits, aes(x = half_life, colour = condition)) +
+  geom_density(linewidth = 0.8) +
+  coord_cartesian(xlim = c(0, 60)) +
+  scale_colour_manual(values = c(
+    pop2_ccr4_depleted = col_small,
+    pop2_ccr4_control  = "#aaa0b0",
+    dcp2_depleted      = col_A,
+    dcp2_control       = "#f0a0a0")) +
+  labs(x     = "Fitted half-life (min)",
+       y     = "Density",
+       title = "Distribution of SLAM-seq half-lives -- Audebert et al. 2024",
+       colour = "Condition") +
+  theme_classic(base_size = 14)
+
+ggsave("../figures/audebert_halflife_distribution.png",
+       width = 8, height = 5, dpi = 150)
+cat("Saved audebert_halflife_distribution.png\n")
+```
+
+```{r fold_changes}
+## Calculate half-life fold change: depleted / control
+## Average across replicates first, then calculate FC
+
+df_avg <- df_fits %>%
+  dplyr::group_by(condition, gene_id) %>%
+  dplyr::summarise(mean_hl = mean(half_life, na.rm = TRUE),
+                   .groups = "drop")
+
+## Pop2/CCR4 fold change
+df_pop2_ccr4_fc <- df_avg %>%
+  dplyr::filter(condition %in% c("pop2_ccr4_depleted", "pop2_ccr4_control")) %>%
+  pivot_wider(names_from = condition, values_from = mean_hl) %>%
+  dplyr::filter(!is.na(pop2_ccr4_depleted), !is.na(pop2_ccr4_control),
+                pop2_ccr4_depleted > 0, pop2_ccr4_control > 0) %>%
+  dplyr::mutate(log2FC_pop2ccr4_hl = log2(pop2_ccr4_depleted / pop2_ccr4_control)) %>%
+  dplyr::filter(is.finite(log2FC_pop2ccr4_hl)) %>%
+  dplyr::select(gene_id, log2FC_pop2ccr4_hl)
+
+## Dcp2 fold change
+df_dcp2_fc <- df_avg %>%
+  dplyr::filter(condition %in% c("dcp2_depleted", "dcp2_control")) %>%
+  pivot_wider(names_from = condition, values_from = mean_hl) %>%
+  dplyr::filter(!is.na(dcp2_depleted), !is.na(dcp2_control),
+                dcp2_depleted > 0, dcp2_control > 0) %>%
+  dplyr::mutate(log2FC_dcp2_hl = log2(dcp2_depleted / dcp2_control)) %>%
+  dplyr::filter(is.finite(log2FC_dcp2_hl)) %>%
+  dplyr::select(gene_id, log2FC_dcp2_hl)
+
+cat("Pop2/CCR4 FC genes:", nrow(df_pop2_ccr4_fc), "\n")
+cat("Dcp2 FC genes:", nrow(df_dcp2_fc), "\n")
+
+summary(df_pop2_ccr4_fc$log2FC_pop2ccr4_hl)
+summary(df_dcp2_fc$log2FC_dcp2_hl)
+
+## Distribution of fold changes
+p_fc_dist <- bind_rows(
+  df_pop2_ccr4_fc %>% dplyr::mutate(pathway = "Pop2/CCR4",
+                                     log2FC  = log2FC_pop2ccr4_hl),
+  df_dcp2_fc %>%      dplyr::mutate(pathway = "Dcp2",
+                                     log2FC  = log2FC_dcp2_hl)) %>%
+  ggplot(aes(x = log2FC, fill = pathway)) +
+  geom_histogram(bins = 100, alpha = 0.7, position = "identity") +
+  geom_vline(xintercept = 0, colour = "black", linetype = "dashed") +
+  scale_fill_manual(values = c("Pop2/CCR4" = col_small, "Dcp2" = col_A)) +
+  facet_wrap(~ pathway) +
+  labs(x     = "log2 FC (depleted / control half-life)",
+       y     = "Number of genes",
+       title = "Half-life fold change after depletion -- Audebert et al. 2024") +
+  theme_classic(base_size = 14) +
+  theme(legend.position = "none")
+
+p_fc_dist
+ggsave("../figures/audebert_fc_distribution.png",
+       width = 10, height = 5, dpi = 150)
+cat("Saved audebert_fc_distribution.png\n")
+```
+
+```{r combine}
+## Combine into GBA reference table
+df_audebert_gba <- df_pop2_ccr4_fc %>%
+  dplyr::full_join(df_dcp2_fc, by = "gene_id")
+
+cat("Audebert GBA table genes:", nrow(df_audebert_gba), "\n")
+cat("Genes with both FC values:",
+    sum(!is.na(df_audebert_gba$log2FC_pop2ccr4_hl) &
+        !is.na(df_audebert_gba$log2FC_dcp2_hl)), "\n")
+
+write_tsv(df_audebert_gba, "../tables/df_audebert_gba.txt")
+cat("Saved df_audebert_gba.txt\n")
+```
+
+```{r qc}
+## QC -- Pop2/CCR4 vs Dcp2 fold changes
+## Expect positive but modest correlation -- related pathways
+
+r_val <- cor(df_audebert_gba$log2FC_pop2ccr4_hl,
+             df_audebert_gba$log2FC_dcp2_hl,
+             use = "complete.obs", method = "spearman")
+
+cat("Pop2/CCR4 vs Dcp2 HL fold change Spearman R:", round(r_val, 3), "\n")
+
+p_qc <- scatter_binned_gba(
+  df_audebert_gba,
+  x_col     = "log2FC_pop2ccr4_hl",
+  y_col     = "log2FC_dcp2_hl",
+  x_lab     = "log2 FC half-life after Pop2/CCR4 depletion",
+  y_lab     = "log2 FC half-life after Dcp2 depletion",
+  point_col = "#784283") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_qc
+ggsave("../figures/audebert_pop2ccr4_vs_dcp2_qc.png",
+       plot  = p_qc,
+       width = 7, height = 7, dpi = 150)
+cat("Saved audebert_pop2ccr4_vs_dcp2_qc.png\n")
+```
