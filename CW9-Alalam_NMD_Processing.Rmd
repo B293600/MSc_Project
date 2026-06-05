@@ -8,9 +8,9 @@ output: html_document
 # S5: per-gene half-life estimates for WT and upf3Δ (3 replicates each)
 # S7: list of transcripts with significantly altered half-life (NMD targets)
 # Output: tables/df_alalam_gba.txt
-#         figures/Alalam_NMD_violin.png
 #         figures/Alalam_scatter_vs_hl_fc.png
 #         figures/Alalam_NMD_sensitive_violin.png
+#         figures/Alalam_upf3_violin.png
 
 ```{r setup}
 library(tidyverse)
@@ -19,7 +19,6 @@ col_small <- "#784283"
 col_large <- "#ffa8cb"
 col_A <- "#e5000c"
 
-# Load GBA functions
 load("scripts/gba_functions.rda")
 ```
 
@@ -31,6 +30,7 @@ df_hl <- read.csv("tables/S5_full_dataset_hl_both_strains_unfiltered.csv")
 df_nmd <- read.csv("tables/S7_full_list_of_transcripts_with_altered_half_life.csv")
 
 # WT half-life fold change (size-dependent stability, our data)
+# Columns: gene_id, WT_small_hl, WT_large_hl, WT_hl_fc
 df_fc <- read.table("output_tables/df_WT_consensus_hl_fc.txt", header = TRUE, sep = "\t")
 ```
 
@@ -56,18 +56,19 @@ summary(df_alalam$log2FC_upf3_hl)
 
 ```{r merge}
 # Merge with our WT half-life fold change
+# df_alalam uses "name", df_fc uses "gene_id"
 df_merged <- df_alalam %>%
-  inner_join(df_fc, by = "name")
+  inner_join(df_fc, by = c("name" = "gene_id"))
 
 cat("Genes after merging with WT hl FC:", nrow(df_merged), "\n")
 ```
 
 ```{r figure1-scatter}
-# Scatter: log2FC_upf3_hl vs WT half-life FC (size-dependent stability)
-r_val <- cor(df_merged$log2FC_upf3_hl, df_merged$log2_hl_fc,
+# Scatter: log2FC_upf3_hl vs WT_hl_fc (size-dependent stability)
+r_val <- cor(df_merged$log2FC_upf3_hl, df_merged$WT_hl_fc,
              method = "spearman", use = "complete.obs")
 
-p1 <- ggplot(df_merged, aes(x = log2FC_upf3_hl, y = log2_hl_fc)) +
+p1 <- ggplot(df_merged, aes(x = log2FC_upf3_hl, y = WT_hl_fc)) +
   geom_point(colour = col_large, alpha = 0.3, size = 0.8) +
   geom_smooth(colour = "black", se = FALSE, span = 0.4) +
   annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 1.5,
@@ -88,8 +89,8 @@ ggsave("figures/Alalam_scatter_vs_hl_fc.png", p1, width = 5, height = 5, dpi = 3
 ```
 
 ```{r figure2-nmd-violin}
-# Violin: NMD-sensitive vs non-sensitive genes, WT half-life FC
-p2 <- ggplot(df_merged, aes(x = nmd_sensitive, y = log2_hl_fc,
+# Violin: NMD-sensitive vs non-sensitive genes split by WT_hl_fc
+p2 <- ggplot(df_merged, aes(x = nmd_sensitive, y = WT_hl_fc,
                               fill = nmd_sensitive)) +
   geom_violin(alpha = 0.7) +
   geom_boxplot(width = 0.08, fill = "white", outlier.shape = NA) +

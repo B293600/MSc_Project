@@ -22,27 +22,32 @@ df_consensus <- read_tsv("../output_tables/df_WT_consensus_hl_fc.txt",
                          show_col_types = FALSE)
 
 ## Vijjamarri et al. 2023 -- Dcp2 and Xrn1 deletion steady-state RNA-seq
-## CAVEAT: deletion mutants in YPD replete media
+## CAVEAT: deletion mutants, transcriptional buffering likely
 df_vijjamarri <- read_tsv("../tables/df_vijjamarri_gba.txt",
                            show_col_types = FALSE)
 
 ## Chappleboim et al. 2022 -- AID depletion time course at 60 min
 ## Strains: XRN1-AID, Not1-AID, CCR4-AID, Pop2-AID, dcp2-AID
-## CAVEAT: exponentially growing cells, not G1-arrested
 df_chappleboim <- read_tsv("../tables/df_chappleboim_gba.txt",
                             show_col_types = FALSE)
 
 ## Audebert et al. 2024 -- SLAM-seq half-life fold changes
-## log2FC_pop2ccr4_hl -- HL FC after Pop2/CCR4 depletion (direct decay measurement)
-## log2FC_dcp2_hl     -- HL FC after Dcp2 depletion (direct decay measurement)
-## NOTE: these are direct half-life measurements unlike steady-state accumulation
+## Direct half-life measurements after Pop2/CCR4 and Dcp2 depletion
 df_audebert <- read_tsv("../tables/df_audebert_gba.txt",
                          show_col_types = FALSE)
+
+## Alalam et al. 2022 -- SLAM-seq half-life fold changes
+## Direct half-life measurements in upf3Δ vs WT
+## log2FC_upf3_hl -- HL FC in NMD-deficient background
+## nmd_sensitive  -- NMD target flag (S7 list)
+df_alalam <- read_tsv("../tables/df_alalam_gba.txt",
+                      show_col_types = FALSE)
 
 cat("Consensus:", nrow(df_consensus), "genes\n")
 cat("Vijjamarri:", nrow(df_vijjamarri), "genes\n")
 cat("Chappleboim:", nrow(df_chappleboim), "genes\n")
 cat("Audebert:", nrow(df_audebert), "genes\n")
+cat("Alalam:", nrow(df_alalam), "genes\n")
 ```
 
 ```{r process_eif4g}
@@ -121,6 +126,7 @@ cat("Genes with eIF4G FC data:", nrow(df_eif4g), "\n")
 ##   log2FC_dcp2_chapp_60  -- dcp2-AID 60 min, Chappleboim
 ##   log2FC_pop2ccr4_hl    -- Pop2/CCR4 depl HL FC, Audebert (direct decay)
 ##   log2FC_dcp2_hl        -- Dcp2 depl HL FC, Audebert (direct decay)
+##   log2FC_upf3_hl        -- upf3Δ HL FC, Alalam (direct decay, NMD)
 ##   eIF4G_dep_fc_small    -- eIF4G-AID FC in small cells
 ##   eIF4G_dep_fc_large    -- eIF4G-AID FC in large cells
 ##   eIF4G_dep_fc_mean     -- eIF4G-AID FC mean
@@ -150,6 +156,11 @@ df_long <- bind_rows(
     dplyr::select(gene_id,
                   log2FC_pop2ccr4_hl,
                   log2FC_dcp2_hl) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
+
+  df_alalam %>%
+    dplyr::select(gene_id = name,
+                  log2FC_upf3_hl) %>%
     pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
 
   df_eif4g %>%
@@ -186,6 +197,7 @@ variables <- c("WT_hl_fc",
                "log2FC_dcp2_chapp_60",
                "log2FC_pop2ccr4_hl",
                "log2FC_dcp2_hl",
+               "log2FC_upf3_hl",
                "eIF4G_dep_fc_small",
                "eIF4G_dep_fc_large",
                "eIF4G_dep_fc_mean")
@@ -225,6 +237,7 @@ label_map <- c(
   log2FC_dcp2_chapp_60 = "dcp2-AID\n60 min (Chappleboim)",
   log2FC_pop2ccr4_hl   = "Pop2/CCR4 depl\nHL FC (Audebert)",
   log2FC_dcp2_hl       = "Dcp2 depl\nHL FC (Audebert)",
+  log2FC_upf3_hl       = "upf3\u0394 HL FC\n(Alalam)",
   eIF4G_dep_fc_small   = "eIF4G-AID FC\nsmall cells",
   eIF4G_dep_fc_large   = "eIF4G-AID FC\nlarge cells",
   eIF4G_dep_fc_mean    = "eIF4G-AID FC\nmean")
@@ -273,8 +286,8 @@ p_matrix_full <- ggplot(cor_results,
 p_matrix_full
 ggsave("../figures/GBA_correlation_matrix_full.png",
        plot   = p_matrix_full,
-       width  = 20,
-       height = 18,
+       width  = 22,
+       height = 20,
        dpi    = 150)
 cat("Saved GBA_correlation_matrix_full.png\n")
 ```
@@ -317,7 +330,7 @@ p_fc_bar
 ggsave("../figures/GBA_correlation_with_hl_fc.png",
        plot   = p_fc_bar,
        width  = 12,
-       height = 9,
+       height = 10,
        dpi    = 150)
 cat("Saved GBA_correlation_with_hl_fc.png\n")
 ```
