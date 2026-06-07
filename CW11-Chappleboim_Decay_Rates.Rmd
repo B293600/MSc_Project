@@ -1,0 +1,217 @@
+---
+title: "CW11-Chappleboim_Decay_Rates"
+output: html_document
+---
+
+# Chappleboim et al. 2022 (GSE196937) -- decay rate fitting from 4tU time course
+# Strains: Not1-AID (aa91), XRN1-AID (nf227), CCR4-AID (aa118),
+#           Pop2-AID (aa81, aa82), Pap2-AID (aa100), dcp2-AID (aa40)
+# WT control: nf164
+# Method: T>C conversion rate per gene per timepoint, exponential decay fit
+# Output: tables/df_chappleboim_hl_gba.txt
+#         figures/Chappleboim_decay_scatter.png
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis")
+library(tidyverse)
+library(nls.multstart)
+library(patchwork)
+
+col_small <- "#784283"
+col_large <- "#ffa8cb"
+col_A    <- "#e5000c"
+
+load("scripts/gba_functions.rda")
+```
+
+```{r load-metadata}
+df_samples <- read_csv("tables/GSE196937_samples.csv", show_col_types = FALSE)
+df_fc      <- read_tsv("output_tables/df_WT_consensus_hl_fc.txt",
+                       show_col_types = FALSE)
+
+# Target strains
+target_strains <- c("aa91", "nf227", "aa118", "aa81", "aa82", "aa100", "aa40", "nf164")
+
+# Strain to factor name mapping
+strain_labels <- c(
+  aa91  = "Not1_AID",
+  nf227 = "Xrn1_AID",
+  aa118 = "CCR4_AID",
+  aa81  = "Pop2_AID_a",
+  aa82  = "Pop2_AID_b",
+  aa100 = "Pap2_AID",
+  aa40  = "dcp2_AID",
+  nf164 = "WT"
+)
+
+# Get sample IDs for target strains with their metadata
+df_sample_meta <- df_samples %>%
+  filter(strain %in% target_strains) %>%
+  dplyr::select(sample, strain, iaa_time) %>%
+  mutate(condition = strain_labels[strain])
+
+cat("Target samples:", nrow(df_sample_meta), "\n")
+cat("Conditions:", paste(unique(df_sample_meta$condition), collapse = ", "), "\n")
+```
+
+```{r load-tc-data}
+# Load and filter tc_data to target samples only
+# Aggregate T>C and T counts per gene per sample (sum across reads)
+cat("Loading tc_data -- this will take ~40 seconds...\n")
+
+df_tc <- read_csv("tables/GSE196937_tc_data.csv",
+                  show_col_types = FALSE) %>%
+  filter(sample %in% df_sample_meta$sample) %>%
+  select(gene_id = 7, sample = 6, tc = 3, t = 4) %>%
+  group_by(gene_id, sample) %>%
+  summarise(tc = sum(tc, na.rm = TRUE),
+            t  = sum(t,  na.rm = TRUE),
+            .groups = "drop")
+
+cat("Aggregated rows:", nrow(df_tc), "\n")
+```
+
+```{r compute-conversion-rates}
+# Join with sample metadata to get strain and time point
+# Calculate T>C conversion rate = tc / t
+# Require minimum 20 T counts for reliable rate estimation
+
+df_rates <- df_tc %>%
+  inner_join(df_sample_meta, by = "sample") %>%
+  filter(t >= 20) %>%
+  mutate(tc_rate = tc / t)
+
+cat("Gene-sample observations after T filter:", nrow(df_rates), "\n")
+```
+
+```{r normalise}
+# Normalise conversion rate to t=0 for each gene per condition
+# tc_rate_norm = tc_rate(t) / tc_rate(t=0)
+# This gives the fraction of labelled RNA remaining at each timepoint
+
+df_t0 <- df_rates %>%
+  filter(iaa_time == 0) %>%
+  group_by(gene_id, condition) %>%
+  summarise(tc_rate_t0 = mean(tc_rate, na.rm = TRUE), .groups = "drop")
+
+df_rates_norm <- df_rates %>%
+  filter(iaa_time > 0) %>%
+  inner_join(df_t0, by = c("gene_id", "condition")) %>%
+  mutate(tc_rate_norm = tc_rate / tc_rate_t0) %>%
+  filter(is.finite(tc_rate_norm), tc_rate_norm > 0)
+
+cat("Gene-timepoint observations after normalisation:", nrow(df_rates_norm), "\n")
+```
+
+```{r fit-decay}
+# Fit exponential decay per gene per condition
+# model: tc_rate_norm = exp(-k * iaa_time)
+# half-life = log(2) / k
+
+fit_decay <- function(df) {
+  tryCatch({
+    fit <- nls_multstart(
+      tc_rate_norm ~ exp(-k * iaa_time),
+      data          = df,
+      iter          = 100,
+      start_lower   = c(k = 0.001),
+      start_upper   = c(k = 2),
+      supp_errors   = "Y"
+    )
+    tibble(k = coef(fit)[["k"]],
+           half_life = log(2) / coef(fit)[["k"]])
+  }, error = function(e) {
+    tibble(k = NA_real_, half_life = NA_real_)
+  })
+}
+
+cat("Fitting decay curves -- this may take several minutes...\n")
+
+df_fits <- df_rates_norm %>%
+  group_by(gene_id, condition) %>%
+  filter(n() >= 4) %>%
+  group_modify(~fit_decay(.x)) %>%
+  ungroup()
+
+cat("Genes with fits:", nrow(df_fits), "\n")
+cat("Conditions:\n")
+df_fits %>% dplyr::count(condition) %>% print()
+```
+
+```{r compute-fc}
+# Calculate fold change vs WT for each condition
+# log2FC = log2(hl_condition / hl_WT)
+
+df_wt_hl <- df_fits %>%
+  filter(condition == "WT") %>%
+  dplyr::select(gene_id, hl_wt = half_life)
+
+# Average Pop2_AID replicates
+df_fc_chapp <- df_fits %>%
+  filter(condition != "WT") %>%
+  mutate(condition = case_when(
+    condition %in% c("Pop2_AID_a", "Pop2_AID_b", "Pap2_AID") ~ "Pop2_AID",
+    TRUE ~ condition
+  )) %>%
+  group_by(gene_id, condition) %>%
+  summarise(half_life = mean(half_life, na.rm = TRUE), .groups = "drop") %>%
+  inner_join(df_wt_hl, by = "gene_id") %>%
+  filter(!is.na(half_life), !is.na(hl_wt),
+         is.finite(half_life), is.finite(hl_wt),
+         hl_wt > 0, half_life > 0) %>%
+  mutate(log2FC_hl = log2(half_life / hl_wt)) %>%
+  dplyr::select(gene_id, condition, log2FC_hl) %>%
+  pivot_wider(names_from = condition,
+              values_from = log2FC_hl,
+              names_prefix = "log2FC_hl_")
+
+cat("Genes in FC table:", nrow(df_fc_chapp), "\n")
+colnames(df_fc_chapp)
+```
+
+```{r plot-qc}
+# QC scatter: each condition HL FC vs WT_hl_fc
+df_plot <- df_fc_chapp %>%
+  inner_join(df_fc, by = "gene_id")
+
+cat("Genes after merging with WT hl FC:", nrow(df_plot), "\n")
+
+fc_cols <- colnames(df_fc_chapp)[-1]
+
+plots <- map(fc_cols, function(col) {
+  r_val <- cor(df_plot[[col]], df_plot$WT_hl_fc,
+               method = "spearman", use = "complete.obs")
+  n_val <- sum(!is.na(df_plot[[col]]) & !is.na(df_plot$WT_hl_fc))
+  
+  cat(col, "vs WT_hl_fc R:", round(r_val, 3), "n:", n_val, "\n")
+  
+  ggplot(df_plot, aes(x = .data[[col]], y = WT_hl_fc)) +
+    geom_point(colour = col_large, alpha = 0.3, size = 0.8) +
+    geom_smooth(colour = "black", se = FALSE, span = 0.4) +
+    annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 1.5,
+             label = paste0("R = ", round(r_val, 3)),
+             size = 5, fontface = "bold") +
+    annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 3.2,
+             label = paste0("n = ", format(n_val, big.mark = ",")),
+             size = 4, colour = "grey40") +
+    labs(x = paste0("log2 HL FC after ", gsub("log2FC_hl_", "", col),
+                    " (Chappleboim, fitted)"),
+         y = "log2 half-life FC (large / small cells)") +
+    theme_classic() +
+    theme(axis.title = element_text(size = 11, colour = "black"),
+          axis.text  = element_text(size = 10, colour = "black"))
+})
+
+p_panel <- wrap_plots(plots, ncol = 3)
+p_panel
+ggsave("figures/Chappleboim_decay_scatter.png", p_panel,
+       width = 18, height = 12, dpi = 150)
+cat("Saved figures/Chappleboim_decay_scatter.png\n")
+```
+
+```{r save}
+write.table(df_fc_chapp, "tables/df_chappleboim_hl_gba.txt",
+            sep = "\t", row.names = FALSE, quote = FALSE)
+cat("Saved tables/df_chappleboim_hl_gba.txt\n")
+```
