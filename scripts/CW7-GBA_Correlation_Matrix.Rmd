@@ -38,9 +38,13 @@ df_audebert <- read_tsv("../tables/df_audebert_gba.txt",
 
 ## Alalam et al. 2022 -- SLAM-seq half-life fold changes
 ## Direct half-life measurements in upf3Δ vs WT
-## log2FC_upf3_hl -- HL FC in NMD-deficient background
-## nmd_sensitive  -- NMD target flag (S7 list)
 df_alalam <- read_tsv("../tables/df_alalam_gba.txt",
+                      show_col_types = FALSE)
+
+## He et al. 2018 (GSE107841) -- Decapping activator deletions
+## pat1Δ, lsm1Δ, dhh1Δ vs WT steady-state RNA-seq
+## CAVEAT: deletion mutants, transcriptional buffering likely
+df_he2018 <- read_tsv("../tables/df_he2018_gba.txt",
                       show_col_types = FALSE)
 
 cat("Consensus:", nrow(df_consensus), "genes\n")
@@ -48,6 +52,7 @@ cat("Vijjamarri:", nrow(df_vijjamarri), "genes\n")
 cat("Chappleboim:", nrow(df_chappleboim), "genes\n")
 cat("Audebert:", nrow(df_audebert), "genes\n")
 cat("Alalam:", nrow(df_alalam), "genes\n")
+cat("He2018:", nrow(df_he2018), "genes\n")
 ```
 
 ```{r process_eif4g}
@@ -127,6 +132,9 @@ cat("Genes with eIF4G FC data:", nrow(df_eif4g), "\n")
 ##   log2FC_pop2ccr4_hl    -- Pop2/CCR4 depl HL FC, Audebert (direct decay)
 ##   log2FC_dcp2_hl        -- Dcp2 depl HL FC, Audebert (direct decay)
 ##   log2FC_upf3_hl        -- upf3Δ HL FC, Alalam (direct decay, NMD)
+##   log2FC_pat1D          -- pat1Δ, He et al. 2018 (steady-state)
+##   log2FC_lsm1D          -- lsm1Δ, He et al. 2018 (steady-state)
+##   log2FC_dhh1D          -- dhh1Δ, He et al. 2018 (steady-state)
 ##   eIF4G_dep_fc_small    -- eIF4G-AID FC in small cells
 ##   eIF4G_dep_fc_large    -- eIF4G-AID FC in large cells
 ##   eIF4G_dep_fc_mean     -- eIF4G-AID FC mean
@@ -161,6 +169,13 @@ df_long <- bind_rows(
   df_alalam %>%
     dplyr::select(gene_id = name,
                   log2FC_upf3_hl) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
+
+  df_he2018 %>%
+    dplyr::select(gene_id,
+                  log2FC_pat1D,
+                  log2FC_lsm1D,
+                  log2FC_dhh1D) %>%
     pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
 
   df_eif4g %>%
@@ -198,6 +213,9 @@ variables <- c("WT_hl_fc",
                "log2FC_pop2ccr4_hl",
                "log2FC_dcp2_hl",
                "log2FC_upf3_hl",
+               "log2FC_pat1D",
+               "log2FC_lsm1D",
+               "log2FC_dhh1D",
                "eIF4G_dep_fc_small",
                "eIF4G_dep_fc_large",
                "eIF4G_dep_fc_mean")
@@ -238,6 +256,9 @@ label_map <- c(
   log2FC_pop2ccr4_hl   = "Pop2/CCR4 depl\nHL FC (Audebert)",
   log2FC_dcp2_hl       = "Dcp2 depl\nHL FC (Audebert)",
   log2FC_upf3_hl       = "upf3\u0394 HL FC\n(Alalam)",
+  log2FC_pat1D         = "pat1\u0394 vs WT\n(He et al. 2018)",
+  log2FC_lsm1D         = "lsm1\u0394 vs WT\n(He et al. 2018)",
+  log2FC_dhh1D         = "dhh1\u0394 vs WT\n(He et al. 2018)",
   eIF4G_dep_fc_small   = "eIF4G-AID FC\nsmall cells",
   eIF4G_dep_fc_large   = "eIF4G-AID FC\nlarge cells",
   eIF4G_dep_fc_mean    = "eIF4G-AID FC\nmean")
@@ -255,7 +276,7 @@ cor_results %>%
   dplyr::filter(var1 == "WT_hl_fc", var2 != "WT_hl_fc") %>%
   dplyr::arrange(desc(R)) %>%
   dplyr::select(var2, R, n) %>%
-  print(n = 20)
+  print(n = 25)
 ```
 
 ```{r plot_full_matrix}
@@ -263,7 +284,7 @@ p_matrix_full <- ggplot(cor_results,
                         aes(x = label1, y = label2, fill = R)) +
   geom_tile(colour = "white", linewidth = 0.8) +
   geom_text(aes(label = round(R, 2)),
-            size = 3, colour = "white", fontface = "bold") +
+            size = 2.5, colour = "white", fontface = "bold") +
   scale_fill_gradient2(low      = "#ffa8cb",
                        mid      = "white",
                        high     = "#4575b4",
@@ -275,8 +296,8 @@ p_matrix_full <- ggplot(cor_results,
   theme_classic(base_size = 13) +
   theme(
     axis.text.x     = element_text(angle = 45, hjust = 1,
-                                   size = 8, colour = "black"),
-    axis.text.y     = element_text(size = 8, colour = "black"),
+                                   size = 7, colour = "black"),
+    axis.text.y     = element_text(size = 7, colour = "black"),
     axis.line       = element_blank(),
     axis.ticks      = element_blank(),
     legend.position = "right",
@@ -286,8 +307,8 @@ p_matrix_full <- ggplot(cor_results,
 p_matrix_full
 ggsave("../figures/GBA_correlation_matrix_full.png",
        plot   = p_matrix_full,
-       width  = 22,
-       height = 20,
+       width  = 26,
+       height = 24,
        dpi    = 150)
 cat("Saved GBA_correlation_matrix_full.png\n")
 ```
@@ -330,7 +351,7 @@ p_fc_bar
 ggsave("../figures/GBA_correlation_with_hl_fc.png",
        plot   = p_fc_bar,
        width  = 12,
-       height = 10,
+       height = 11,
        dpi    = 150)
 cat("Saved GBA_correlation_with_hl_fc.png\n")
 ```
