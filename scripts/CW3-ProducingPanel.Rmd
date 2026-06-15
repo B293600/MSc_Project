@@ -59,7 +59,6 @@ df_combined <- df_consensus %>%
     join_by(gene_id)) %>%
   left_join(df_ONT, join_by(gene_id))
 
-## Load replicate data for reproducibility panels
 hl_files <- dir(path = "../output_tables/",
                 pattern = ".*output.*\\.txt",
                 full.names = TRUE)
@@ -184,7 +183,6 @@ make_panel_binned <- function(data, x_col, y_col, x_lab, y_lab,
 ```
 
 ```{r build_panels}
-## Panel A -- replicate reproducibility, small and large cells
 pA1 <- make_panel_binned(df_rep,
                          "MS96_small", "MS1039_small",
                          "MS96 hl, small (log2(min))",
@@ -200,7 +198,6 @@ pA2 <- make_panel_binned(df_rep,
                          point_col     = col_large,
                          show_diagonal = TRUE)
 
-## Panel B -- half-life small vs large
 pB <- make_panel_binned(df_combined,
                         "WT_small_hl", "WT_large_hl",
                         "Half-life, small cells (log2(min))",
@@ -209,7 +206,6 @@ pB <- make_panel_binned(df_combined,
                         show_diagonal = TRUE) +
   labs(tag = "B")
 
-## Panel C -- half-life vs TPM
 pC1 <- make_panel_binned(df_combined,
                          "TPMsc_input_small_YM", "WT_small_hl",
                          "TPM, input (log2)",
@@ -223,7 +219,6 @@ pC2 <- make_panel_binned(df_combined,
                          "Half-life (log2(min))",
                          point_col = col_large)
 
-## Panel D -- half-life vs TE
 pD1 <- make_panel_binned(df_combined,
                          "TE_rRNAdep_MandP_small_YM", "WT_small_hl",
                          "Translation efficiency (log2)",
@@ -237,7 +232,6 @@ pD2 <- make_panel_binned(df_combined,
                          "Half-life (log2(min))",
                          point_col = col_large)
 
-## Panel E -- half-life vs poly(A) tail, cropped x axis
 pE1 <- make_panel_binned(df_combined,
                          "MS69_small_mrl100_mean_tail_length", "WT_small_hl",
                          "poly(A) tail length (log2(nt))",
@@ -253,7 +247,6 @@ pE2 <- make_panel_binned(df_combined,
                          point_col = col_large,
                          xlim      = c(4, 6.5))
 
-## Panel F -- fold change vs half-life
 pF1 <- make_panel_binned(df_combined,
                          "WT_small_hl", "WT_hl_fc",
                          "Half-life (log2(min))",
@@ -271,7 +264,6 @@ pF2 <- make_panel_binned(df_combined,
                          filter_y_pos = FALSE,
                          ylim         = c(-4, 4))
 
-## Panel G -- fold change vs TE
 pG1 <- make_panel_binned(df_combined,
                          "TE_rRNAdep_MandP_small_YM", "WT_hl_fc",
                          "Translation efficiency (log2)",
@@ -291,12 +283,6 @@ pG2 <- make_panel_binned(df_combined,
 ```
 
 ```{r assemble}
-## Same layout and dimensions as the version that worked
-## Row 1: A pair (replicate) + B (wide, consensus hl)
-## Row 2: C pair (TPM) + D pair (TE)
-## Row 3: E pair (polyA) + F pair (FC vs hl)
-## Row 4: G pair (FC vs TE) + spacers
-
 row1 <- (pA1 | pA2 | pB | plot_spacer()) +
   plot_layout(widths = c(1, 1, 2, 1))
 
@@ -309,57 +295,13 @@ row3 <- (pE1 | pE2 | pF1 | pF2) +
 row4 <- (pG1 | pG2 | plot_spacer() | plot_spacer()) +
   plot_layout(widths = c(1, 1, 1, 1))
 
-caption_text <- paste0(
-  "(A) Replicate reproducibility of mRNA half-life estimates between MS96 and MS1039 ",
-  "in small (purple, left) and large (pink, right) cells (c1 fitting, SE < 0.75, n = ",
-  n_rep, "). Dashed line indicates identity. Binned mean shown in black. ",
-  "(B) mRNA half-life in small versus large WT cells (n = ", n_genes, "). ",
-  "Points above the dashed diagonal indicate global stabilisation in large cells ",
-  "(Spearman R = 0.79). Binned mean shown in black. ",
-  "(C) mRNA half-life versus input TPM in small (purple, left) and large (pink, right) cells. ",
-  "Positive correlation confirms highly expressed genes have more stable mRNA. ",
-  "(D) mRNA half-life versus size-separated translation efficiency (monosome + polysome) ",
-  "in small (purple, left) and large (pink, right) cells. Positive correlation is consistent ",
-  "with codon-optimality-mediated co-translational decay. ",
-  "(E) mRNA half-life versus mean poly(A) tail length in small (purple, left) and large ",
-  "(pink, right) cells. x-axis cropped to show bulk of distribution, one outlier excluded. ",
-  "Negative correlation reflects deadenylation-dependent decay, maintained across cell sizes. ",
-  "(F) Half-life fold change (log2 large/small) versus consensus half-life in small ",
-  "(purple, left) and large (pink, right) cells. Binned mean shown in black. ",
-  "Opposite sign of Spearman R indicates genes stable in small cells do not gain ",
-  "further stability in large cells. ",
-  "(G) Half-life fold change versus translation efficiency in small (purple, left) and ",
-  "large (pink, right) cells. Near-zero R indicates TE does not predict size-dependent ",
-  "changes in mRNA stability. All correlations Spearman, binned mean shown in all panels.")
-
-p_caption <- ggplot() +
-  geom_textbox(
-    aes(x = 0, y = 1, label = caption_text),
-    hjust      = 0, vjust = 1,
-    width      = unit(24, "inch"),
-    size       = 9,
-    lineheight = 1.6,
-    fill       = "white",
-    colour     = "black",
-    box.colour = NA) +
-  scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
-  scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
-  theme_void() +
-  theme(plot.background = element_rect(fill = "white", colour = NA))
-
 panel_plots <- row1 / row2 / row3 / row4 +
   plot_layout(heights = c(1, 1, 1, 1))
 
-final <- cowplot::plot_grid(
-  panel_plots,
-  p_caption,
-  ncol        = 1,
-  rel_heights = c(14, 5))
-
 ggsave("../figures/Figure_panel1.png",
-       plot   = final,
+       plot   = panel_plots,
        width  = 24,
-       height = 34,
+       height = 30,
        dpi    = 150)
 
 cat("Saved Figure_panel1.png\n")
@@ -420,12 +362,11 @@ p_matrix <- ggplot(r_long, aes(x = fitting_strategy, y = metric, fill = R)) +
   geom_tile(colour = "white", linewidth = 1) +
   geom_text(aes(label = round(R, 3)),
             size = 10, colour = "white", fontface = "bold") +
- scale_fill_gradient(low  = "#ffa8cb",
-                    high = "#4575b4",
-                    limits = c(0, 1),
-                    name   = "Spearman R") +
-  labs(x = "Fitting strategy",
-       y = NULL) +
+  scale_fill_gradient(low    = "#ffa8cb",
+                      high   = "#4575b4",
+                      limits = c(0, 1),
+                      name   = "Spearman R") +
+  labs(x = "Fitting strategy", y = NULL) +
   theme_classic(base_size = 26) +
   theme(
     axis.title      = element_text(size = 22, colour = "black"),
@@ -438,52 +379,11 @@ p_matrix <- ggplot(r_long, aes(x = fitting_strategy, y = metric, fill = R)) +
     plot.background = element_rect(fill = "white", colour = NA),
     plot.margin     = margin(20, 20, 20, 20))
 
-p_matrix
-
 ggsave("../figures/correlation_matrix.png",
        plot   = p_matrix,
        width  = 14,
        height = 8,
        dpi    = 150)
-caption_matrix <- paste0(
-  "Spearman R between biological replicates (MS96 and MS1039) for mRNA half-life estimates ",
-  "across five fitting strategies (a1, b1, b2, b3, c1) in small and large WT yeast cells, ",
-  "and for the log2 half-life fold change (large/small). ",
-  "Half-life estimates were derived from EU pulse-chase mRNA-seq time course data using ",
-  "exponential decay fitting, fitting strategies differ in sample filtering and weighting. ",
-  "c1 applies the most stringent filtering (TPM input > 5, TPM EU min > 2, exclusion of ",
-  "two low-quality MS1039 samples) and shows the highest replicate reproducibility across ",
-  "all three metrics. c1 was therefore selected for all subsequent analyses. ",
-  "Colour scale ranges from low (pink) to high (blue) Spearman R.")
 
-p_matrix_caption <- ggplot() +
-  geom_textbox(
-    aes(x = 0, y = 1, label = caption_matrix),
-    hjust      = 0, vjust = 1,
-    width      = unit(13, "inch"),
-    size       = 5.5,
-    lineheight = 1.6,
-    fill       = "white",
-    colour     = "black",
-    box.colour = NA) +
-  scale_x_continuous(limits = c(0, 1), expand = c(0, 0)) +
-  scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +
-  theme_void() +
-  theme(plot.background = element_rect(fill = "white", colour = NA))
-
-matrix_final <- cowplot::plot_grid(
-  p_matrix,
-  p_matrix_caption,
-  ncol        = 1,
-  rel_heights = c(6, 2))
-
-ggsave("../figures/correlation_matrix.png",
-       plot   = matrix_final,
-       width  = 14,
-       height = 10,
-       dpi    = 150)
-
-cat("Saved CW_correlation_matrix.png\n")
-cat("Saved CW_correlation_matrix.png\n")
+cat("Saved correlation_matrix.png\n")
 ```
-
