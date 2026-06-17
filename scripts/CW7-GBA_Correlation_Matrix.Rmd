@@ -47,12 +47,20 @@ df_alalam <- read_tsv("../tables/df_alalam_gba.txt",
 df_he2018 <- read_tsv("../tables/df_he2018_gba.txt",
                       show_col_types = FALSE)
 
+## Yuyang in-house RNA-seq -- AID depletion in small and large cells
+## Factors: Not1, Pab1, Xrn1, eIF4E, eIF4G
+## log2FC PhIAA_1hr vs DMSO_1hr
+## NOTE: requires CW13 to be run first
+df_yuyang <- read_tsv("../tables/df_yuyang_gba.txt",
+                      show_col_types = FALSE)
+
 cat("Consensus:", nrow(df_consensus), "genes\n")
 cat("Vijjamarri:", nrow(df_vijjamarri), "genes\n")
 cat("Chappleboim:", nrow(df_chappleboim), "genes\n")
 cat("Audebert:", nrow(df_audebert), "genes\n")
 cat("Alalam:", nrow(df_alalam), "genes\n")
 cat("He2018:", nrow(df_he2018), "genes\n")
+cat("Yuyang:", nrow(df_yuyang), "genes\n")
 ```
 
 ```{r process_eif4g}
@@ -135,6 +143,16 @@ cat("Genes with eIF4G FC data:", nrow(df_eif4g), "\n")
 ##   log2FC_pat1D          -- pat1Δ, He et al. 2018 (steady-state)
 ##   log2FC_lsm1D          -- lsm1Δ, He et al. 2018 (steady-state)
 ##   log2FC_dhh1D          -- dhh1Δ, He et al. 2018 (steady-state)
+##   log2FC_Not1_large_YM  -- Not1-AID FC large cells, Yuyang RNA-seq
+##   log2FC_Not1_small_YM  -- Not1-AID FC small cells, Yuyang RNA-seq
+##   log2FC_Pab1_large_YM  -- Pab1-AID FC large cells, Yuyang RNA-seq
+##   log2FC_Pab1_small_YM  -- Pab1-AID FC small cells, Yuyang RNA-seq
+##   log2FC_Xrn1_large_YM  -- Xrn1-AID FC large cells, Yuyang RNA-seq
+##   log2FC_Xrn1_small_YM  -- Xrn1-AID FC small cells, Yuyang RNA-seq
+##   log2FC_eIF4E_large_YM -- eIF4E-AID FC large cells, Yuyang RNA-seq
+##   log2FC_eIF4E_small_YM -- eIF4E-AID FC small cells, Yuyang RNA-seq
+##   log2FC_eIF4G_large_YM -- eIF4G-AID FC large cells, Yuyang RNA-seq
+##   log2FC_eIF4G_small_YM -- eIF4G-AID FC small cells, Yuyang RNA-seq
 ##   eIF4G_dep_fc_small    -- eIF4G-AID FC in small cells (EU pulse-chase)
 ##   eIF4G_dep_fc_large    -- eIF4G-AID FC in large cells (EU pulse-chase)
 ##   eIF4G_dep_fc_mean     -- eIF4G-AID FC mean (EU pulse-chase)
@@ -178,6 +196,20 @@ df_long <- bind_rows(
                   log2FC_dhh1D) %>%
     pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
 
+  df_yuyang %>%
+    dplyr::select(gene_id,
+                  log2FC_Not1_large_YM,
+                  log2FC_Not1_small_YM,
+                  log2FC_Pab1_large_YM,
+                  log2FC_Pab1_small_YM,
+                  log2FC_Xrn1_large_YM,
+                  log2FC_Xrn1_small_YM,
+                  log2FC_eIF4E_large_YM,
+                  log2FC_eIF4E_small_YM,
+                  log2FC_eIF4G_large_YM,
+                  log2FC_eIF4G_small_YM) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
+
   df_eif4g %>%
     dplyr::select(gene_id,
                   eIF4G_dep_fc_small,
@@ -216,6 +248,16 @@ variables <- c("WT_hl_fc",
                "log2FC_pat1D",
                "log2FC_lsm1D",
                "log2FC_dhh1D",
+               "log2FC_Not1_large_YM",
+               "log2FC_Not1_small_YM",
+               "log2FC_Pab1_large_YM",
+               "log2FC_Pab1_small_YM",
+               "log2FC_Xrn1_large_YM",
+               "log2FC_Xrn1_small_YM",
+               "log2FC_eIF4E_large_YM",
+               "log2FC_eIF4E_small_YM",
+               "log2FC_eIF4G_large_YM",
+               "log2FC_eIF4G_small_YM",
                "eIF4G_dep_fc_small",
                "eIF4G_dep_fc_large",
                "eIF4G_dep_fc_mean")
@@ -242,26 +284,36 @@ cor_results <- cor_pairs %>%
   )
 
 label_map <- c(
-  WT_hl_fc             = "Half-life FC\n(large/small)",
-  WT_small_hl          = "Half-life\nsmall cells",
-  WT_large_hl          = "Half-life\nlarge cells",
-  log2FC_dcp2D         = "dcp2\u0394 vs WT\n(Vijjamarri)",
-  log2FC_xrn1D_vij     = "xrn1\u0394 vs WT\n(Vijjamarri)",
-  TE_vijjamarri        = "TE, WT\n(Vijjamarri)",
-  log2FC_not1_60       = "Not1-AID\n60 min (Chappleboim)",
-  log2FC_xrn1_60       = "XRN1-AID\n60 min (Chappleboim)",
-  log2FC_ccr4_60       = "CCR4-AID\n60 min (Chappleboim)",
-  log2FC_pop2_60       = "Pop2-AID\n60 min (Chappleboim)",
-  log2FC_dcp2_chapp_60 = "dcp2-AID\n60 min (Chappleboim)",
-  log2FC_pop2ccr4_hl   = "Pop2/CCR4 depl\nHL FC (Audebert)",
-  log2FC_dcp2_hl       = "Dcp2 depl\nHL FC (Audebert)",
-  log2FC_upf3_hl       = "upf3\u0394 HL FC\n(Alalam)",
-  log2FC_pat1D         = "pat1\u0394 vs WT\n(He et al. 2018)",
-  log2FC_lsm1D         = "lsm1\u0394 vs WT\n(He et al. 2018)",
-  log2FC_dhh1D         = "dhh1\u0394 vs WT\n(He et al. 2018)",
-  eIF4G_dep_fc_small   = "eIF4G-AID FC\nsmall cells",
-  eIF4G_dep_fc_large   = "eIF4G-AID FC\nlarge cells",
-  eIF4G_dep_fc_mean    = "eIF4G-AID FC\nmean")
+  WT_hl_fc             = "Half-life FC (large/small)",
+  WT_small_hl          = "Half-life, small cells",
+  WT_large_hl          = "Half-life, large cells",
+  log2FC_dcp2D         = "dcp2\u0394 vs WT (Vijjamarri)",
+  log2FC_xrn1D_vij     = "xrn1\u0394 vs WT (Vijjamarri)",
+  TE_vijjamarri        = "TE, WT (Vijjamarri)",
+  log2FC_not1_60       = "Not1-AID 60 min (Chappleboim)",
+  log2FC_xrn1_60       = "XRN1-AID 60 min (Chappleboim)",
+  log2FC_ccr4_60       = "CCR4-AID 60 min (Chappleboim)",
+  log2FC_pop2_60       = "Pop2-AID 60 min (Chappleboim)",
+  log2FC_dcp2_chapp_60 = "dcp2-AID 60 min (Chappleboim)",
+  log2FC_pop2ccr4_hl   = "Pop2/CCR4 depl HL FC (Audebert)",
+  log2FC_dcp2_hl       = "Dcp2 depl HL FC (Audebert)",
+  log2FC_upf3_hl       = "upf3\u0394 HL FC (Alalam)",
+  log2FC_pat1D         = "pat1\u0394 vs WT (He et al. 2018)",
+  log2FC_lsm1D         = "lsm1\u0394 vs WT (He et al. 2018)",
+  log2FC_dhh1D         = "dhh1\u0394 vs WT (He et al. 2018)",
+  log2FC_Not1_large_YM  = "Not1-AID FC, large cells (YM)",
+  log2FC_Not1_small_YM  = "Not1-AID FC, small cells (YM)",
+  log2FC_Pab1_large_YM  = "Pab1-AID FC, large cells (YM)",
+  log2FC_Pab1_small_YM  = "Pab1-AID FC, small cells (YM)",
+  log2FC_Xrn1_large_YM  = "Xrn1-AID FC, large cells (YM)",
+  log2FC_Xrn1_small_YM  = "Xrn1-AID FC, small cells (YM)",
+  log2FC_eIF4E_large_YM = "eIF4E-AID FC, large cells (YM)",
+  log2FC_eIF4E_small_YM = "eIF4E-AID FC, small cells (YM)",
+  log2FC_eIF4G_large_YM = "eIF4G-AID FC, large cells (YM)",
+  log2FC_eIF4G_small_YM = "eIF4G-AID FC, small cells (YM)",
+  eIF4G_dep_fc_small   = "eIF4G-AID FC, small cells (EU)",
+  eIF4G_dep_fc_large   = "eIF4G-AID FC, large cells (EU)",
+  eIF4G_dep_fc_mean    = "eIF4G-AID FC, mean (EU)")
 
 cor_results <- cor_results %>%
   dplyr::mutate(
@@ -276,7 +328,7 @@ cor_results %>%
   dplyr::filter(var1 == "WT_hl_fc", var2 != "WT_hl_fc") %>%
   dplyr::arrange(desc(R)) %>%
   dplyr::select(var2, R, n) %>%
-  print(n = 25)
+  print(n = 35)
 ```
 
 ```{r r_squared_ceiling}
@@ -295,7 +347,7 @@ cor_fc_r2 <- cor_results %>%
   dplyr::select(var2, R, n, R2, R2_pct)
 
 cat("\nR² as percentage of replicate ceiling (R²_ceiling = 0.25):\n")
-print(cor_fc_r2, n = 25)
+print(cor_fc_r2, n = 35)
 ```
 
 ```{r plot_full_matrix}
@@ -317,9 +369,19 @@ label_map_single <- c(
   log2FC_pat1D         = "pat1\u0394 vs WT (He et al. 2018)",
   log2FC_lsm1D         = "lsm1\u0394 vs WT (He et al. 2018)",
   log2FC_dhh1D         = "dhh1\u0394 vs WT (He et al. 2018)",
-  eIF4G_dep_fc_small   = "eIF4G-AID FC, small cells",
-  eIF4G_dep_fc_large   = "eIF4G-AID FC, large cells",
-  eIF4G_dep_fc_mean    = "eIF4G-AID FC, mean")
+  log2FC_Not1_large_YM  = "Not1-AID FC, large cells (YM)",
+  log2FC_Not1_small_YM  = "Not1-AID FC, small cells (YM)",
+  log2FC_Pab1_large_YM  = "Pab1-AID FC, large cells (YM)",
+  log2FC_Pab1_small_YM  = "Pab1-AID FC, small cells (YM)",
+  log2FC_Xrn1_large_YM  = "Xrn1-AID FC, large cells (YM)",
+  log2FC_Xrn1_small_YM  = "Xrn1-AID FC, small cells (YM)",
+  log2FC_eIF4E_large_YM = "eIF4E-AID FC, large cells (YM)",
+  log2FC_eIF4E_small_YM = "eIF4E-AID FC, small cells (YM)",
+  log2FC_eIF4G_large_YM = "eIF4G-AID FC, large cells (YM)",
+  log2FC_eIF4G_small_YM = "eIF4G-AID FC, small cells (YM)",
+  eIF4G_dep_fc_small   = "eIF4G-AID FC, small cells (EU)",
+  eIF4G_dep_fc_large   = "eIF4G-AID FC, large cells (EU)",
+  eIF4G_dep_fc_mean    = "eIF4G-AID FC, mean (EU)")
 
 cor_results_plot <- cor_results %>%
   filter(!is.na(R)) %>%
@@ -331,7 +393,7 @@ p_matrix_full <- ggplot(cor_results_plot,
                         aes(x = label1, y = label2, fill = R)) +
   geom_tile(colour = "white", linewidth = 1.2) +
   geom_text(aes(label = ifelse(is.na(R), "", round(R, 2))),
-            size = 4, colour = "white", fontface = "bold") +
+            size = 3.5, colour = "white", fontface = "bold") +
   scale_fill_gradient2(low      = "#ffa8cb",
                        mid      = "white",
                        high     = "#4575b4",
@@ -342,8 +404,8 @@ p_matrix_full <- ggplot(cor_results_plot,
   theme_classic(base_size = 14) +
   theme(
     axis.text.x     = element_text(angle = 45, hjust = 1,
-                                   size = 14, colour = "black"),
-    axis.text.y     = element_text(size = 14, colour = "black"),
+                                   size = 12, colour = "black"),
+    axis.text.y     = element_text(size = 12, colour = "black"),
     axis.line       = element_blank(),
     axis.ticks      = element_blank(),
     legend.position = "right",
@@ -355,8 +417,8 @@ p_matrix_full <- ggplot(cor_results_plot,
 p_matrix_full
 ggsave("../figures/GBA_correlation_matrix_full.png",
        plot   = p_matrix_full,
-       width  = 40,
-       height = 36,
+       width  = 44,
+       height = 40,
        dpi    = 200)
 cat("Saved GBA_correlation_matrix_full.png\n")
 ```
@@ -375,7 +437,7 @@ p_fc_bar <- ggplot(cor_fc, aes(x = R, y = label2, fill = R)) +
                                "  (n = ", format(n, big.mark = ","), ")"),
                 x     = ifelse(R >= 0, R + 0.005, R - 0.005),
                 hjust = ifelse(R >= 0, 0, 1)),
-            size = 4, colour = "black") +
+            size = 3.5, colour = "black") +
   geom_vline(xintercept = 0, colour = "black", linewidth = 0.5) +
   scale_fill_gradient2(low      = "#ffa8cb",
                        mid      = "white",
@@ -388,7 +450,7 @@ p_fc_bar <- ggplot(cor_fc, aes(x = R, y = label2, fill = R)) +
        y = NULL) +
   theme_classic(base_size = 14) +
   theme(
-    axis.text       = element_text(size = 11, colour = "black"),
+    axis.text       = element_text(size = 10, colour = "black"),
     axis.title      = element_text(size = 12, colour = "black"),
     plot.background = element_rect(fill = "white", colour = NA),
     plot.margin     = margin(10, 20, 10, 10))
@@ -397,7 +459,7 @@ p_fc_bar
 ggsave("../figures/GBA_correlation_with_hl_fc.png",
        plot   = p_fc_bar,
        width  = 12,
-       height = 11,
+       height = 14,
        dpi    = 150)
 cat("Saved GBA_correlation_with_hl_fc.png\n")
 ```
