@@ -8,6 +8,7 @@ output: html_document
 #           Pop2-AID (aa81, aa82), Pap2-AID (aa100), dcp2-AID (aa40)
 # WT control: nf164
 # Method: T>C conversion rate per gene per timepoint, exponential decay fit
+# Half-life filter: 0 < hl < 500 min to remove bad fits
 # Output: tables/df_chappleboim_hl_gba.txt
 #         figures/Chappleboim_decay_scatter.png
 
@@ -30,10 +31,8 @@ df_samples <- read_csv("tables/GSE196937_samples.csv", show_col_types = FALSE)
 df_fc      <- read_tsv("output_tables/df_WT_consensus_hl_fc.txt",
                        show_col_types = FALSE)
 
-# Target strains
 target_strains <- c("aa91", "nf227", "aa118", "aa81", "aa82", "aa100", "aa40", "nf164")
 
-# Strain to factor name mapping
 strain_labels <- c(
   aa91  = "Not1_AID",
   nf227 = "Xrn1_AID",
@@ -45,7 +44,6 @@ strain_labels <- c(
   nf164 = "WT"
 )
 
-# Get sample IDs for target strains with their metadata
 df_sample_meta <- df_samples %>%
   filter(strain %in% target_strains) %>%
   dplyr::select(sample, strain, iaa_time) %>%
@@ -56,8 +54,6 @@ cat("Conditions:", paste(unique(df_sample_meta$condition), collapse = ", "), "\n
 ```
 
 ```{r load-tc-data}
-# Load and filter tc_data to target samples only
-# Aggregate T>C and T counts per gene per sample (sum across reads)
 cat("Loading tc_data -- this will take ~40 seconds...\n")
 
 df_tc <- read_csv("tables/GSE196937_tc_data.csv",
@@ -73,10 +69,6 @@ cat("Aggregated rows:", nrow(df_tc), "\n")
 ```
 
 ```{r compute-conversion-rates}
-# Join with sample metadata to get strain and time point
-# Calculate T>C conversion rate = tc / t
-# Require minimum 20 T counts for reliable rate estimation
-
 df_rates <- df_tc %>%
   inner_join(df_sample_meta, by = "sample") %>%
   filter(t >= 20) %>%
@@ -86,10 +78,6 @@ cat("Gene-sample observations after T filter:", nrow(df_rates), "\n")
 ```
 
 ```{r normalise}
-# Normalise conversion rate to t=0 for each gene per condition
-# tc_rate_norm = tc_rate(t) / tc_rate(t=0)
-# This gives the fraction of labelled RNA remaining at each timepoint
-
 df_t0 <- df_rates %>%
   filter(iaa_time == 0) %>%
   group_by(gene_id, condition) %>%
@@ -105,10 +93,6 @@ cat("Gene-timepoint observations after normalisation:", nrow(df_rates_norm), "\n
 ```
 
 ```{r fit-decay}
-# Fit exponential decay per gene per condition
-# model: tc_rate_norm = exp(-k * iaa_time)
-# half-life = log(2) / k
-
 fit_decay <- function(df) {
   tryCatch({
     fit <- nls_multstart(
@@ -135,21 +119,39 @@ df_fits <- df_rates_norm %>%
   ungroup()
 
 cat("Genes with fits:", nrow(df_fits), "\n")
-cat("Conditions:\n")
 df_fits %>% dplyr::count(condition) %>% print()
 ```
 
+```{r fit-qc}
+# Check half-life distributions before filtering
+df_fits %>%
+  filter(!is.na(half_life), is.finite(half_life)) %>%
+  group_by(condition) %>%
+  summarise(
+    median_hl = median(half_life),
+    mean_hl   = mean(half_life),
+    min_hl    = min(half_life),
+    max_hl    = max(half_life),
+    n_total   = n(),
+    n_good    = sum(half_life > 0 & half_life < 500)
+  ) %>%
+  print()
+```
+
 ```{r compute-fc}
-# Calculate fold change vs WT for each condition
-# log2FC = log2(hl_condition / hl_WT)
+# Filter to plausible half-lives: 0 < hl < 500 min
+# Negative and extreme values are bad fits
 
 df_wt_hl <- df_fits %>%
-  filter(condition == "WT") %>%
+  filter(condition == "WT",
+         half_life > 0,
+         half_life < 500) %>%
   dplyr::select(gene_id, hl_wt = half_life)
 
-# Average Pop2_AID replicates
 df_fc_chapp <- df_fits %>%
-  filter(condition != "WT") %>%
+  filter(condition != "WT",
+         half_life > 0,
+         half_life < 500) %>%
   mutate(condition = case_when(
     condition %in% c("Pop2_AID_a", "Pop2_AID_b", "Pap2_AID") ~ "Pop2_AID",
     TRUE ~ condition
@@ -158,20 +160,21 @@ df_fc_chapp <- df_fits %>%
   summarise(half_life = mean(half_life, na.rm = TRUE), .groups = "drop") %>%
   inner_join(df_wt_hl, by = "gene_id") %>%
   filter(!is.na(half_life), !is.na(hl_wt),
-         is.finite(half_life), is.finite(hl_wt),
-         hl_wt > 0, half_life > 0) %>%
+         is.finite(half_life), is.finite(hl_wt)) %>%
   mutate(log2FC_hl = log2(half_life / hl_wt)) %>%
   dplyr::select(gene_id, condition, log2FC_hl) %>%
-  pivot_wider(names_from = condition,
+  pivot_wider(names_from  = condition,
               values_from = log2FC_hl,
               names_prefix = "log2FC_hl_")
 
 cat("Genes in FC table:", nrow(df_fc_chapp), "\n")
 colnames(df_fc_chapp)
+
+# Summary of FC distributions
+summary(df_fc_chapp[, -1])
 ```
 
 ```{r plot-qc}
-# QC scatter: each condition HL FC vs WT_hl_fc
 df_plot <- df_fc_chapp %>%
   inner_join(df_fc, by = "gene_id")
 
@@ -183,9 +186,9 @@ plots <- map(fc_cols, function(col) {
   r_val <- cor(df_plot[[col]], df_plot$WT_hl_fc,
                method = "spearman", use = "complete.obs")
   n_val <- sum(!is.na(df_plot[[col]]) & !is.na(df_plot$WT_hl_fc))
-  
+
   cat(col, "vs WT_hl_fc R:", round(r_val, 3), "n:", n_val, "\n")
-  
+
   ggplot(df_plot, aes(x = .data[[col]], y = WT_hl_fc)) +
     geom_point(colour = col_large, alpha = 0.3, size = 0.8) +
     geom_smooth(colour = "black", se = FALSE, span = 0.4) +

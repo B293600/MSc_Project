@@ -135,9 +135,9 @@ cat("Genes with eIF4G FC data:", nrow(df_eif4g), "\n")
 ##   log2FC_pat1D          -- pat1Δ, He et al. 2018 (steady-state)
 ##   log2FC_lsm1D          -- lsm1Δ, He et al. 2018 (steady-state)
 ##   log2FC_dhh1D          -- dhh1Δ, He et al. 2018 (steady-state)
-##   eIF4G_dep_fc_small    -- eIF4G-AID FC in small cells
-##   eIF4G_dep_fc_large    -- eIF4G-AID FC in large cells
-##   eIF4G_dep_fc_mean     -- eIF4G-AID FC mean
+##   eIF4G_dep_fc_small    -- eIF4G-AID FC in small cells (EU pulse-chase)
+##   eIF4G_dep_fc_large    -- eIF4G-AID FC in large cells (EU pulse-chase)
+##   eIF4G_dep_fc_mean     -- eIF4G-AID FC mean (EU pulse-chase)
 
 df_long <- bind_rows(
   df_consensus %>%
@@ -279,37 +279,60 @@ cor_results %>%
   print(n = 25)
 ```
 
+```{r r_squared_ceiling}
+## R² as percentage of replicate R² ceiling
+## Replicate R ≈ 0.5 → R² ceiling = 0.25
+
+r2_ceiling <- 0.5^2
+
+cor_fc_r2 <- cor_results %>%
+  dplyr::filter(var1 == "WT_hl_fc", var2 != "WT_hl_fc") %>%
+  dplyr::arrange(desc(R)) %>%
+  dplyr::mutate(
+    R2     = R^2,
+    R2_pct = round((R2 / r2_ceiling) * 100, 1)
+  ) %>%
+  dplyr::select(var2, R, n, R2, R2_pct)
+
+cat("\nR² as percentage of replicate ceiling (R²_ceiling = 0.25):\n")
+print(cor_fc_r2, n = 25)
+```
+
 ```{r plot_full_matrix}
-p_matrix_full <- ggplot(cor_results,
+cor_results_plot <- cor_results %>%
+  filter(!is.na(R))
+
+p_matrix_full <- ggplot(cor_results_plot,
                         aes(x = label1, y = label2, fill = R)) +
-  geom_tile(colour = "white", linewidth = 0.8) +
-  geom_text(aes(label = round(R, 2)),
-            size = 2.5, colour = "white", fontface = "bold") +
+  geom_tile(colour = "white", linewidth = 1.2) +
+  geom_text(aes(label = ifelse(is.na(R), "", round(R, 2))),
+            size = 4, colour = "white", fontface = "bold") +
   scale_fill_gradient2(low      = "#ffa8cb",
                        mid      = "white",
                        high     = "#4575b4",
                        midpoint = 0,
                        limits   = c(-1, 1),
                        name     = "Spearman R") +
-  labs(x = NULL, y = NULL,
-       title = "Pairwise Spearman R -- all GBA variables") +
-  theme_classic(base_size = 13) +
+  labs(x = NULL, y = NULL) +
+  theme_classic(base_size = 14) +
   theme(
     axis.text.x     = element_text(angle = 45, hjust = 1,
-                                   size = 7, colour = "black"),
-    axis.text.y     = element_text(size = 7, colour = "black"),
+                                   size = 13, colour = "black"),
+    axis.text.y     = element_text(size = 13, colour = "black"),
     axis.line       = element_blank(),
     axis.ticks      = element_blank(),
     legend.position = "right",
+    legend.title    = element_text(size = 11),
+    legend.text     = element_text(size = 10),
     plot.background = element_rect(fill = "white", colour = NA),
-    plot.margin     = margin(10, 10, 10, 10))
+    plot.margin     = margin(20, 20, 20, 60))
 
 p_matrix_full
 ggsave("../figures/GBA_correlation_matrix_full.png",
        plot   = p_matrix_full,
-       width  = 26,
-       height = 24,
-       dpi    = 150)
+       width  = 36,
+       height = 32,
+       dpi    = 200)
 cat("Saved GBA_correlation_matrix_full.png\n")
 ```
 
@@ -336,14 +359,12 @@ p_fc_bar <- ggplot(cor_fc, aes(x = R, y = label2, fill = R)) +
                        limits   = c(-0.5, 0.5),
                        guide    = "none") +
   coord_cartesian(xlim = c(-0.4, 0.4)) +
-  labs(x     = "Spearman R with half-life FC (large/small)",
-       y     = NULL,
-       title = "Correlation of each GBA variable with size-dependent mRNA stability") +
+  labs(x = "Spearman R with half-life FC (large/small)",
+       y = NULL) +
   theme_classic(base_size = 14) +
   theme(
     axis.text       = element_text(size = 11, colour = "black"),
     axis.title      = element_text(size = 12, colour = "black"),
-    plot.title      = element_text(size = 13),
     plot.background = element_rect(fill = "white", colour = NA),
     plot.margin     = margin(10, 20, 10, 10))
 
@@ -357,7 +378,7 @@ cat("Saved GBA_correlation_with_hl_fc.png\n")
 ```
 
 ```{r eif4g_scatter}
-## eIF4G depletion FC vs WT_hl_fc -- small and large cells separately
+## eIF4G depletion EU pulse-chase FC vs WT_hl_fc -- small and large cells separately
 df_eif4g_plot <- df_wide %>%
   dplyr::filter(!is.na(eIF4G_dep_fc_small),
                 !is.na(eIF4G_dep_fc_large),
