@@ -550,3 +550,63 @@ ggsave("../figures/GBA_xrn1_dataset_comparison.png",
        dpi    = 150)
 cat("Saved GBA_xrn1_dataset_comparison.png\n")
 ```
+```{r sanity_check_yuyang}
+## Sanity check: Yuyang vs Chappleboim for same factors
+
+## Xrn1-AID: Yuyang small cells vs Chappleboim 60 min
+xrn1_ym_r <- cor_results %>%
+  dplyr::filter(var1 == "log2FC_Xrn1_small_YM",
+                var2 == "log2FC_xrn1_60")
+
+cat("Xrn1-AID Yuyang small vs Chappleboim 60 min R:",
+    round(xrn1_ym_r$R, 3), "(n =", xrn1_ym_r$n, ")\n")
+
+p_xrn1_ym <- scatter_binned_gba(
+  df_wide,
+  x_col     = "log2FC_Xrn1_small_YM",
+  y_col     = "log2FC_xrn1_60",
+  x_lab     = "log2 FC after Xrn1-AID depletion, small cells (YM)",
+  y_lab     = "log2 FC after XRN1-AID depletion 60 min (Chappleboim)",
+  point_col = col_large,
+  xlim      = c(-5, 5),
+  ylim      = c(-1, 3)) +
+  labs(tag = "B") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+## Not1-AID: Yuyang small cells vs Chappleboim 60 min
+not1_ym_r <- cor_results %>%
+  dplyr::filter(var1 == "log2FC_Not1_small_YM",
+                var2 == "log2FC_not1_60")
+
+cat("Not1-AID Yuyang small vs Chappleboim 60 min R:",
+    round(not1_ym_r$R, 3), "(n =", not1_ym_r$n, ")\n")
+
+p_not1_ym <- scatter_binned_gba(
+  df_wide,
+  x_col     = "log2FC_Not1_small_YM",
+  y_col     = "log2FC_not1_60",
+  x_lab     = "log2 FC after Not1-AID depletion, small cells (YM)",
+  y_lab     = "log2 FC after Not1-AID depletion 60 min (Chappleboim)",
+  point_col = col_small,
+  xlim      = c(-5, 5),
+  ylim      = c(-2, 3)) +
+  labs(tag = "C") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+## Update existing Xrn1 sanity check to include tag A
+p_xrn1_sanity_tagged <- p_xrn1_sanity +
+  labs(tag = "A")
+
+## Combine all three sanity checks
+p_sanity_panel <- p_xrn1_sanity_tagged | p_xrn1_ym | p_not1_ym
+
+p_sanity_panel
+ggsave("../figures/GBA_sanity_checks.png",
+       plot   = p_sanity_panel,
+       width  = 22,
+       height = 7,
+       dpi    = 150)
+cat("Saved GBA_sanity_checks.png\n")
+```
