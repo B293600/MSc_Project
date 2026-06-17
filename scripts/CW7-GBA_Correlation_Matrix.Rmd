@@ -299,8 +299,33 @@ print(cor_fc_r2, n = 25)
 ```
 
 ```{r plot_full_matrix}
+label_map_single <- c(
+  WT_hl_fc             = "Half-life FC (large/small)",
+  WT_small_hl          = "Half-life, small cells",
+  WT_large_hl          = "Half-life, large cells",
+  log2FC_dcp2D         = "dcp2\u0394 vs WT (Vijjamarri)",
+  log2FC_xrn1D_vij     = "xrn1\u0394 vs WT (Vijjamarri)",
+  TE_vijjamarri        = "TE, WT (Vijjamarri)",
+  log2FC_not1_60       = "Not1-AID 60 min (Chappleboim)",
+  log2FC_xrn1_60       = "XRN1-AID 60 min (Chappleboim)",
+  log2FC_ccr4_60       = "CCR4-AID 60 min (Chappleboim)",
+  log2FC_pop2_60       = "Pop2-AID 60 min (Chappleboim)",
+  log2FC_dcp2_chapp_60 = "dcp2-AID 60 min (Chappleboim)",
+  log2FC_pop2ccr4_hl   = "Pop2/CCR4 depl HL FC (Audebert)",
+  log2FC_dcp2_hl       = "Dcp2 depl HL FC (Audebert)",
+  log2FC_upf3_hl       = "upf3\u0394 HL FC (Alalam)",
+  log2FC_pat1D         = "pat1\u0394 vs WT (He et al. 2018)",
+  log2FC_lsm1D         = "lsm1\u0394 vs WT (He et al. 2018)",
+  log2FC_dhh1D         = "dhh1\u0394 vs WT (He et al. 2018)",
+  eIF4G_dep_fc_small   = "eIF4G-AID FC, small cells",
+  eIF4G_dep_fc_large   = "eIF4G-AID FC, large cells",
+  eIF4G_dep_fc_mean    = "eIF4G-AID FC, mean")
+
 cor_results_plot <- cor_results %>%
-  filter(!is.na(R))
+  filter(!is.na(R)) %>%
+  mutate(
+    label1 = factor(label_map_single[var1], levels = label_map_single),
+    label2 = factor(label_map_single[var2], levels = label_map_single))
 
 p_matrix_full <- ggplot(cor_results_plot,
                         aes(x = label1, y = label2, fill = R)) +
@@ -317,21 +342,21 @@ p_matrix_full <- ggplot(cor_results_plot,
   theme_classic(base_size = 14) +
   theme(
     axis.text.x     = element_text(angle = 45, hjust = 1,
-                                   size = 13, colour = "black"),
-    axis.text.y     = element_text(size = 13, colour = "black"),
+                                   size = 14, colour = "black"),
+    axis.text.y     = element_text(size = 14, colour = "black"),
     axis.line       = element_blank(),
     axis.ticks      = element_blank(),
     legend.position = "right",
-    legend.title    = element_text(size = 11),
-    legend.text     = element_text(size = 10),
+    legend.title    = element_text(size = 12),
+    legend.text     = element_text(size = 11),
     plot.background = element_rect(fill = "white", colour = NA),
-    plot.margin     = margin(20, 20, 20, 60))
+    plot.margin     = margin(20, 20, 20, 20))
 
 p_matrix_full
 ggsave("../figures/GBA_correlation_matrix_full.png",
        plot   = p_matrix_full,
-       width  = 36,
-       height = 32,
+       width  = 40,
+       height = 36,
        dpi    = 200)
 cat("Saved GBA_correlation_matrix_full.png\n")
 ```
