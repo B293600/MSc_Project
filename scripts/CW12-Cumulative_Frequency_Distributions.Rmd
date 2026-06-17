@@ -5,9 +5,12 @@ output: html_document
 
 # Cumulative frequency distributions of size-dependent half-life fold change
 # for annotated gene groups vs background
-# Groups: Not1-sensitive, Xrn1-sensitive, NMD-sensitive (Alalam)
+# Groups: Not1-sensitive, Xrn1-sensitive, NMD-sensitive (Alalam),
+#         eIF4E-sensitive (top quartile YM small cells),
+#         Pab1-sensitive (top quartile YM large cells)
 # Test: Wilcoxon rank-sum test (two-sided)
-# Output: figures/CW12_cumfreq_distributions.png
+# Output: figures/CW12_cumfreq_distributions.png (Not1, Xrn1, NMD)
+#         figures/CW12_cumfreq_eIF4E_Pab1.png (eIF4E, Pab1)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -18,6 +21,8 @@ library(patchwork)
 col_small <- "#784283"
 col_large <- "#ffa8cb"
 col_A     <- "#e5000c"
+col_eif4e <- "#2196F3"
+col_pab1  <- "#FF9800"
 ```
 
 ```{r load}
@@ -34,6 +39,11 @@ df_alalam <- read_tsv("tables/df_alalam_gba.txt",
                       show_col_types = FALSE) %>%
   dplyr::rename(gene_id = name)
 
+# Yuyang RNA-seq -- eIF4E small cells and Pab1 large cells FC
+# NOTE: requires CW13 to be run first
+df_yuyang <- read_tsv("tables/df_yuyang_gba.txt",
+                      show_col_types = FALSE)
+
 cat("Consensus genes:", nrow(df_fc), "\n")
 cat("Not1-sensitive:", sum(df_chapp$not1_sensitive, na.rm = TRUE), "\n")
 cat("Xrn1-sensitive:", sum(df_chapp$xrn1_sensitive, na.rm = TRUE), "\n")
@@ -41,13 +51,36 @@ cat("NMD-sensitive:", sum(df_alalam$nmd_sensitive, na.rm = TRUE), "\n")
 ```
 
 ```{r merge}
-# Merge fold change with sensitivity flags
+# Define eIF4E-sensitive as top quartile of eIF4E-AID FC in small cells (YM)
+# Define Pab1-sensitive as top quartile of Pab1-AID FC in large cells (YM)
+eif4e_threshold <- quantile(df_yuyang$log2FC_eIF4E_small_YM,
+                             0.75, na.rm = TRUE)
+pab1_threshold  <- quantile(df_yuyang$log2FC_Pab1_large_YM,
+                             0.75, na.rm = TRUE)
+
+cat("eIF4E top quartile threshold:", round(eif4e_threshold, 3), "\n")
+cat("Pab1 top quartile threshold:", round(pab1_threshold, 3), "\n")
+
+df_yuyang_flags <- df_yuyang %>%
+  mutate(
+    eif4e_sensitive = !is.na(log2FC_eIF4E_small_YM) &
+                      log2FC_eIF4E_small_YM >= eif4e_threshold,
+    pab1_sensitive  = !is.na(log2FC_Pab1_large_YM) &
+                      log2FC_Pab1_large_YM >= pab1_threshold
+  ) %>%
+  dplyr::select(gene_id, eif4e_sensitive, pab1_sensitive)
+
+cat("eIF4E-sensitive genes:", sum(df_yuyang_flags$eif4e_sensitive), "\n")
+cat("Pab1-sensitive genes:", sum(df_yuyang_flags$pab1_sensitive), "\n")
+
+# Merge all flags with fold change
 df_plot <- df_fc %>%
   left_join(df_chapp %>% dplyr::select(gene_id, not1_sensitive,
                                         xrn1_sensitive),
             by = "gene_id") %>%
   left_join(df_alalam %>% dplyr::select(gene_id, nmd_sensitive),
-            by = "gene_id")
+            by = "gene_id") %>%
+  left_join(df_yuyang_flags, by = "gene_id")
 
 cat("Genes after merge:", nrow(df_plot), "\n")
 ```
@@ -55,9 +88,11 @@ cat("Genes after merge:", nrow(df_plot), "\n")
 ```{r wilcoxon}
 # Wilcoxon rank-sum tests: sensitive vs non-sensitive genes
 groups <- list(
-  Not1 = "not1_sensitive",
-  Xrn1 = "xrn1_sensitive",
-  NMD  = "nmd_sensitive"
+  Not1  = "not1_sensitive",
+  Xrn1  = "xrn1_sensitive",
+  NMD   = "nmd_sensitive",
+  eIF4E = "eif4e_sensitive",
+  Pab1  = "pab1_sensitive"
 )
 
 wilcox_results <- map_dfr(names(groups), function(grp) {
@@ -72,25 +107,25 @@ wilcox_results <- map_dfr(names(groups), function(grp) {
     pull(WT_hl_fc)
   w <- wilcox.test(sensitive, background, alternative = "two.sided")
   tibble(
-    group      = grp,
-    n_sensitive = length(sensitive),
-    n_background = length(background),
-    median_sensitive = median(sensitive),
+    group             = grp,
+    n_sensitive       = length(sensitive),
+    n_background      = length(background),
+    median_sensitive  = median(sensitive),
     median_background = median(background),
-    W = w$statistic,
-    p_value = w$p.value,
-    p_label = ifelse(w$p.value < 0.001, "p < 0.001",
-               ifelse(w$p.value < 0.01, "p < 0.01",
-               ifelse(w$p.value < 0.05, "p < 0.05",
-                      paste0("p = ", round(w$p.value, 3)))))
+    W                 = w$statistic,
+    p_value           = w$p.value,
+    p_label           = ifelse(w$p.value < 0.001, "p < 0.001",
+                        ifelse(w$p.value < 0.01,  "p < 0.01",
+                        ifelse(w$p.value < 0.05,  "p < 0.05",
+                               paste0("p = ", round(w$p.value, 3)))))
   )
 })
 
 cat("\nWilcoxon results:\n")
-print(wilcox_results)
+print(wilcox_results, width = Inf)
 ```
 
-```{r plot}
+```{r plot-function}
 make_cumfreq <- function(df, flag_col, grp_label, grp_col, p_label, n_sensitive) {
 
   df_sens <- df %>%
@@ -118,19 +153,22 @@ make_cumfreq <- function(df, flag_col, grp_label, grp_col, p_label, n_sensitive)
       values = c(setNames(1.2, sens_label), "Background" = 0.8),
       guide = "none") +
     annotate("text", x = -Inf, y = 0.75, hjust = -0.1,
-         label = p_label, size = 5, colour = "black") +
+             label = p_label, size = 5, colour = "black") +
     labs(x     = "log2 half-life FC (large / small cells)",
          y     = "Cumulative frequency") +
     theme_classic(base_size = 14) +
     theme(
-      axis.text       = element_text(size = 12, colour = "black"),
-      axis.title      = element_text(size = 13, colour = "black"),
-      legend.position = c(0.05, 0.95),
+      axis.text            = element_text(size = 12, colour = "black"),
+      axis.title           = element_text(size = 13, colour = "black"),
+      legend.position      = c(0.05, 0.95),
       legend.justification = c(0, 1),
-      legend.text     = element_text(size = 11),
-      plot.background = element_rect(fill = "white", colour = NA))
+      legend.text          = element_text(size = 11),
+      plot.background      = element_rect(fill = "white", colour = NA))
 }
+```
 
+```{r plot}
+# Figure 5: published dataset sensitivity groups
 p_not1 <- make_cumfreq(df_plot, "not1_sensitive", "Not1", col_small,
                         wilcox_results$p_label[wilcox_results$group == "Not1"],
                         wilcox_results$n_sensitive[wilcox_results$group == "Not1"]) +
@@ -147,10 +185,35 @@ p_nmd <- make_cumfreq(df_plot, "nmd_sensitive", "NMD", col_A,
   labs(tag = "C")
 
 p_panel <- p_not1 | p_xrn1 | p_nmd
+
 p_panel
 ggsave("figures/CW12_cumfreq_distributions.png", p_panel,
        width  = 18,
        height = 8,
        dpi    = 150)
 cat("Saved figures/CW12_cumfreq_distributions.png\n")
+```
+
+```{r plot-eif4e-pab1}
+# Figure 6: in-house RNA-seq sensitivity groups (Yuyang)
+p_eif4e <- make_cumfreq(df_plot, "eif4e_sensitive",
+                         "eIF4E", col_eif4e,
+                         wilcox_results$p_label[wilcox_results$group == "eIF4E"],
+                         wilcox_results$n_sensitive[wilcox_results$group == "eIF4E"]) +
+  labs(tag = "A")
+
+p_pab1 <- make_cumfreq(df_plot, "pab1_sensitive",
+                        "Pab1", col_pab1,
+                        wilcox_results$p_label[wilcox_results$group == "Pab1"],
+                        wilcox_results$n_sensitive[wilcox_results$group == "Pab1"]) +
+  labs(tag = "B")
+
+p_panel2 <- p_eif4e | p_pab1
+
+p_panel2
+ggsave("figures/CW12_cumfreq_eIF4E_Pab1.png", p_panel2,
+       width  = 12,
+       height = 8,
+       dpi    = 150)
+cat("Saved figures/CW12_cumfreq_eIF4E_Pab1.png\n")
 ```
