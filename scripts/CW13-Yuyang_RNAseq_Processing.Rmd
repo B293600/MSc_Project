@@ -1,0 +1,139 @@
+---
+title: "CW13-Yuyang_RNAseq_Processing"
+output: html_document
+---
+
+# Yuyang RNA-seq processing
+# Two sequencing runs: MS240610 and MS240819
+# TPM files contain S. cerevisiae and Candida spike-in rows
+# Metadata maps library_id to gene_tagged, size, treatment
+# For GBA: calculate log2FC (PhIAA_1hr / DMSO_1hr) per gene per factor per size
+# Output: tables/df_yuyang_gba.txt
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis")
+library(tidyverse)
+library(readxl)
+```
+
+```{r load-metadata}
+df_meta <- read_excel("tables/YM_RNA_seq_combined_metadata.xlsx")
+
+cat("Total libraries:", nrow(df_meta), "\n")
+cat("Folders:", paste(unique(df_meta$folder), collapse = ", "), "\n")
+cat("Factors:", paste(unique(df_meta$gene_tagged), collapse = ", "), "\n")
+cat("Treatments:", paste(unique(df_meta$treatment), collapse = ", "), "\n")
+```
+
+```{r load-tpm}
+# Load both TPM files, filter to S. cerevisiae, use column 3 as gene_id
+# Extract library_id from column names using regex
+
+load_tpm <- function(path, folder) {
+  df <- read_tsv(path, show_col_types = FALSE) %>%
+    filter(`#` == "S_cerevisiae") %>%
+    dplyr::select(-`#`, -`...2`) %>%
+    dplyr::rename(gene_id = `...3`)
+
+  # Pivot to long format
+  df_long <- df %>%
+    pivot_longer(-gene_id, names_to = "col_name", values_to = "TPM") %>%
+    mutate(
+      # Extract library_id -- appears as MS######L## pattern
+      library_id = str_extract(col_name, "MS\\d+L\\d+"),
+      folder     = folder
+    ) %>%
+    filter(!is.na(library_id)) %>%
+    dplyr::select(gene_id, library_id, folder, TPM)
+
+  cat(folder, "- genes:", length(unique(df_long$gene_id)),
+      "libraries:", length(unique(df_long$library_id)), "\n")
+  df_long
+}
+
+df_tpm_819 <- load_tpm("tables/MS240819_TPM.txt", "MS240819")
+df_tpm_610 <- load_tpm("tables/MS240610_TPM.txt", "MS240610")
+
+df_tpm_all <- bind_rows(df_tpm_819, df_tpm_610)
+cat("Total gene-library observations:", nrow(df_tpm_all), "\n")
+```
+
+```{r join-metadata}
+# Join TPM with metadata to get gene_tagged, size, treatment
+df_joined <- df_tpm_all %>%
+  inner_join(df_meta, by = c("library_id", "folder"))
+
+cat("Observations after metadata join:", nrow(df_joined), "\n")
+cat("Factors present:", paste(unique(df_joined$gene_tagged), collapse = ", "), "\n")
+
+# Check join worked -- should have same n libraries as metadata
+cat("Libraries matched:", length(unique(df_joined$library_id)), 
+    "of", nrow(df_meta), "\n")
+```
+
+```{r filter-conditions}
+# Keep only DMSO_1hr (control) and PhIAA_1hr (1hr depletion)
+# Exclude PhIAA_30min and any rapamycin conditions
+# Keep only G1-arrested conditions (1.5hr = small, 8hr = large)
+# Exclude WT from depletion FC calculation
+
+df_filtered <- df_joined %>%
+  filter(treatment %in% c("DMSO_1hr", "PhIAA_1hr")) %>%
+  filter(gene_tagged != "WT")
+
+cat("Factors after filtering:", paste(unique(df_filtered$gene_tagged), collapse = ", "), "\n")
+cat("Sizes:", paste(unique(df_filtered$size), collapse = ", "), "\n")
+```
+
+```{r compute-fc}
+# Calculate mean TPM per gene per factor per size per treatment
+# Then log2FC = log2(mean_PhIAA / mean_DMSO)
+# Add pseudocount of 1 to avoid log(0)
+
+df_fc <- df_filtered %>%
+  group_by(gene_id, gene_tagged, size, treatment) %>%
+  summarise(mean_TPM = mean(TPM, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = treatment, values_from = mean_TPM) %>%
+  filter(!is.na(DMSO_1hr), !is.na(PhIAA_1hr)) %>%
+  mutate(log2FC = log2((PhIAA_1hr + 1) / (DMSO_1hr + 1))) %>%
+  dplyr::select(gene_id, gene_tagged, size, log2FC)
+
+cat("Gene-factor-size combinations:", nrow(df_fc), "\n")
+df_fc %>% dplyr::count(gene_tagged, size) %>% print()
+```
+
+```{r pivot-wide}
+# Pivot to wide format: one column per factor-size combination
+# Column names: log2FC_[factor]_[size]_YM
+# Filter to standard yeast ORFs only (gene_id starts with Y)
+
+df_yuyang <- df_fc %>%
+  mutate(variable = paste0("log2FC_", gene_tagged, "_", size, "_YM")) %>%
+  dplyr::select(gene_id, variable, log2FC) %>%
+  pivot_wider(names_from = variable, values_from = log2FC) %>%
+  filter(grepl("^Y", gene_id))
+
+cat("Genes in output table:", nrow(df_yuyang), "\n")
+cat("Variables:", paste(colnames(df_yuyang)[-1], collapse = ", "), "\n")
+```
+
+```{r qc}
+# Quick correlation check between replicates within each factor
+# Summary of log2FC distributions
+df_fc %>%
+  group_by(gene_tagged, size) %>%
+  summarise(
+    median_fc = median(log2FC, na.rm = TRUE),
+    mean_fc   = mean(log2FC, na.rm = TRUE),
+    n         = n(),
+    .groups   = "drop"
+  ) %>%
+  print()
+```
+
+```{r save}
+write.table(df_yuyang, "tables/df_yuyang_gba.txt",
+            sep = "\t", row.names = FALSE, quote = FALSE)
+cat("Saved tables/df_yuyang_gba.txt\n")
+```

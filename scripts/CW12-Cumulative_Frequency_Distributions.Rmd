@@ -147,9 +147,10 @@ p_nmd <- make_cumfreq(df_plot, "nmd_sensitive", "NMD", col_A,
   labs(tag = "C")
 
 p_panel <- p_not1 | p_xrn1 | p_nmd
-
 p_panel
 ggsave("figures/CW12_cumfreq_distributions.png", p_panel,
-       width = 18, height = 6, dpi = 150)
+       width  = 18,
+       height = 8,
+       dpi    = 150)
 cat("Saved figures/CW12_cumfreq_distributions.png\n")
 ```
