@@ -550,10 +550,10 @@ ggsave("../figures/GBA_xrn1_dataset_comparison.png",
        dpi    = 150)
 cat("Saved GBA_xrn1_dataset_comparison.png\n")
 ```
+
 ```{r sanity_check_yuyang}
 ## Sanity check: Yuyang vs Chappleboim for same factors
 
-## Xrn1-AID: Yuyang small cells vs Chappleboim 60 min
 xrn1_ym_r <- cor_results %>%
   dplyr::filter(var1 == "log2FC_Xrn1_small_YM",
                 var2 == "log2FC_xrn1_60")
@@ -574,7 +574,6 @@ p_xrn1_ym <- scatter_binned_gba(
   theme(axis.title = element_text(size = 14, colour = "black"),
         axis.text  = element_text(size = 12, colour = "black"))
 
-## Not1-AID: Yuyang small cells vs Chappleboim 60 min
 not1_ym_r <- cor_results %>%
   dplyr::filter(var1 == "log2FC_Not1_small_YM",
                 var2 == "log2FC_not1_60")
@@ -595,11 +594,9 @@ p_not1_ym <- scatter_binned_gba(
   theme(axis.title = element_text(size = 14, colour = "black"),
         axis.text  = element_text(size = 12, colour = "black"))
 
-## Update existing Xrn1 sanity check to include tag A
 p_xrn1_sanity_tagged <- p_xrn1_sanity +
   labs(tag = "A")
 
-## Combine all three sanity checks
 p_sanity_panel <- p_xrn1_sanity_tagged | p_xrn1_ym | p_not1_ym
 
 p_sanity_panel
@@ -609,4 +606,71 @@ ggsave("../figures/GBA_sanity_checks.png",
        height = 7,
        dpi    = 150)
 cat("Saved GBA_sanity_checks.png\n")
+```
+
+```{r eif4g_vs_te}
+## eIF4G depletion FC vs translation efficiency
+## Tests whether genes most affected by eIF4G depletion have higher TE
+## TE: rRNA-depleted monosome+polysome, size-separated (Yuyang)
+
+df_TE <- read_csv("../tables/translation_efficiency.csv",
+                  show_col_types = FALSE) %>%
+  dplyr::select(gene_id,
+                TE_small = TE_rRNAdep_MandP_small_YM,
+                TE_large = TE_rRNAdep_MandP_large_YM)
+
+df_eif4g_te <- df_wide %>%
+  dplyr::select(gene_id, eIF4G_dep_fc_small, eIF4G_dep_fc_large) %>%
+  inner_join(df_TE, by = "gene_id") %>%
+  filter(!is.na(eIF4G_dep_fc_small), !is.na(eIF4G_dep_fc_large),
+         !is.na(TE_small), !is.na(TE_large),
+         is.finite(eIF4G_dep_fc_small), is.finite(eIF4G_dep_fc_large),
+         is.finite(TE_small), is.finite(TE_large),
+         TE_small > 0, TE_large > 0)
+
+cat("Genes for eIF4G vs TE plot:", nrow(df_eif4g_te), "\n")
+
+r_small <- cor(df_eif4g_te$eIF4G_dep_fc_small,
+               log2(df_eif4g_te$TE_small),
+               method = "spearman", use = "complete.obs")
+r_large <- cor(df_eif4g_te$eIF4G_dep_fc_large,
+               log2(df_eif4g_te$TE_large),
+               method = "spearman", use = "complete.obs")
+
+cat("eIF4G FC small vs TE small R:", round(r_small, 3), "\n")
+cat("eIF4G FC large vs TE large R:", round(r_large, 3), "\n")
+
+p_te_small <- scatter_binned_gba(
+  df_eif4g_te %>% mutate(TE_small_log2 = log2(TE_small)),
+  x_col     = "TE_small_log2",
+  y_col     = "eIF4G_dep_fc_small",
+  x_lab     = "Translation efficiency, small cells (log2)",
+  y_lab     = "log2 FC after eIF4G depletion, small cells",
+  point_col = col_small,
+  ylim      = c(-3, 1)) +
+  labs(tag = "A") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_te_large <- scatter_binned_gba(
+  df_eif4g_te %>% mutate(TE_large_log2 = log2(TE_large)),
+  x_col     = "TE_large_log2",
+  y_col     = "eIF4G_dep_fc_large",
+  x_lab     = "Translation efficiency, large cells (log2)",
+  y_lab     = "log2 FC after eIF4G depletion, large cells",
+  point_col = col_large,
+  ylim      = c(-3, 1)) +
+  labs(tag = "B") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_eif4g_te_panel <- p_te_small | p_te_large
+
+p_eif4g_te_panel
+ggsave("../figures/GBA_eIF4G_vs_TE.png",
+       plot   = p_eif4g_te_panel,
+       width  = 12,
+       height = 6,
+       dpi    = 150)
+cat("Saved GBA_eIF4G_vs_TE.png\n")
 ```

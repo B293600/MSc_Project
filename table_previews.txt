@@ -1,0 +1,49 @@
+===== PCA_genes_AC.txt =====
+--- ncol/nrow ---
+columns: 
+rows: 
+--- header ---
+--- sample rows ---
+
+===== Combined_norm_table_AC.txt =====
+--- ncol/nrow ---
+columns: 
+rows: 
+--- header ---
+--- sample rows ---
+
+===== norm_table.txt =====
+--- ncol/nrow ---
+columns: 
+rows: 
+--- header ---
+--- sample rows ---
+
+===== combined_sample_info.txt =====
+--- ncol/nrow ---
+columns: 
+rows: 
+--- header ---
+--- sample rows ---
+
+===== MS251208_express-1.5.1.Candida+cerevisiae.2x50mers.TPM_with_both_names.table.txt =====
+--- ncol/nrow ---
+columns: 
+rows: 
+--- header ---
+--- sample rows ---
+
+===== MS251208_sample_info.txt =====
+--- ncol/nrow ---
+columns: 
+rows: 
+--- header ---
+--- sample rows ---
+
+===== PCA_samples_AC.txt =====
+--- ncol/nrow ---
+columns: 
+rows: 
+--- header ---
+--- sample rows ---
+
