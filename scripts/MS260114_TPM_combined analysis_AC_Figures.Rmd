@@ -1,0 +1,578 @@
+---
+title: "TPM table for spike-in normalised RNA-seq COMBINING ALL EXPS. Figures script"
+author: "MS"
+date: "260114"
+output: html_document
+file  names should be formatted: 
+---
+```{r setup}
+rm(list=ls())
+library(MASS)
+library(plotly)
+library(broom)
+library(corrr)
+library(viridis)
+library(tidyverse)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes you're in scripts folder 
+load('../../../../shared_code/r_functions/plotting_functions.rda')
+getwd()
+```
+
+load TPM data, merge with annotation data, calculate global ratios, recalcualte TPMs for one species and normalise
+```{r}
+#load data and annotation tables
+
+verified_ORF <- read_tsv("../tables/2230128_verified_ORF.txt", show_col_types=FALSE) %>% dplyr::select(-"species") #Read table with list of verified ORFs in both Pombe and Cerevisiae + exclude 'species' from the table.
+
+annotation <- read_tsv("../tables/210601_gene_annotation.txt", show_col_types=FALSE) #Read table with a lot of gene annotations from different papers (but we will be interested in the HO cluster, since it is related to iESR and rESR)
+
+combined_sample_info <- read_tsv("../tables/combined_sample_info.txt", show_col_types=FALSE) # Read table with sample info, exp date, DNA ratio (S.cerev / C. glabrata) and average genome/ cell (calculated from flow cytometry data). 
+
+df_sc_final <- read_tsv("../tables/df_sc_final.txt", show_col_types=FALSE) # Read table with all normalisations
+df_norm_table_1 <- read_tsv("../tables/Combined_norm_table_AC.txt", show_col_types=FALSE) # Read table with RNAxcell
+
+```
+
+```{r}
+#PCA data manipulations ##################
+#For group A from exp_group_4 (so all exps) 
+df_pca_1 <- df_sc_final %>% filter(exp_group_4=="A",TPMmin4>2) %>% pivot_wider(., id_cols = c("gene_id", "gene_name"), names_from = sample, values_from = "log2TPMnorm4")
+
+#PCA calculation
+pca_1 <- df_pca_1 %>% dplyr::select(., where(is.numeric)) %>% prcomp(scale.=FALSE, center=FALSE)
+
+pca_results_variance_1 <- summary(pca_1)$importance[2,] %>% as.data.frame() # Provides good info to see which PC line explains most of the variance (in this case is PC1)
+
+#How much a sample contributes to each PC and left join sample info
+pca_results_samples_1 <- as.data.frame(pca_1$rotation) %>% rownames_to_column(var="sample") %>% left_join(., combined_sample_info) 
+
+write_tsv(pca_results_samples_1, file = "../tables/PCA_samples_AC.txt")
+
+#How much genes contribute to each PC
+pca_results_genes_1 <- bind_cols(dplyr::select(df_pca_1, gene_id), as.data.frame(pca_1$x)) 
+write_tsv(pca_results_genes_1, file = "../tables/PCA_genes_AC.txt")
+
+#Make pca_results_genes_1 longer, so I have one column with all PC and one for all the values and join to annotation table
+pca_results_genes_2 <- pca_results_genes_1 %>% pivot_longer(cols=colnames(dplyr::select(., contains("PC"))), names_to="PC", values_to="values") %>% left_join(., annotation, by="gene_id") 
+
+write_tsv(pca_results_genes_2, file = "../tables/PCA_genes_annotatated_AC.txt")
+```
+
+```{r}
+#PCA Plots####### 
+#Plot of PC1 vs size. To visualise different combinations of exps, use the filter code, as below. Now we filter for A in exp group 2. PC1 vs CELL SIZE FOR EXP251017
+p0 <- pca_results_samples_1 %>% filter(exp_group_2=="A", !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p0
+ggsave(p0, filename = "./figures/PC1-vs-size_OD.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC2 vs size FOR EXP251017.
+p0_1 <- pca_results_samples_1 %>% filter(exp_group_2=="A", !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p0_1
+ggsave(p0_1, filename = "./figures/PC2-vs-size_OD.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC1 vs size FOR ALL WT (MS69) DMSO, TORIN, RAPA.
+p <- pca_results_samples_1 %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_Rapa", "WT_OD 0.1", "WT_OD 0.3"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p
+ggsave(p, filename = "./figures/PC1-vs-size_Torin_Rapa_MS69.png", dpi = 300, width = 12, height = 8)
+
+#Plot of PC2 vs size FOR ALL WT (MS69) DMSO, TORIN, RAPA.
+p1 <- pca_results_samples_1 %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_Rapa", "WT_OD 0.1", "WT_OD 0.3"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p1
+ggsave(p1, filename = "./figures/PC2-vs-size_Torin_Rapa_MS69.png", dpi = 300, width = 12, height = 8)
+
+#Plot of PC3 vs size FOR ALL WT (MS69) DMSO, TORIN, RAPA.
+pA <- pca_results_samples_1 %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_Rapa", "WT_OD 0.1", "WT_OD 0.3"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC3, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+pA
+ggsave(pA, filename = "./figures/PC3-vs-size_Torin_Rapa_MS69.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC1 vs size FOR ALL WT (MS69) DMSO, TORIN, Torin+PhIAA, PhIAA.
+p2 <- pca_results_samples_1 %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_PhIAA", "WT_Torin+PhIAA", "WT_OD 0.1", "WT_OD 0.3"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p2
+ggsave(p2, filename = "./figures/PC1-vs-size_Torin_PhIAA_MS69.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC2 vs size FOR ALL WT (MS69) DMSO, TORIN, Torin+PhIAA, PhIAA.
+p3 <- pca_results_samples_1 %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_PhIAA", "WT_Torin+PhIAA", "WT_OD 0.1", "WT_OD 0.3"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p3
+ggsave(p3, filename = "./figures/PC2-vs-size_Torin_PhIAA_MS69.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC1 vs size FOR MS756 DMSO, TORIN, PHIAA, TORIN+PHIAA
+p4 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "E", "F"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p4
+ggsave(p4, filename = "./figures/PC1-vs-size_Torin_PhIAA_MS756.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC2 vs size FOR MS756 DMSO, TORIN, PHIAA, TORIN+PHIAA
+p5 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "E", "F"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition))  + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p5
+ggsave(p5, filename = "./figures/PC2-vs-size_Torin_PhIAA_MS756.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC1 vs size FOR MS791 PHIAA, DMSO
+p6 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "G"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition))+ geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p6
+ggsave(p6, filename = "./figures/PC1-vs-size_MS791.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC2 vs size FOR MS791 PHIAA, DMSO
+p7 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "G"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p7
+ggsave(p7, filename = "./figures/PC2-vs-size_MS791.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC1 vs size FOR MS793 PHIAA, DMSO
+p8 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "H"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p8
+ggsave(p8, filename = "./figures/PC1-vs-size_MS793.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC2 vs size FOR MS793 PHIAA, DMSO
+p9 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "H"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p9
+ggsave(p9, filename = "./figures/PC2-vs-size_MS793.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC1 vs size FOR hyper. TORC1 ATC
+p10 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "I"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition, shape=strain_id)) + geom_point( size=3, alpha=0.85) + scale_shape_manual(
+    values = c(
+      "MS951"   = 16,
+      "MS1007" = 17,
+      "MS1116"   = 18,
+      "MS69" = 15)
+  ) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p10
+ggsave(p10, filename = "./figures/PC1-vs-size_TORC1-hyper.png", dpi = 300, width = 15, height = 8)
+
+#Plot of PC2 vs size FOR hyper. TORC1 ATC
+p11 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "I"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition, shape= strain_id)) + geom_point( size=3, alpha=0.85) + scale_shape_manual(
+    values = c(
+      "MS951"   = 16,
+      "MS1007" = 17,
+      "MS1116"   = 18,
+      "MS69" = 15)
+  ) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p11
+ggsave(p11, filename = "./figures/PC2-vs-size_TORC1-hyper.png", dpi = 300, width = 15, height = 8)
+
+#Plot PC1 vs cell size for exp251017 and exp260220 (951 and 1154 only)
+p31 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "J"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout", "MS796_SCD_4.75hr-arrest", "MS796_SCD_1hr-arrest", "MS1042_SCD_1hr-arrest_ATC", "MS1042_SCD_4.75hr-arrest_ATC"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition, shape= strain_id)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p31
+ggsave(p31, filename = "./figures/PC1-vs-size_PKA-inhib.png", dpi = 300, width = 15, height = 8)
+
+#Plot PC2 vs cell size for exp251017 and exp260220 (951 and 1154 only)
+p32 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "J"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout", "MS796_SCD_4.75hr-arrest", "MS796_SCD_1hr-arrest", "MS1042_SCD_1hr-arrest_ATC", "MS1042_SCD_4.75hr-arrest_ATC"))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition, shape= strain_id)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p32
+ggsave(p32, filename = "./figures/PC2-vs-size_PKA-inhib.png", dpi = 300, width = 15, height = 8)
+
+#Plot PC1 vs cell size for exp251017 and exp260220 (951 and 1154 only) and 951+ATC from exp251106
+p33 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "J", "I"), strain_id %in% c("MS69","MS951", "MS1154"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition, shape= strain_id)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p33
+ggsave(p33, filename = "./figures/PC1-vs-size_PKA-inhib+exp251106.png", dpi = 300, width = 15, height = 8)
+
+#Plot PC2 vs cell size for exp251017 and exp260220 (951 and 1154 only) and 951+ATC from exp251106
+p34 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "J", "I"), strain_id %in% c("MS69","MS951", "MS1154"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition, shape= strain_id)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p34
+ggsave(p34, filename = "./figures/PC2-vs-size_PKA-inhib+exp251106.png", dpi = 300, width = 15, height = 8)
+
+#Plot PC1 vs cell size for exp251017 and exp260220 (1042 only) and exp251106 (951, 1007, 1116)
+p36 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "J", "I"), strain_id %in% c("MS69","MS951", "MS1042", "MS1007", "MS1116"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout", "MS951_SCD_1hr-arrest_1NMPP1", "MS951_SCD_4.75hr-arrest_1NMPP1"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition, shape= strain_id)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p36
+ggsave(p36, filename = "./figures/PC1-vs-size_TORC1-hyper_exp260220+exp251106.png", dpi = 300, width = 15, height = 8)
+
+#Plot PC2 vs cell size for exp251017 and exp260220 (1042 only) and exp251106 (951, 1007, 1116)
+p37 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "J", "I"), strain_id %in% c("MS69","MS951", "MS1042", "MS1007", "MS1116"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout", "MS951_SCD_1hr-arrest_1NMPP1", "MS951_SCD_4.75hr-arrest_1NMPP1" ))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition, shape= strain_id)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p37
+ggsave(p37, filename = "./figures/PC2-vs-size_TORC1-hyper_exp260220+exp251106.png", dpi = 300, width = 15, height = 8)
+
+#Plot PC1 vs cell size for exp251017, TORC1 inhibition exps,and TOR hyper (exp241211, TOR1-L2134M) 
+p38 <- pca_results_samples_1 %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_Rapa", "WT_OD 0.1", "WT_OD 0.3", "TOR1-L2134M_no-treatment"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95)
+p38
+ggsave(p38, filename = "./figures/PC1-vs-size_TOR1-L2134M.png", dpi = 300, width = 15, height = 8)
+
+#Plot PC2 vs cell size for exp251017, TORC1 inhibition exps,and TOR hyper (exp241211, TOR1-L2134M) 
+p39 <- pca_results_samples_1 %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_Rapa", "WT_OD 0.1", "WT_OD 0.3", "TOR1-L2134M_no-treatment"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC2, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95)
+p39
+ggsave(p39, filename = "./figures/PC2-vs-size_TOR1-L2134M.png", dpi = 300, width = 15, height = 8)
+
+#Plot PC1 vs cell size for exp251017 and TORC1 hyper. from exp251106, TOR hyper (exp241211, TOR1-L2134M) and TOR hyper from exp260220 (MS1042)
+p40 <- pca_results_samples_1 %>% filter(exp_group_2 %in% c("A", "J", "I"), strain_id %in% c("MS69","MS951", "MS1042", "MS1007", "MS1116", "MS796"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout", "MS951_SCD_1hr-arrest_1NMPP1", "MS951_SCD_4.75hr-arrest_1NMPP1"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition, shape= strain_id)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+p40
+ggsave(p40, filename = "./figures/PC1-vs-size_TOR1-L2134M+exp251106+exp260220.png", dpi = 300, width = 15, height = 8)
+```
+
+```{r}
+#PCA manipulations with values normalised to WT_DMSO_1hr instead to being normalised to the mean of the TPMs of all samples
+
+df_pca_X <- df_sc_final %>% filter(TPMmin4>1) %>% pivot_wider(., id_cols = c("gene_id", "gene_name"), names_from = sample, values_from = "log2TPM_FCref3") #%>% filter(!if_any(everything(), ~ . == -Inf))
+
+#PCA calculation
+pca_X <- df_pca_X %>% dplyr::select(., where(is.numeric)) %>% prcomp(scale.=FALSE, center=FALSE)
+
+pca_results_variance_X <- summary(pca_X)$importance[2,] %>% as.data.frame() # Provides good info to see which PC line explains most of the variance (in this case is PC1)
+
+#How much a sample contributes to each PC and left join sample info
+pca_results_samples_X <- as.data.frame(pca_X$rotation) %>% rownames_to_column(var="sample") %>% left_join(., combined_sample_info) 
+#How much genes contribute to each PC
+pca_results_genes_X <- bind_cols(dplyr::select(df_pca_X, gene_id), as.data.frame(pca_X$x)) 
+
+#Plot of PC1 vs size FOR ALL WT (MS69) DMSO, TORIN, RAPA.
+pX <- pca_results_samples_X %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_Rapa", "WT_OD 0.1", "WT_OD 0.3"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+pX
+
+#Plot of PC1 vs size FOR ALL WT (MS69) DMSO, TORIN, Torin+PhIAA, PhIAA.
+pX2 <- pca_results_samples_X %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_PhIAA", "WT_Torin+PhIAA", "WT_OD 0.1", "WT_OD 0.3"), !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"))  %>% ggplot(aes(x=mean_cell_volume, y=PC1, color=condition)) + geom_point( size=3, alpha=0.85) + scale_color_viridis_d(option = "turbo", end = 0.95) #+ coord_fixed(ratio = 1)
+pX2
+
+```
+
+
+``` {r}
+#CFD from PCA with genes annotations######### AND SCATTER PLOT WITH Eg values from PCA with genes annotations#####
+
+# Created a function: filter for PC1, plot a CFD of different genes, including stress, cell cycle.
+plot_PCA_2 <- function(data, colour_var, filename, pc = "PC1") {
+  
+  df_plot <- data %>% 
+    filter(PC == pc)
+  
+  p <- df_plot %>%
+    ggplot(aes(x = values, colour = !!sym(colour_var))) +
+    stat_ecdf(geom = "step", size = 1.2) +
+    viridis::scale_colour_viridis(
+      discrete = TRUE,
+      direction = 1,
+      option = "mako",
+      begin = 0.2,
+      end = 0.9,
+      na.value = "grey"
+    ) +
+    coord_cartesian(xlim = c(-30, 30)) +
+    labs(
+      y = "cumulative fraction",
+      x = paste0("Gene loadings (", pc, ")")
+    )
+  
+  print(p)
+  
+  ggsave(
+    filename = filename,
+    plot = p,
+    dpi = 300,
+    width = 15,
+    height = 8
+  )
+}
+
+plot_PCA_2(pca_results_genes_2, "Ho_cluster", "./figures/Gene-loading_PC1_Ho-cluster.png")
+
+plot_PCA_2(pca_results_genes_2, "cell_cycle_high_confidence", "./figures/Gene-loading_PC1_CC-high-confidence.png")
+
+plot_PCA_2(pca_results_genes_2, "Campbell_2020_cell_cycle_phase", "./figures/Gene-loading_PC1_Campbell.png")
+
+plot_PCA_2(pca_results_genes_2, "Spellman_1998_cell_cycle_phase", "./figures/Gene-loading_PC1_Spellman.png")
+
+plot_PCA_2(pca_results_genes_2, "cell_cycle_low_confidence", "./figures/Gene-loading_PC1_CC-low-confidence.png")
+
+
+
+# Plot in a scatter plot PC1 vs metzl EG genetic perturbations (growth signatures). Show spearman corr. test
+cor_test <- cor.test(df_plot$metzlraz_EG_genetic_pertubation,
+                     df_plot$values,
+                     method = "spearman")
+
+rho <- round(cor_test$estimate, 3)
+
+pP <- df_plot %>%
+  ggplot(aes(x = metzlraz_EG_genetic_pertubation,
+             y = values)) +
+  geom_point(size = 1, alpha = 0.6) +
+  annotate("text",
+           x = Inf, y = Inf,
+           label = paste0("Spearman \u03C1 = ", rho),
+           hjust = 1.1, vjust = 1.5,
+           size = 5) +
+  scale_color_viridis_d(option = "turbo", end = 0.95) +
+  labs(y = "Gene loadings (PC1)")
+pP
+ggsave(pP, filename = "./figures/Gene-loading_PC1_Metzl-EG_genetic.png", dpi = 300, width = 15, height = 8)
+
+# Plot in a scatter plot PC1 vs metzl EG env perturbations (growth signatures). Show spearman corr. test
+cor_test_1 <- cor.test(df_plot$metzlraz_EG_enviromental_pertubation,
+                     df_plot$values,
+                     method = "spearman")
+
+rho_1 <- round(cor_test_1$estimate, 3)
+
+pP1 <- df_plot %>%
+  ggplot(aes(x = metzlraz_EG_enviromental_pertubation,
+             y = values)) +
+  geom_point(size = 1, alpha = 0.6) +
+  annotate("text",
+           x = Inf, y = Inf,
+           label = paste0("Spearman \u03C1 = ", rho_1),
+           hjust = 1.1, vjust = 1.5,
+           size = 5) +
+  scale_color_viridis_d(option = "turbo", end = 0.95) +
+  labs(y = "Gene loadings (PC1)")
+pP1
+ggsave(pP1, filename = "./figures/Gene-loading_PC1_Metzl-EG_environmental.png", dpi = 300, width = 15, height = 8)
+
+
+# Filter for PC2
+df_plot_prova <- pca_results_genes_2 %>%filter(PC=="PC2")
+
+# Plot stress gene expression as in a CFD, using values of genes from PC2
+p17 <- df_plot_prova %>% ggplot(aes(x=values, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-30, 30)) + labs(y= "cumulative fraction", x = "Gene loadings (PC2)")
+p17
+ggsave(p17, filename = "./figures/Gene-loading_PC2_Ho-cluster.png", dpi = 300, width = 15, height = 8)
+
+# Plot cell cycle genes from Campbell as in a CFD, using values of genes from PC2
+p18 <- df_plot_prova %>% ggplot(aes(x=values, colour=Campbell_2020_cell_cycle_phase)) + stat_ecdf(geom = "step", size = 1.2) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-30, 30)) + labs(y= "cumulative fraction", x = "Gene loadings (PC2)")
+p18
+ggsave(p18, filename = "./figures/Gene-loading_PC2_Campbell.png", dpi = 300, width = 15, height = 8)
+
+# Plot cell cycle genes from cell cycle high confidence as in a CFD, using values of genes from PC2
+p19 <- df_plot_prova %>% ggplot(aes(x=values, colour=cell_cycle_high_confidence)) + stat_ecdf(geom = "step", size = 1.2) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-30, 30)) + labs(y= "cumulative fraction", x = "Gene loadings (PC2)")
+p19
+ggsave(p19, filename = "./figures/Gene-loading_PC2_CC-high-confidence.png", dpi = 300, width = 15, height = 8)
+
+# Plot in a scatter plot PC2 vs metzl EG genetic perturbations (growth signatures)
+#pP3 <- df_plot_prova %>% ggplot(aes(x=metzlraz_EG_genetic_pertubation, y=values)) + geom_point( size=1, alpha=0.6) + scale_color_viridis_d(option = "turbo", end = 0.95) + labs(y= "Gene loadings (PC2)")
+#pP3
+
+# Plot in a scatter plot PC2 vs metzl EG genetic perturbations (growth signatures). Show spearman corr. test
+cor_test_2 <- cor.test(df_plot_prova$metzlraz_EG_genetic_pertubation,
+                     df_plot_prova$values,
+                     method = "spearman")
+
+rho_2 <- round(cor_test_2$estimate, 3)
+
+pP2 <- df_plot_prova %>%
+  ggplot(aes(x = metzlraz_EG_genetic_pertubation,
+             y = values)) +
+  geom_point(size = 1, alpha = 0.6) +
+  annotate("text",
+           x = Inf, y = Inf,
+           label = paste0("Spearman \u03C1 = ", rho_2),
+           hjust = 1.1, vjust = 1.5,
+           size = 5) +
+  scale_color_viridis_d(option = "turbo", end = 0.95) +
+  labs(y = "Gene loadings (PC2)")
+pP2
+ggsave(pP2, filename = "./figures/Gene-loading_PC2_Metzl-EG_genetic.png", dpi = 300, width = 15, height = 8)
+
+# Plot in a scatter plot PC2 vs metzl EG env perturbations (growth signatures). Show spearman corr. test
+cor_test_3 <- cor.test(df_plot_prova$metzlraz_EG_enviromental_pertubation,
+                     df_plot_prova$values,
+                     method = "spearman")
+
+rho_3 <- round(cor_test_3$estimate, 3)
+
+pP3 <- df_plot_prova %>%
+  ggplot(aes(x = metzlraz_EG_enviromental_pertubation,
+             y = values)) +
+  geom_point(size = 1, alpha = 0.6) +
+  annotate("text",
+           x = Inf, y = Inf,
+           label = paste0("Spearman \u03C1 = ", rho_3),
+           hjust = 1.1, vjust = 1.5,
+           size = 5) +
+  scale_color_viridis_d(option = "turbo", end = 0.95) +
+  labs(y = "Gene loadings (PC2)")
+pP3
+ggsave(pP3, filename = "./figures/Gene-loading_PC2_Metzl-EG_environmental.png", dpi = 300, width = 15, height = 8)
+
+
+# Filter for PC3
+df_plot_B <- pca_results_genes_2 %>%filter(PC=="PC3")
+
+# Plot stress gene expression as in a CFD, using values of genes from PC3
+pB <- df_plot_B %>% ggplot(aes(x=values, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-30, 30)) + labs(y= "cumulative fraction", x = "Gene loadings (PC3)")
+pB
+ggsave(pB, filename = "./figures/Gene-loading_PC3_Ho-cluster.png", dpi = 300, width = 15, height = 8)
+
+# Plot cell cycle genes from Campbell as in a CFD, using values of genes from PC3
+pB1 <- df_plot_B %>% ggplot(aes(x=values, colour=Campbell_2020_cell_cycle_phase)) + stat_ecdf(geom = "step", size = 1.2) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-30, 30)) + labs(y= "cumulative fraction", x = "Gene loadings (PC3)")
+pB1
+ggsave(pB1, filename = "./figures/Gene-loading_PC3_Campbell.png", dpi = 300, width = 15, height = 8)
+
+# Plot in a scatter plot PC3 vs metzl EG genetic perturbations (growth signatures)
+#pP6 <- df_plot_B %>% ggplot(aes(x=metzlraz_EG_genetic_pertubation, y=values)) + geom_point( size=1, alpha=0.6) + scale_color_viridis_d(option = "turbo", end = 0.95) + labs(y= "Gene loadings (PC3)")
+
+# Plot in a scatter plot PC3 vs metzl EG genetic perturbations (growth signatures). Show spearman corr. test
+cor_test_4 <- cor.test(df_plot_B$metzlraz_EG_genetic_pertubation,
+                     df_plot_B$values,
+                     method = "spearman")
+
+rho_4 <- round(cor_test_4$estimate, 3)
+
+pP4 <- df_plot_B %>%
+  ggplot(aes(x = metzlraz_EG_genetic_pertubation,
+             y = values)) +
+  geom_point(size = 1, alpha = 0.6) +
+  annotate("text",
+           x = Inf, y = Inf,
+           label = paste0("Spearman \u03C1 = ", rho_4),
+           hjust = 1.1, vjust = 1.5,
+           size = 5) +
+  scale_color_viridis_d(option = "turbo", end = 0.95) +
+  labs(y = "Gene loadings (PC3)")
+pP4
+ggsave(pP4, filename = "./figures/Gene-loading_PC3_Metzl-EG_genetic.png", dpi = 300, width = 15, height = 8)
+
+# Plot in a scatter plot PC3 vs metzl EG env perturbations (growth signatures). Show spearman corr. test
+cor_test_5 <- cor.test(df_plot_B$metzlraz_EG_enviromental_pertubation,
+                     df_plot_B$values,
+                     method = "spearman")
+
+rho_5 <- round(cor_test_5$estimate, 3)
+
+pP5 <- df_plot_B %>%
+  ggplot(aes(x = metzlraz_EG_enviromental_pertubation,
+             y = values)) +
+  geom_point(size = 1, alpha = 0.6) +
+  annotate("text",
+           x = Inf, y = Inf,
+           label = paste0("Spearman \u03C1 = ", rho_5),
+           hjust = 1.1, vjust = 1.5,
+           size = 5) +
+  scale_color_viridis_d(option = "turbo", end = 0.95) +
+  labs(y = "Gene loadings (PC3)")
+pP5
+ggsave(pP5, filename = "./figures/Gene-loading_PC3_Metzl-EG_environmental.png", dpi = 300, width = 15, height = 8)
+
+
+```
+
+```{r}
+#CORRELATION ANALYSIS##############
+#Calculate correlations between selected TPM values, convert to tidy format and plot for group A of exp_group_2 (exp251017)
+df_corr_1 <- df_sc_final %>% filter(exp_group_4=="A", TPMmin4>1) %>% pivot_wider(., id_cols = c("gene_id", "gene_name"), names_from = sample_short, values_from = "log2TPMnorm4", values_fn = mean)
+
+#Do spearman correlation test
+rcorr_results_1 <- dplyr::select(df_corr_1, where(is.numeric)) %>% as.matrix() %>% Hmisc::rcorr(type=c("spearman"))  
+cor_matrix_r_1 <- rcorr_results_1$r %>% as.data.frame() %>% rownames_to_column("var1") %>% gather(var2, spearman, -var1)
+
+#Join combined_sample_info. For var1, I only want the samples from exp251017 (wout the torin-washout) (it will calculate the average between 0.1 and 0.3 bc sample short has same name for both ODs). For var2, I want to filter out, the samples exp251017.
+cor_matrix_r <- cor_matrix_r_1 %>% left_join(., combined_sample_info, join_by(var1 == sample_short), multiple = "first") %>% filter(str_detect(var1, "^MS69_SCD_[1-6]hr-arrest$")) %>% filter (!var2 %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout", "MS69_SCD_1hr-arrest", "MS69_SCD_2hr-arrest", "MS69_SCD_3hr-arrest", "MS69_SCD_4hr-arrest", "MS69_SCD_5hr-arrest", "MS69_SCD_6hr-arrest"))
+
+#Make a matrix plot of exp251017 vs all other exps samples. If i want to show less samples, I can filter out some.
+p_corr <- cor_matrix_r %>% ggplot(aes(var1, var2, fill=spearman)) + geom_tile() + theme(panel.background = element_blank()) + labs(x="", y="") + viridis::scale_fill_viridis(discrete=FALSE, limits=c(), oob = scales::squish) +  theme(axis.text.x=element_text(angle=90, hjust=1), legend.justification = "top") + coord_fixed(ratio = 1)
+p_corr
+ggsave(p_corr, filename = "./figures/CA.png", dpi = 300, width = 15, height = 8)
+
+```
+
+```{r}
+#CFD of Stress gene expression relative to WT_condition and cell size#######
+# Stress gene expression filtering for exp251017. 
+df_A <- df_sc_final %>%filter(exp_group_2=="A", !sample_short %in% c("MS69_SCD_6hr10min-arrest_OD-0.1_Torin-washout", "MS69_SCD_6hr10min-arrest_OD-0.3_Torin-washout"), TPMmin4>1) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') 
+
+# Plot stress gene expression relative to 1h G1-arrest (ref3).
+p_A <- df_A %>% ggplot(aes(x=log2TPM_FCref3, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(TPM/WT_1hr))")
+p_A
+ggsave(p_A, filename = "./figures/OD_relative-to-WT.png", dpi = 300, width = 15, height = 8)
+
+# Stress gene expression. Filtered for MS69 DMSO, TORIN, RAPA, PHIAA, PHIAA+TORIN
+df_plot_B_C_D <- df_sc_final %>%filter(exp_group_2==c("B", "C", "D"), TPMmin4>1) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') 
+
+# Plot stress gene expression relative to WT_DMSO_1hr (MS69) (ref3).
+p_B_C_D <- df_plot_B_C_D %>% ggplot(aes(x=log2TPM_FCref3, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(TPM/WT_DMSO_1hr))")
+p_B_C_D
+ggsave(p_B_C_D, filename = "./figures/MS69_Torin_Rapa_T+PhiAA_relative-to-WT.png", dpi = 300, width = 15, height = 8)
+
+# Plot stress gene expression big cells relative to small cells for each gene (ref2).
+p_B_C_D_2 <- df_plot_B_C_D %>% ggplot(aes(x=log2TPM_FCref2, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(Big/small))")
+p_B_C_D_2
+ggsave(p_B_C_D_2, filename = "./figures/MS69_Torin_Rapa_T+PhiAA_relative-to-size.png", dpi = 300, width = 15, height = 8)
+
+# Stress gene expression. As we filtered for exp_group_2=E and F, we get relative stress gene expression for exp251111,exp250624, exp251010, exp250207. MS756 TORIN+PHIAA, PHIAA, TORIN, DMSO
+df_plot_E_F <- df_sc_final %>%filter(exp_group_2==c("E", "F"), TPMmin4>1) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') 
+
+# Plot stress gene expression relative to WT_DMSO_1hr (MS69) (ref3).
+p_E_F <- df_plot_E_F %>% ggplot(aes(x=log2TPM_FCref3, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(TPM/WT_DMSO_1hr))")
+p_E_F
+ggsave(p_E_F, filename = "./figures/MS756_Torin_PhIAA_T+PhiAA_relative-to-WT.png", dpi = 300, width = 15, height = 8)
+
+# Plot stress gene expression big cells relative to small cells for each gene (ref2).
+p_E_F_2 <- df_plot_E_F %>% ggplot(aes(x=log2TPM_FCref2, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(Big/small))")
+p_E_F_2
+ggsave(p_E_F_2, filename = "./figures/MS756_Torin_PhIAA_T+PhiAA_relative-to-size.png", dpi = 300, width = 15, height = 8)
+
+# Stress gene expression. Filter for exp group G (MS791).
+df_plot_G <- df_sc_final %>%filter(exp_group_2=="G", TPMmin4>1) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') 
+
+# Plot stress gene expression relative to WT_DMSO_1hr (MS69) (ref3).
+p_G <- df_plot_G %>% ggplot(aes(x=log2TPM_FCref3, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(TPM/WT_DMSO_1hr))")
+p_G
+ggsave(p_G, filename = "./figures/Hog1_relative-to-WT.png", dpi = 300, width = 15, height = 8)
+
+# Plot stress gene expression big cells relative to small cells for each gene (ref2).
+p_G2 <- df_plot_G %>% ggplot(aes(x=log2TPM_FCref2, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(Big/small))")
+p_G2
+ggsave(p_G2, filename = "./figures/Hog1_relative-to-size.png", dpi = 300, width = 15, height = 8)
+
+# Stress gene expression. Filter for exp group H (MS793).
+df_plot_H <- df_sc_final %>%filter(exp_group_2=="H", TPMmin4>1) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') 
+
+# Plot stress gene expression relative to WT_DMSO_1hr (MS69) (ref3).
+p_H <- df_plot_H %>% ggplot(aes(x=log2TPM_FCref3, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(TPM/WT_DMSO_1hr))")
+p_H
+ggsave(p_H, filename = "./figures/Pkc1_relative-to-WT.png", dpi = 300, width = 15, height = 8)
+
+# Plot stress gene expression big cells relative to small cells for each gene (ref2).
+p_H2 <- df_plot_H %>% ggplot(aes(x=log2TPM_FCref2, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(Big/small))")
+p_H2
+ggsave(p_H2, filename = "./figures/Pkc1_relative-to-size.png", dpi = 300, width = 15, height = 8)
+
+# Stress gene expression. Filter for exp group I (MS1007, 1116, 951) and J (1042 and 796).
+df_plot_I <- df_sc_final %>%filter(exp_group_2 %in% c("I", "J"), TPMmin4>1) %>% filter(!sample_short %in% c("MS951_SCD_1hr-arrest_1NMPP1", "MS951_SCD_4.75hr-arrest_1NMPP1", "MS1154_SCD_1hr-arrest_DMSO", "MS1154_SCD_4.75hr-arrest_DMSO", "MS1154_SCD_1hr-arrest_1NMPP1", "MS1154_SCD_4.75hr-arrest_1NMPP1")) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') 
+
+# Plot stress gene expression relative to WT_DMSO (ref1).
+p_I <- df_plot_I %>% ggplot(aes(x=log2TPM_FCref3, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(TPM/WT_DMSO_1hr))")
+p_I
+ggsave(p_I, filename = "./figures/TORC1-hyper_relative-to-WT.png", dpi = 300, width = 15, height = 8)
+
+# Plot stress gene expression big cells relative to small cells for each gene (ref2).
+p_I2 <- df_plot_I %>% ggplot(aes(x=log2TPM_FCref2, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(Big/small))")
+p_I2
+ggsave(p_I2, filename = "./figures/TORC1-hyper_relative-to-size.png", dpi = 300, width = 15, height = 8)
+
+# Stress gene expression. Filter for exp group J, MS951+1NMPP1 and MS1154 (exp260220).
+df_plot_J <- df_sc_final %>%filter(exp_group_2=="J",, TPMmin4>1) %>% filter(!sample_short %in% c("MS1042_SCD_1hr-arrest_ATC", "MS1042_SCD_4.75hr-arrest_ATC", "MS796_SCD_1hr-arrest", "MS796_SCD_4.75hr-arrest")) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') 
+
+# Plot stress gene expression relative to MS69_WT (ref1).
+p_J <- df_plot_J %>% ggplot(aes(x=log2TPM_FCref3, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(TPM/WT_DMSO_1hr))")
+p_J
+ggsave(p_J, filename = "./figures/PKA-inhib_relative-to-WT.png", dpi = 300, width = 15, height = 8)
+
+# Plot stress gene expression big cells relative to small cells for each gene (ref2).
+p_J2 <- df_plot_J %>% ggplot(aes(x=log2TPM_FCref2, colour=Ho_cluster)) + stat_ecdf(geom = "step", size = 1.2) + facet_wrap(c( ~strain_info, ~condition, ~arrest), ncol=4) +  viridis::scale_colour_viridis(discrete = TRUE, direction=1, option = "mako", begin=0.2, end=0.9, na.value = "grey") + coord_cartesian(xlim=c(-3, 3)) + labs(y= "cumulative fraction", x = "fold change (log2(Big/small))")
+p_J2
+ggsave(p_J2, filename = "./figures/PKA-inhib_relative-to-size.png", dpi = 300, width = 15, height = 8)
+
+```
+
+Whisker plot (NOT UPDATED!!!)
+```{r}
+# iESR for exp241010, exp241025, exp250206, exp250207
+df_prova <- df_sc %>%filter(TPMmin1>2) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') %>% filter(Ho_cluster == "iESR cluster") 
+
+ggplot(df_prova, aes(x = sample_short, y = log2TPM_FCref1, fill = sample_short)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(x= 'Sample', y = "Log2(TPM fold change)") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) 
+
+# PAC (rESR) for exp241010, exp241025, exp250206, exp250207
+df_prova1 <- df_sc %>%filter(TPMmin1>2) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') %>% filter(Ho_cluster == "PAC cluster") 
+
+ggplot(df_prova1, aes(x = sample_short, y = log2TPM_FCref1, fill = sample_short)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(x= 'Sample', y = "Log2(TPM fold change)") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) 
+
+# RP (rESR) for exp241010, exp241025, exp250206, exp250207
+df_prova2 <- df_sc %>%filter(TPMmin1>2) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') %>% filter(Ho_cluster == "RP cluster") 
+
+ggplot(df_prova2, aes(x = sample_short, y = log2TPM_FCref1, fill = sample_short)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(x= 'Sample', y = "Log2(TPM fold change)") +
+  theme(axis.text.x = element_text(angle = 70, hjust = 1)) 
+```
+

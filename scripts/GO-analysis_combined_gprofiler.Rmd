@@ -1,0 +1,235 @@
+---
+title: "GO-analysis"
+author: "AC"
+date: "2026-05-04"
+output: word_document
+---
+
+```{r setup}
+rm(list=ls())
+library(MASS)
+library(plotly)
+library(broom)
+library(corrr)
+library(viridis)
+library(tidyverse)
+library(gprofiler2)
+library(ggplot2)
+library(forcats)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes you're in scripts folder 
+load('../../../../shared_code/r_functions/plotting_functions.rda')
+getwd()
+```
+
+# Data wrangling
+```{r cars}
+PCA_genes <- read_tsv("../tables/PCA_genes_AC.txt", show_col_types=FALSE) # read table with principle components for all genes
+
+PCA_genes_filtered <- PCA_genes %>% pivot_longer(cols=colnames(dplyr::select(., contains("PC"))), names_to="PC", values_to="values") %>% filter(PC %in% c("PC1", "PC2")) #Make table longer and filter for PC1 and PC2, as they are the components where most of the variation is explained
+```
+#GO analysis PC1
+```{r pressure, echo=FALSE}
+top_n <- round(0.10 * 9236) # top 10% to use next for filtering
+
+#PC1
+PC1_pos <- PCA_genes_filtered %>%
+  filter(PC == "PC1", values > 0) %>%
+  arrange(desc(values)) %>%
+  slice_head(n = top_n) %>%
+  pull(gene_id)
+
+gp_PC1_pos <- gost(
+  query = PC1_pos,
+  organism = "scerevisiae",
+  significant = TRUE,
+  exclude_iea = TRUE,
+    multi_query = FALSE,
+  user_threshold = 0.05,
+  correction_method = "g_SCS", 
+  domain_scope = "annotated",
+  custom_bg = NULL
+)
+
+head(gp_PC1_pos$result) #inspect the output 
+#gostplot(gp_PC1_pos) # plot the output
+
+####### ALTERNATIVE PLOT########
+top_terms_pos <- gp_PC1_pos$result %>% # datframe is inside results
+  filter(
+    significant == TRUE,
+    source %in% c("GO:BP", "GO:CC", "GO:MF")) %>%
+  group_by(source) %>%
+  slice_min(order_by = p_value, n = 20) %>% # select the 20 smallest p-values
+  ungroup() %>%
+  mutate(pos_log10_p = -log10(p_value),
+         term_name = fct_reorder(term_name, pos_log10_p)) # so ggplot orders terms by significance and not alphabetical order
+
+pPos <- ggplot(top_terms_pos,
+       aes(x = term_name,
+           y = pos_log10_p)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  facet_wrap(~source, scales = "free_y") +
+  labs(
+    x = "GO term",
+    y = expression(-log[10](p_value)),
+    title = "Top GO terms for PC1 positive genes"
+  ) +
+  theme_minimal(base_size = 12)
+print(pPos)
+ggsave(pPos, filename = "./GO_figures/GO_PC1_Positive_gProfiler.png", dpi = 300, width = 15, height = 8)
+
+
+# PC1 NEGATIVE
+PC1_neg <- PCA_genes_filtered %>%
+  filter(PC == "PC1", values < 0) %>%
+  arrange(values) %>%
+  slice_head(n = top_n) %>%
+  pull(gene_id)
+
+gp_PC1_neg <- gost(
+  query = PC1_neg,
+  organism = "scerevisiae",
+  significant = TRUE,
+  exclude_iea = TRUE,
+    multi_query = FALSE,
+  user_threshold = 0.05,
+  correction_method = "g_SCS", 
+  domain_scope = "annotated",
+  custom_bg = NULL
+)
+head(gp_PC1_neg$result)
+#gostplot(gp_PC1_neg)
+
+####### ALTERNATIVE PLOT########
+top_terms_neg <- gp_PC1_neg$result %>%
+  filter(
+    significant == TRUE,
+    source %in% c("GO:BP", "GO:CC", "GO:MF")
+  ) %>%
+  group_by(source) %>%
+  slice_min(order_by = p_value, n = 20) %>%
+  ungroup() %>%
+  mutate(neg_log10_p = -log10(p_value),
+         term_name = fct_reorder(term_name, neg_log10_p))
+
+pNeg <- ggplot(top_terms_neg,
+       aes(x = term_name,
+           y = neg_log10_p)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  facet_wrap(~source, scales = "free_y") +
+  labs(
+    x = "GO term",
+    y = expression(-log[10](p_value)),
+    title = "Top GO terms for PC1 negative genes"
+  ) +
+  theme_minimal(base_size = 12)
+print(pNeg)
+ggsave(pNeg, filename = "./GO_figures/GO_PC1_Negative_gProfiler.png", dpi = 300, width = 15, height = 8)
+
+
+#GO:BP = Biological Process
+#GO:MF = Molecular Function
+#GO:CC = Cellular Component
+```
+
+#GO analysis PC2
+```{r pressure, echo=FALSE}
+#PC2 POSITIVE VALUES
+
+PC2_pos <- PCA_genes_filtered %>%
+  filter(PC == "PC2", values > 0) %>%
+  arrange(desc(values)) %>%
+  slice_head(n = top_n) %>% # top 10%
+  pull(gene_id)
+
+gp_PC2_pos <- gost(
+  query = PC2_pos,
+  organism = "scerevisiae",
+  significant = TRUE,
+  exclude_iea = TRUE,
+    multi_query = FALSE,
+  user_threshold = 0.05,
+  correction_method = "g_SCS", 
+  domain_scope = "annotated",
+  custom_bg = NULL
+)
+head(gp_PC2_pos$result)
+#gostplot(gp_PC2_pos)
+
+####### ALTERNATIVE PLOT########
+top_terms_pos_2 <- gp_PC2_pos$result %>%
+  filter(
+    significant == TRUE,
+    source %in% c("GO:BP", "GO:CC", "GO:MF")
+  ) %>%
+  group_by(source) %>%
+  slice_min(order_by = p_value, n = 20) %>%
+  ungroup() %>%
+  mutate(pos_log10_p = -log10(p_value),
+         term_name = fct_reorder(term_name, pos_log10_p))
+
+pPos2 <- ggplot(top_terms_pos_2,
+       aes(x = term_name,
+           y = pos_log10_p)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  facet_wrap(~source, scales = "free_y") +
+  labs(
+    x = "GO term",
+    y = expression(-log[10](p_value)),
+    title = "Top GO terms for PC2 positive genes"
+  ) +
+  theme_minimal(base_size = 12)
+print(pPos2)
+ggsave(pPos2, filename = "./GO_figures/GO_PC2_Positive_gProfiler.png", dpi = 300, width = 15, height = 8)
+
+# PC2 NEGATIVE VALUES
+PC2_neg <- PCA_genes_filtered %>%
+  filter(PC == "PC2", values < 0) %>%
+  arrange(values) %>%
+  slice_head(n = top_n) %>% # top 10%
+  pull(gene_id)
+
+gp_PC2_neg <- gost(
+  query = PC2_neg,
+  organism = "scerevisiae",
+  significant = TRUE,
+  exclude_iea = TRUE,
+    multi_query = FALSE,
+  user_threshold = 0.05,
+  correction_method = "g_SCS", 
+  domain_scope = "annotated",
+  custom_bg = NULL
+)
+head(gp_PC2_neg$result)
+#gostplot(gp_PC2_neg)
+
+####### ALTERNATIVE PLOT########
+top_terms_neg_2 <- gp_PC2_neg$result %>%
+  filter(
+    significant == TRUE,
+    source %in% c("GO:BP", "GO:CC", "GO:MF")
+  ) %>%
+  group_by(source) %>%
+  slice_min(order_by = p_value, n = 20) %>%
+  ungroup() %>%
+  mutate(neg_log10_p = -log10(p_value),
+         term_name = fct_reorder(term_name, neg_log10_p))
+
+pNeg2 <- ggplot(top_terms_neg_2,
+       aes(x = term_name,
+           y = neg_log10_p)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  facet_wrap(~source, scales = "free_y") +
+  labs(
+    x = "GO term",
+    y = expression(-log[10](p_value)),
+    title = "Top GO terms for PC2 negative genes"
+  ) +
+  theme_minimal(base_size = 12)
+print(pNeg2)
+ggsave(pNeg2, filename = "./GO_figures/GO_PC2_Negative_gProfiler.png", dpi = 300, width = 15, height = 8)
+```

@@ -1,0 +1,104 @@
+---
+title: "GO-analysis_combined_GSEA": did GSEA ranked analysis bc in cluster/GO Profiler, if u select top 10%, u might lose some genes. This is the case if many genes have the same PC score, so u miss out on others that are also important but would otherwhise be excluded
+author: "AC"
+date: "2026-06-28"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+library(dplyr)
+library(clusterProfiler)
+library(org.Sc.sgd.db)
+library(ggplot2)
+library(stringr)
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes you're in scripts folder 
+load('../../../../shared_code/r_functions/plotting_functions.rda')
+getwd()
+
+```
+
+# Data wrangling
+```{r cars}
+PCA_genes <- read_tsv("../tables/PCA_genes_AC.txt", show_col_types=FALSE) # read table with principle components for all genes
+
+PCA_genes_filtered <- PCA_genes %>% pivot_longer(cols=colnames(dplyr::select(., contains("PC"))), names_to="PC", values_to="values") %>% filter(PC %in% c("PC1", "PC2")) #Make table longer and filter for PC1 and PC2, as they are the components where most of the variation is explained
+```
+# RANKED GSEA analysis PC1
+```{r pressure, echo=FALSE}
+PC1_ranked <- PCA_genes_filtered %>%
+  filter(PC == "PC1") %>%           # keep only PC1 gene loadings
+  arrange(desc(values))             # sort from highest (positive) to lowest (negative)
+
+# format for GSE analysis
+geneList <- PC1_ranked$values      # numeric vector of loadings
+names(geneList) <- PC1_ranked$gene_id  # attach gene IDs as names
+
+geneList <- sort(geneList, decreasing = TRUE) #ensure correct ordering
+
+gsea_PC1 <- gseGO(
+  geneList      = geneList,        # ranked gene list 
+  OrgDb         = org.Sc.sgd.db,    # yeast annotation database
+  keyType       = "ORF",            # gene ID type (must match your dataset)
+  ont           = "ALL",            # include BP, CC, and MF GO categories
+  minGSSize     = 10,              # ignore very small GO terms (unstable stats)
+  maxGSSize     = 500,             # ignore very large GO terms (too broad)
+  pvalueCutoff  = 0.05,            # significance threshold
+  verbose       = FALSE            # suppress progress messages
+)
+
+head(gsea_PC1@result) # inspect results. NES= normalized enrichment score (either pos or neg)
+
+#Plot of top 20 pos and neg enriched GO terms
+Plot_PC1 <- dotplot(gsea_PC1, showCategory = 20, color = "NES", split = ".sign") +
+  scale_y_discrete(labels = function(x) stringr::str_wrap(x, 45)) +
+  theme(
+    axis.text.y = element_text(size = 8)
+  )
+Plot_PC1
+ggsave(Plot_PC1, filename = "./GO_figures/GO_GSEA_PC1.png", dpi = 600, width = 16, height = 12)
+
+Plot_PC1_2 <- dotplot(gsea_PC1, showCategory = 20, split = ".sign") + scale_y_discrete(labels = function(x) stringr::str_wrap(x, 45)) +
+  theme(
+    axis.text.y = element_text(size = 8)
+  )
+Plot_PC1_2
+ggsave(Plot_PC1_2, filename = "./GO_figures/GO_GSEA_PC1_2.png", dpi = 600, width = 16, height = 12)
+
+```
+
+# RANKED GSEA analysis PC2
+```{r pressure, echo=FALSE}
+PC2_ranked <- PCA_genes_filtered %>%
+  filter(PC == "PC2") %>%           # keep only PC1 gene loadings
+  arrange(desc(values))             # sort from highest (positive) to lowest (negative)
+
+# format for GSE analysis
+geneList <- PC2_ranked$values      # numeric vector of loadings
+names(geneList) <- PC2_ranked$gene_id  # attach gene IDs as names
+
+geneList <- sort(geneList, decreasing = TRUE) #ensure correct ordering
+
+gsea_PC2 <- gseGO(
+  geneList      = geneList,        # ranked gene list 
+  OrgDb         = org.Sc.sgd.db,    # yeast annotation database
+  keyType       = "ORF",            # gene ID type (must match your dataset)
+  ont           = "ALL",            # include BP, CC, and MF GO categories
+  minGSSize     = 10,              # ignore very small GO terms (unstable stats)
+  maxGSSize     = 500,             # ignore very large GO terms (too broad)
+  pvalueCutoff  = 0.05,            # significance threshold
+  verbose       = FALSE            # suppress progress messages
+)
+
+head(gsea_PC2@result) # inspect results. NES= normalized enrichment score (either pos or neg)
+
+#Plot of top 20 pos and neg enriched GO terms
+Plot_PC2<- dotplot(gsea_PC2, showCategory = 20, color = "NES", split = ".sign") +
+  scale_y_discrete(labels = function(x) stringr::str_wrap(x, 45)) +
+  theme(
+    axis.text.y = element_text(size = 8)
+  )
+Plot_PC2
+ggsave(Plot_PC2, filename = "./GO_figures/GO_GSEA_PC2.png", dpi = 600, width = 16, height = 12)
+```

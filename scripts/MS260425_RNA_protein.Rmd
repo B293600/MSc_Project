@@ -1,0 +1,45 @@
+---
+title: "TPM table for spike-in normalised RNA-seq COMBINING ALL EXPERIMENTS. Normalisations only. For graphs, refer to other R script"
+author: "MS"
+date: "260114"
+output: html_document
+file  names should be formatted: 
+---
+```{r setup}
+rm(list=ls())
+library(broom)
+library(corrr)
+library(viridis)
+library(tidyverse)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes you're in scripts folder 
+load('../../../../shared_code/r_functions/plotting_functions.rda')
+load('../../../../shared_code/r_functions/fitting_function.rda')
+```
+
+load df_sc and protein slopes
+```{r}
+#load data and annotation tables
+df_sc <- read_tsv("../tables/df_sc_final.txt", show_col_types=FALSE)
+df_protein_slopes <- read_tsv("../tables/exp251017_protein_slopes.txt", show_col_types=FALSE)
+df_exp251017 <- df_sc %>% filter(experiment=="exp251017") %>% filter(condition=="OD 0.1" | condition=="OD 0.3")
+
+norm_values <- df_exp251017 %>% group_by(condition, gene_id) %>% summarise(mean_TPMsc = mean(TPMsc), min_TPMsc = min(TPMsc), mean_vol = mean(mean_cell_volume))
+
+df_exp251017_norm <- df_exp251017 %>% left_join(., norm_values, join_by(gene_id, condition)) %>% mutate(log2_TPM_norm = log2(TPMsc/mean_TPMsc), log2_vol_norm = log2(mean_cell_volume/mean_vol))
+
+df_exp251017_slopes <- df_exp251017_norm %>% filter(min_TPMsc>10) %>% nest(data = c(-gene_id, -condition)) %>% slope_fit(x="log2_vol_norm", y="log2_TPM_norm")
+
+annotations <- read_tsv("../../../../shared_code/gene class annotations/annotation files/251208_HL_gene_annotation.txt", show_col_types=FALSE) %>% select(gene_id, uniprot_id)
+
+combined <- df_protein_slopes %>% filter(slope_SE < 0.25) %>% left_join(., annotations, by = c("Protein.Group" = "uniprot_id")) %>% bind_rows(., df_exp251017_slopes, .id = "id") 
+
+slopes_wide <- combined %>% pivot_wider(id_cols = gene_id, names_from = c(id), values_from=slope, values_fn=median)
+
+slopes_wide %>% plot_corr_label()
+slopes_wide %>% plot_scatter(x="1", y="2")
+```
+
+```{r}
+df_plot <- df_exp251017_slopes %>% pivot_wider(id_cols = gene_id, values_from = c(slope, sigma, slope_SE), names_from = condition) %>% mutate(SE = pmax(.$'sigma_OD 0.1', .$'sigma_OD 0.1', na.rm = TRUE))
+df_plot %>% filter(SE<0.5) %>% plot_scatter(x="slope_OD 0.1", y="slope_OD 0.3", z="SE")
+```

@@ -1,0 +1,194 @@
+---
+title: "GO-analysis"
+author: "AC"
+date: "2026-05-14"
+output: word_document
+---
+
+```{r setup}
+rm(list=ls())
+library(MASS)
+library(plotly)
+library(broom)
+library(corrr)
+library(viridis)
+library(tidyverse)
+library(clusterProfiler)
+library(stringr)
+library(enrichplot)
+library(org.Sc.sgd.db)
+
+#if (!requireNamespace("BiocManager", quietly = TRUE))
+    #install.packages("BiocManager")
+#BiocManager::install("org.Sc.sgd.db")
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes you're in scripts folder 
+load('../../../../shared_code/r_functions/plotting_functions.rda')
+getwd()
+
+
+
+#remove.packages(c("ggtangle", "enrichplot"))
+
+#install.packages("ggtangle")
+
+#BiocManager::install("enrichplot")
+```
+
+# Data wrangling
+```{r cars}
+PCA_genes <- read_tsv("../tables/PCA_genes_AC.txt", show_col_types=FALSE) # read table with principle components for all genes
+
+PCA_genes_filtered <- PCA_genes %>% pivot_longer(cols=colnames(dplyr::select(., contains("PC"))), names_to="PC", values_to="values") %>% filter(PC %in% c("PC1", "PC2")) #Make table longer and filter for PC1 and PC2, as they are the components where most of the variation is explained
+```
+#GO analysis PC1
+```{r pressure, echo=FALSE}
+top_n <- round(0.10 * 9236) # top 10% to use next for filtering
+
+#PC1 POSITIVE #####
+PC1_pos <- PCA_genes_filtered %>%
+  filter(PC == "PC1", values > 0) %>%
+  slice_max(values, n = top_n, with_ties = TRUE) %>%   #arranges the most positive PC values and oreders based on cut off at 10%.  #if the cutoff value is repeated, every tied gene is retained.
+  pull(gene_id)
+
+ego_PC1_pos <- enrichGO(
+  gene          = PC1_pos,
+  OrgDb         = org.Sc.sgd.db,
+  keyType       = "ORF",      # IMPORTANT: depends on your gene IDs
+  ont           = "ALL",      # BP + CC + MF
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.05,
+  readable      = FALSE
+)
+head(ego_PC1_pos)
+
+## Plot the top 20 enriched terms
+barplot(
+  ego_PC1_pos,
+  showCategory = 20,
+  colorBy = "p.adjust") # x axis is count
+
+## Plot a network of the top 8 enriched terms and their associated genes
+cnetplot(ego_PC1_pos, showCategory = 5)
+
+
+#PC1 NEGATIVE#####
+PC1_neg <- PCA_genes_filtered %>%
+  filter(PC == "PC1", values < 0) %>%
+  slice_min(values, n = top_n, with_ties = TRUE) %>% #arranges the most negative PC values and oreders based on cut off at 10%.  #if the cutoff value is repeated, every tied gene is retained.
+  pull(gene_id)
+
+ego_PC1_neg <- enrichGO(
+  gene          = PC1_neg,
+  OrgDb         = org.Sc.sgd.db,
+  keyType       = "ORF",      # IMPORTANT: depends on your gene IDs
+  ont           = "ALL",      # BP + CC + MF
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.05,
+  readable      = FALSE
+)
+head(ego_PC1_neg)
+
+## Plot the top 20 enriched terms
+barplot(
+  ego_PC1_neg,
+  showCategory = 20,
+  colorBy = "p.adjust") # x axis is count
+
+```
+
+#GO analysis PC2
+```{r pressure, echo=FALSE}
+#PC2 POSITIVE
+
+PC2_pos <- PCA_genes_filtered %>%
+  filter(PC == "PC2", values > 0) %>%
+  arrange(desc(values)) %>%
+  slice_head(n = top_n) %>%
+  pull(gene_id)
+
+ego_PC2_pos <- enrichGO(
+  gene          = PC1_pos,
+  OrgDb         = org.Sc.sgd.db,
+  keyType       = "ORF",      # IMPORTANT: depends on your gene IDs
+  ont           = "ALL",      # BP + CC + MF
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.05,
+  readable      = FALSE
+)
+head(ego_PC2_pos)
+
+## Plot the top 20 enriched terms
+barplot(
+  ego_PC2_pos,
+  showCategory = 20,
+  colorBy = "p.adjust") # x axis is count
+
+## Plot a network of the top 8 enriched terms and their associated genes
+cnetplot(ego_PC2_pos, showCategory = 5)
+
+
+#PC2 NEGATIVE#####
+PC2_neg <- PCA_genes_filtered %>%
+  filter(PC == "PC2", values < 0) %>%
+  arrange(values) %>%
+  slice_head(n = top_n) %>%
+  pull(gene_id)
+
+ego_PC2_neg <- enrichGO(
+  gene          = PC1_pos,
+  OrgDb         = org.Sc.sgd.db,
+  keyType       = "ORF",      # IMPORTANT: depends on your gene IDs
+  ont           = "ALL",      # BP + CC + MF
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.05,
+  readable      = FALSE
+)
+head(ego_PC2_neg)
+
+## Plot the top 20 enriched terms
+barplot(
+  ego_PC2_nrg,
+  showCategory = 20,
+  colorBy = "p.adjust") # x axis is count
+```
+
+```{r}
+# ALTERNATIVE PLOT########
+#convert it to dataframe
+ego_df <- as.data.frame(ego_PC1_pos)
+
+# Data wrangling
+top_terms_pos <- ego_df %>%
+  filter(ONTOLOGY %in% c("BP", "CC", "MF")) %>%
+  group_by(ONTOLOGY) %>%
+  slice_min(order_by = p.adjust, n = 20) %>%
+  ungroup() %>%
+  mutate(
+    pos_log10_p = -log10(p.adjust),
+    Description = fct_reorder(Description, pos_log10_p)
+  )
+
+# Plot
+top_terms_pos <- top_terms_pos %>%
+  mutate(Description = str_wrap(Description, width = 40)) # to avoid labels being too long and making the graph hard to read
+
+pPos <- ggplot(top_terms_pos,
+       aes(x = Description,
+           y = pos_log10_p)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  facet_wrap(~ONTOLOGY, scales = "free_y") +
+  labs(
+    x = "GO term",
+    y = expression(-log[10](adjusted~pvalue)),
+    title = "Top GO terms for PC1 positive genes"
+  ) +
+  theme_minimal(base_size = 12)
+
+print(pPos)
+```

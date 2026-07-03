@@ -1,0 +1,136 @@
+---
+title: "Loading Adriana's Data"
+author: "CW"
+date: "2026-06-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# ---------------------------------------------------------
+# Navigate to project directory
+# Adjust if your home folder path differs
+# ---------------------------------------------------------
+project_dir <- file.path(path.expand("~"), "Downloads", "AC_combined_analysis", "Adriana_analysis")
+tables_dir  <- file.path(project_dir, "tables")
+
+if (!dir.exists(tables_dir)) {
+  stop("tables directory not found at: ", tables_dir,
+       "\nCheck that Downloads/AC_combined_analysis/Adriana_analysis/tables exists.")
+}
+
+setwd(project_dir)
+cat("Working directory set to:", getwd(), "\n")
+cat("Tables directory:", tables_dir, "\n")
+```
+
+```{r libraries}
+library(readxl)
+```
+
+```{r preview-function}
+# ---------------------------------------------------------
+# preview_txt(): writes header info + sample rows for a
+# tab-delimited text file into the shared output connection
+# ---------------------------------------------------------
+preview_txt <- function(filename, n_rows = 20, full = FALSE, con) {
+  filepath <- file.path(tables_dir, filename)
+
+  if (!file.exists(filepath)) {
+    writeLines(paste("===== MISSING:", filename, "====="), con)
+    writeLines("", con)
+    return(invisible(NULL))
+  }
+
+  header <- readLines(filepath, n = 1)
+  ncols  <- length(strsplit(header, "\t")[[1]])
+  total_lines <- length(readLines(filepath))
+
+  writeLines(paste("=====", filename, "====="), con)
+  writeLines(paste("columns:", ncols), con)
+  writeLines(paste("rows:", total_lines), con)
+  writeLines("--- header ---", con)
+  writeLines(header, con)
+  writeLines("--- sample rows ---", con)
+
+  if (full) {
+    body <- readLines(filepath)[-1]
+  } else {
+    body <- readLines(filepath, n = n_rows + 1)[-1]
+  }
+  writeLines(body, con)
+  writeLines("", con)
+}
+
+# ---------------------------------------------------------
+# preview_xlsx(): writes sheet names + header + sample rows
+# for each sheet in an Excel file
+# ---------------------------------------------------------
+preview_xlsx <- function(filename, n_rows = 20, con) {
+  filepath <- file.path(tables_dir, filename)
+
+  if (!file.exists(filepath)) {
+    writeLines(paste("===== MISSING:", filename, "====="), con)
+    writeLines("", con)
+    return(invisible(NULL))
+  }
+
+  sheets <- excel_sheets(filepath)
+  writeLines(paste("===== ", filename, " — sheets:", paste(sheets, collapse = ", "), "====="), con)
+  writeLines("", con)
+
+  for (s in sheets) {
+    df <- read_excel(filepath, sheet = s, n_max = n_rows)
+    writeLines(paste("--- sheet:", s, "---"), con)
+    writeLines(paste("columns:", ncol(df)), con)
+    writeLines(paste(colnames(df), collapse = "\t"), con)
+    writeLines("--- sample rows ---", con)
+    write.table(df, con, sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+    writeLines("", con)
+  }
+}
+```
+
+```{r run-previews}
+# ---------------------------------------------------------
+# Output file: written into project_dir (not tables/)
+# ---------------------------------------------------------
+out_path <- file.path(project_dir, "table_previews.txt")
+con <- file(out_path, "w")
+
+# Large tables — sample only
+preview_txt("PCA_genes_AC.txt", n_rows = 20, con = con)
+preview_txt("Combined_norm_table_AC.txt", n_rows = 20, con = con)
+preview_txt("norm_table.txt", n_rows = 20, con = con)
+preview_txt("MS251208_express-1.5.1.Candida+cerevisiae.2x50mers.TPM_with_both_names.table.txt",
+            n_rows = 30, con = con)
+
+# Small tables — dump in full
+preview_txt("combined_sample_info.txt", full = TRUE, con = con)
+preview_txt("MS251208_sample_info.txt", full = TRUE, con = con)
+preview_txt("PCA_samples_AC.txt", full = TRUE, con = con)
+
+close(con)
+cat("Done. Preview written to:", out_path, "\n")
+```
+
+```{r run-xlsx-preview}
+out_path_xlsx <- file.path(project_dir, "supp_table3_preview.txt")
+con_xlsx <- file(out_path_xlsx, "w")
+
+preview_xlsx("Supp Table 3.xlsx", n_rows = 20, con = con_xlsx)
+
+close(con_xlsx)
+cat("Done. Preview written to:", out_path_xlsx, "\n")
+```
+
+```{r display-preview, comment=""}
+# Print the previews into the rendered output too, so you can
+# read them directly without opening the .txt files
+cat(readLines(file.path(project_dir, "table_previews.txt")), sep = "\n")
+```
+
+```{r display-xlsx-preview, comment=""}
+cat(readLines(file.path(project_dir, "supp_table3_preview.txt")), sep = "\n")
+```

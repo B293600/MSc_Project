@@ -1,0 +1,104 @@
+---
+title: "TPM table for spike-in normalised RNA-seq COMBINING ALL EXPERIMENTS. Normalisations only. For graphs, refer to other R script"
+author: "MS"
+date: "260114"
+output: html_document
+file  names should be formatted: 
+---
+```{r setup}
+rm(list=ls())
+library(MASS)
+library(plotly)
+library(broom)
+library(corrr)
+library(viridis)
+library(tidyverse)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes you're in scripts folder 
+load('../../../../shared_code/r_functions/plotting_functions.rda')
+```
+
+load TPM data, merge with annotation data, calculate global ratios, recalcualte TPMs for one species and normalise
+```{r}
+#load data and annotation tables
+df1 <- read_tsv("../tables/combined_express-1.5.1.Candida+cerevisiae.2x50mers.TPM_with_both_names.table.txt", show_col_types=FALSE) %>% rename("species"=1, "gene_name"=2, "gene_id"=3) #Read table from RNA seq raw data.
+
+verified_ORF <- read_tsv("../tables/2230128_verified_ORF.txt", show_col_types=FALSE) %>% dplyr::select(-"species") #Read table with list of verified ORFs in both Pombe and Cerevisiae + exclude 'species' from the table.
+
+annotation <- read_tsv("../tables/210601_gene_annotation.txt", show_col_types=FALSE) #Read table with a lot of gene annotations from different papers (but we will be interested in the HO cluster, since it is related to iESR and rESR)
+
+combined_sample_info <- read_tsv("../tables/combined_sample_info.txt", show_col_types=FALSE) # Read table with sample info, exp date, DNA ratio (S.cerev / C. glabrata) and average genome/ cell (calculated from flow cytometry data). 
+
+#join verified ORF to df_1 by gene_id and pivot TPM longer, so create two separate columns: one with all exp numbers and one with the corresponding TPM values. While before, each exp number was a separate column, now they are all rows of a column called sample. 
+df2 <-  left_join(df1, verified_ORF, by="gene_id") %>% pivot_longer(cols=colnames(dplyr::select(., contains("exp"))), names_to="sample", values_to="TPM")
+```
+
+```{r}
+######### RNA GENOME/CELL
+#Get TPM sum for all the TPM values associated to a specific sample in a specific experiment for a specific species (either C. glabr or S. cerevisae). Using pivot_wider, make Candida and S. cere as separate columns, under which each row is a TPMsum value associated to a specific sample in each exp. While before Candida and Cerevisiae were under the same column, now each species is a separate column. Then left_join the annotation table by sample and calculate the spike in ratio.   PS: each sample in each experiment will have multiple TPM values that repeat over and over, but with this code, we calculate the sum of TPMs associated to a specific sample in a specific experiment for both C. glabrata and S. cerevisae. Then we do all the other calculations.  
+
+norm_table_1 <- df2 %>% filter(verified_ORF==TRUE) %>% group_by(species, sample) %>% summarise(TPMsum=sum(TPM)) %>% pivot_wider(names_from=species, names_glue="{species}_{.value}", values_from="TPMsum") %>% mutate(spikein_ratio=S_cerevisiae_TPMsum/Candida_TPMsum) %>% left_join(., combined_sample_info, by="sample") %>% mutate(RNA_per_genome=spikein_ratio/DNA_ratio) %>% mutate(RNA_per_cell=RNA_per_genome*DNA_per_cell) %>% mutate(RNA_conc=RNA_per_cell/mean_cell_volume)
+
+#df_export <- norm_table_1  %>% filter(experiment== 'exp251017') %>% dplyr::select(RNA_per_cell, RNA_conc) 
+#df_export %>% clipr::write_clip()
+
+# Select what you want to appear in the new table called norm_table
+norm_table <- norm_table_1 %>% dplyr::select(sample, sample_short, experiment, Candida_TPMsum, S_cerevisiae_TPMsum, spikein_ratio , DNA_ratio, mean_cell_volume, RNA_per_genome, RNA_per_cell, RNA_conc)
+
+write_tsv(norm_table_1, file = "../tables/Combined_norm_table_AC.txt")
+```
+
+
+```{r}
+#TPM CALCULATION#########
+#Left_join norm_table_1 into df2 by sample. Then filter for budding yeast (sc) reads and verified ORFs (which in the table are indicated as TRUE), calculate TPMs by dividing individual TPM values / sum of TPMs for each sample in S. cerevisiae and multiplying by 10^6. Then make the table without the column for verified ORF and species. (so basically u don't care about values for c. glabrata). PS: each sample in each experiment will have TPM values that repeat bc multiple genes map to it. What we do now is to take each individual TPM associated to a gene in a same sample in an experiment and divide them by the sum of all TPMs associated to that sample (all genes combined) in that experiment and multiply by 10^6.
+df_sc_1 <- left_join(df2, norm_table_1, by="sample") %>% filter(., verified_ORF==TRUE, species == "S_cerevisiae") %>% mutate(TPMsc=((TPM/S_cerevisiae_TPMsum)*10^6)) %>% dplyr::select(-species, -verified_ORF, -Candida_TPMsum, -spikein_ratio)
+
+#NORMALISATION########
+# Finds the mean of all the TPMs associated to a specific gene from samples within a same group. In this case, we ask exp_group_4 (), which has group A only (we want all data in the same space). It will calculate the mean of TPMs between all samples in group A for each gene. We will use this for PCA and CA analysis
+df_sum4 <- df_sc_1 %>% group_by(gene_id, exp_group_4) %>% summarise(TPMmean4=mean(TPMsc), TPMmin4=min(TPMsc)) 
+
+#Gene expression relative to WT conditions, indicated as TRUE in ref3 column (MS69_DMSO_1hr). To find these, group by gene_id and sample name (short version) and then find the mean TPM values for each gene of each WT condition. 
+df_ref3 <- df_sc_1 %>% filter (ref3==TRUE) %>%  group_by(gene_id) %>% summarise(TPMref3=mean(TPMsc), TPMmin3=min(TPMsc))
+
+#Gene expression in big cells relative to small and, for exp251017, OD 0.3 relative to OD 0.1 (ref2=TRUE). To find these, filter for individual TPM values associated to 1hr arrest samples for each gene in each experiment (or OD 0.1 for exp251017). 
+df_ref2 <- df_sc_1 %>% filter (ref2==TRUE)%>%  group_by(gene_id, sample_short) %>%  summarise(TPMref2=mean(TPMsc), TPMmin2=min(TPMsc)) %>% rename(sample_ref2=sample_short)
+
+#Gene expression relative to WT conditions, indicated as TRUE in ref1 column (MS69_DMSO_1hr and MS_951_1hr). To find these, group by gene_id and sample name (short version) and then find the mean TPM values for each gene of each WT condition. 
+df_ref1 <- df_sc_1 %>% filter (ref1==TRUE)%>%  group_by(gene_id, sample_short) %>%  summarise(TPMref1=mean(TPMsc), TPMmin1=min(TPMsc)) %>% rename(sample_ref1=sample_short)
+
+#Create a final table. Divide individual TPM by mean of TPMs in sample batches for each gene. Also calculate the relative gene expression to WT condition and size/OD600 in each experiment. 
+df_sc_final <- df_sc_1 %>% left_join(., df_sum4, by=c('gene_id', 'exp_group_4')) %>%  mutate(log2TPMnorm4 = log2(TPMsc/TPMmean4)) %>% left_join(., df_ref3, by = c("gene_id")) %>% left_join(., df_ref2, by = c("gene_id", "sample_ref2")) %>% left_join(., df_ref1, by = c("gene_id", "sample_ref1")) %>% mutate(log2TPM_FCref3 = log2(TPMsc/TPMref3), log2TPM_FCref2 = log2(TPMsc/TPMref2), log2TPM_FCref1 = log2(TPMsc/TPMref1)) 
+
+#colSums(is.na(df_sc_final)) 
+#df_sc_final[is.na(df_sc_final$log2TPMnorm4), ]  #It is NaN 
+#df_sc_final[is.na(df_sc_final$log2TPM_FCref1), ] #It is NaN and -inf
+#df_sc_final[is.na(df_sc_final$log2TPM_FCref2), ] #It is NaN and -inf
+#df_sc_final[is.na(df_sc_final$log2TPM_FCref3), ] #It is NaN and -inf
+
+#colSums(is.na(df_sum4))
+#colSums(is.na(df_ref1))
+#colSums(is.na(df_ref2))
+#colSums(is.na(df_ref3))
+#colSums(is.na(df_sum4))
+#colSums(is.na(df_sc_1))
+
+write_tsv(df_sc_final, file = "../tables/df_sc_final.txt")
+```
+
+```{r}
+#EXPORT####### Copy to clipboard raw TPMs and copy on PRISM for figures
+#Export normalised TPMs to condition WT-1hr for iESR only for TORC1 and Bcy1-AID experiments
+df_export <- df_sc_final %>%filter(TPMmin4>2) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_Rapa","AID-Bcy1_DMSO", "AID-Bcy1_PhIAA", "AID-Bcy1_Torin+PhIAA")) %>% filter(Ho_cluster == "iESR cluster") %>% pivot_wider(names_from = c(sample_short), id_cols= c("gene_id", "gene_name"), values_from = log2TPM_FCref3, values_fn=mean)
+
+df_export %>% clipr::write_clip()
+
+#Export normalised TPMs to condition WT-1hr for PAC only only for TORC1 and Bcy1-AID experiments
+df_export1 <- df_sc_final %>%filter(TPMmin4>2) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_Rapa","AID-Bcy1_DMSO", "AID-Bcy1_PhIAA", "AID-Bcy1_Torin+PhIAA")) %>% filter(Ho_cluster == "PAC cluster") %>% pivot_wider(names_from = c(sample_short), id_cols= c("gene_id", "gene_name"), values_from = log2TPM_FCref3, values_fn=mean)
+
+df_export1 %>% clipr::write_clip()
+
+#Export normalised TPMs to condition WT-1hr for RP only only for TORC1 and Bcy1-AID experiments
+df_export2 <- df_sc_final %>%filter(TPMmin4>2) %>% dplyr::select(-gene_name) %>% left_join(., annotation, by='gene_id') %>% filter(strain_info_condition %in% c("WT_DMSO", "WT_Torin", "WT_Rapa","AID-Bcy1_DMSO", "AID-Bcy1_PhIAA", "AID-Bcy1_Torin+PhIAA")) %>% filter(Ho_cluster == "RP cluster") %>% pivot_wider(names_from = c(sample_short), id_cols= c("gene_id", "gene_name"), values_from = log2TPM_FCref3, values_fn=mean)
+
+df_export2 %>% clipr::write_clip()
+```

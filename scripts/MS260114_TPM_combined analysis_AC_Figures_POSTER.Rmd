@@ -1,0 +1,167 @@
+---
+title: "TPM table for spike-in normalised RNA-seq COMBINING ALL EXPS. Figures script"
+author: "MS"
+date: "260114"
+output: html_document
+file  names should be formatted: 
+---
+```{r setup}
+rm(list=ls())
+library(MASS)
+library(plotly)
+library(broom)
+library(corrr)
+library(viridis)
+library(tidyverse)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes you're in scripts folder 
+load('../../../../shared_code/r_functions/plotting_functions.rda')
+getwd()
+```
+
+load TPM data, merge with annotation data, calculate global ratios, recalcualte TPMs for one species and normalise
+```{r}
+#load data and annotation tables
+
+verified_ORF <- read_tsv("../tables/2230128_verified_ORF.txt", show_col_types=FALSE) %>% dplyr::select(-"species") #Read table with list of verified ORFs in both Pombe and Cerevisiae + exclude 'species' from the table.
+
+annotation <- read_tsv("../tables/210601_gene_annotation.txt", show_col_types=FALSE) #Read table with a lot of gene annotations from different papers (but we will be interested in the HO cluster, since it is related to iESR and rESR)
+
+combined_sample_info <- read_tsv("../tables/combined_sample_info.txt", show_col_types=FALSE) # Read table with sample info, exp date, DNA ratio (S.cerev / C. glabrata) and average genome/ cell (calculated from flow cytometry data). 
+
+df_sc_final <- read_tsv("../tables/df_sc_final.txt", show_col_types=FALSE) # Read table with all normalisations
+df_norm_table_1 <- read_tsv("../tables/Combined_norm_table_AC.txt", show_col_types=FALSE) # Read table with RNAxcell
+
+```
+
+```{r}
+#PCA data manipulations ##################
+#For group A from exp_group_4 (so all exps) 
+df_pca_1 <- df_sc_final %>% filter(exp_group_4=="A",TPMmin4>2) %>% pivot_wider(., id_cols = c("gene_id", "gene_name"), names_from = sample, values_from = "log2TPMnorm4")
+
+#PCA calculation
+pca_1 <- df_pca_1 %>% dplyr::select(., where(is.numeric)) %>% prcomp(scale.=FALSE, center=FALSE)
+
+pca_results_variance_1 <- summary(pca_1)$importance[2,] %>% as.data.frame() # Provides good info to see which PC line explains most of the variance (in this case is PC1)
+
+#How much a sample contributes to each PC and left join sample info
+pca_results_samples_1 <- as.data.frame(pca_1$rotation) %>% rownames_to_column(var="sample") %>% left_join(., combined_sample_info) 
+
+write_tsv(pca_results_samples_1, file = "../tables/PCA_samples_AC.txt")
+
+#How much genes contribute to each PC
+pca_results_genes_1 <- bind_cols(dplyr::select(df_pca_1, gene_id), as.data.frame(pca_1$x)) 
+write_tsv(pca_results_genes_1, file = "../tables/PCA_genes_AC.txt")
+
+#Make pca_results_genes_1 longer, so I have one column with all PC and one for all the values and join to annotation table
+pca_results_genes_2 <- pca_results_genes_1 %>% pivot_longer(cols=colnames(dplyr::select(., contains("PC"))), names_to="PC", values_to="values") %>% left_join(., annotation, by="gene_id") 
+
+write_tsv(pca_results_genes_2, file = "../tables/PCA_genes_annotatated_AC.txt")
+```
+```{r}
+#COMBINE DATA I WANT TO SHOWN NEXT IN A DATAFRAME
+pT <- pca_results_samples_1 %>% filter(strain_info_condition_easy %in% c("TORC1 inhib.", "WT_untreated"))  %>% group_by(strain_info_condition_easy, arrest) %>% summarise(
+    mean_cell_volume = mean(mean_cell_volume, na.rm = TRUE),
+    PC1 = mean(PC1, na.rm = TRUE), PC2 = mean(PC2, na.rm = TRUE), .groups = "drop") 
+
+pA <- pca_results_samples_1 %>% filter(strain_info_condition_easy %in% c("PKA hyper.", "TORC1 inhib. + PKA hyper."))  %>% group_by(strain_info_condition_easy, arrest) %>% summarise(
+    mean_cell_volume = mean(mean_cell_volume, na.rm = TRUE),
+    PC1 = mean(PC1, na.rm = TRUE), PC2 = mean(PC2, na.rm = TRUE), .groups = "drop") 
+
+Combined <- bind_rows(
+  pT,
+  pA
+) 
+
+#Assign colors
+pink_group  <- c("TORC1 inhib.")
+blue_group <- c("PKA hyper.", "TORC1 inhib. + PKA hyper.")
+grey_group <- c("WT_untreated")
+```
+
+
+```{r}
+#Make the scatter plot FOR PC1
+Plot <- Combined %>%
+  ggplot(aes(x = mean_cell_volume,
+             y = PC1,
+             color = strain_info_condition_easy)) +
+
+  geom_point(size = 8, alpha = 0.85) +
+
+  scale_color_manual(
+    name = "Conditions",
+    values = c(
+      "TORC1 inhib." = "#e7298a",
+      "WT_untreated" = "grey70",
+      "PKA hyper." = "#41b6c4",     # strong teal
+      "TORC1 inhib. + PKA hyper." = "#225ea8"  # deep blue
+    ),
+
+    breaks = c(
+      "WT_untreated",
+      "TORC1 inhib.",
+      "PKA hyper.",
+      "TORC1 inhib. + PKA hyper."
+    )
+  ) +
+
+  labs(
+    x = "Cell size (fL)",
+    y = "PC1 (47.6%)"
+  ) +
+
+  theme_bw() +
+ theme(
+  axis.title.x = element_text(size = 20),
+  axis.title.y = element_text(size = 20),
+
+  legend.title = element_text(size = 12),
+  legend.text = element_text(size = 20)
+)
+Plot
+ggsave(Plot, filename = "./figures/PC1_POSTER_FINAL.png", dpi = 600, width = 12, height = 8)
+
+```
+
+```{r}
+#Make the scatter plot FOR PC2
+Plot1 <- Combined %>%
+  ggplot(aes(x = mean_cell_volume,
+             y = PC2,
+             color = strain_info_condition_easy)) +
+
+  geom_point(size = 8, alpha = 0.85) +
+
+  scale_color_manual(
+    name = "Conditions",
+    values = c(
+      "TORC1 inhib." = "#e7298a",
+      "WT_untreated" = "grey70",
+      "PKA hyper." = "#41b6c4",     # strong teal
+      "TORC1 inhib. + PKA hyper." = "#225ea8"  # deep blue
+    ),
+
+    breaks = c(
+      "WT_untreated",
+      "TORC1 inhib.",
+      "PKA hyper.",
+      "TORC1 inhib. + PKA hyper."
+    )
+  ) +
+
+  labs(
+    x = "Cell size (fL)",
+    y = "PC2 (14.2%)"
+  ) +
+
+  theme_bw() +
+ theme(
+  axis.title.x = element_text(size = 20),
+  axis.title.y = element_text(size = 20),
+
+  legend.title = element_text(size = 12),
+  legend.text = element_text(size = 20)
+)
+Plot1
+ggsave(Plot1, filename = "./figures/PC2_POSTER_FINAL.png", dpi = 600, width = 12, height = 8)
+```

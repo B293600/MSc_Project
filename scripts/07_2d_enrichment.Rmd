@@ -1,0 +1,356 @@
+---
+title: "2D Annotation Enrichment (Cox & Mann 2012)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# ---------------------------------------------------------
+# Implementation of the 2D annotation enrichment method
+# described in Cox & Mann (2012) BMC Bioinformatics.
+# doi: 10.1186/1471-2105-13-S16-S12
+#
+# Method summary:
+# For each annotation term (GO term or TF target gene set),
+# tests whether member genes show a significantly different
+# joint distribution in PC1 x PC2 space compared to all
+# other genes. Uses MANOVA on per-dimension ranked data
+# (non-parametric generalisation of the Wilcoxon test to
+# 2D). Effect size reported as (s.PC1, s.PC2) score pair,
+# each bounded [-1, 1]. FDR controlled by Benjamini-Hochberg.
+# ---------------------------------------------------------
+
+project_dir <- file.path(path.expand("~"), "Downloads", "AC_combined_analysis", "Adriana_analysis")
+tables_dir  <- file.path(project_dir, "tables")
+figures_dir <- file.path(project_dir, "figures")
+output_dir  <- file.path(project_dir, "output_tables")
+
+dir.create(figures_dir, showWarnings = FALSE)
+dir.create(output_dir, showWarnings = FALSE)
+```
+
+```{r libraries}
+library(tidyverse)
+library(readxl)
+library(org.Sc.sgd.db)
+library(AnnotationDbi)
+library(GO.db)
+
+select <- dplyr::select
+```
+
+```{r load-pca}
+# ---------------------------------------------------------
+# PC1/PC2 gene scores — only meaningful axes (PC4+ is noise)
+# ---------------------------------------------------------
+pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
+                      show_col_types = FALSE)
+
+all_genes <- pca_genes$gene_id
+n_genes   <- length(all_genes)
+
+# Rank each PC dimension separately across all genes,
+# as per Cox & Mann: "the data is replaced by ranks in
+# each dimension separately"
+pca_ranked <- pca_genes %>%
+  select(gene_id, PC1, PC2) %>%
+  mutate(
+    rank_PC1 = rank(PC1, ties.method = "average"),
+    rank_PC2 = rank(PC2, ties.method = "average")
+  )
+
+cat("Genes loaded:", n_genes, "\n")
+cat("PC1 rank range:", range(pca_ranked$rank_PC1), "\n")
+cat("PC2 rank range:", range(pca_ranked$rank_PC2), "\n")
+```
+
+```{r cox-mann-function}
+# ---------------------------------------------------------
+# Core 2D annotation enrichment function
+# Implements Cox & Mann 2012 exactly:
+# 1. Split genes into group 1 (annotation term members)
+#    and group 2 (all remaining genes)
+# 2. Apply MANOVA to the pre-ranked PC1/PC2 values
+# 3. Extract p-value from MANOVA Pillai test statistic
+# 4. Calculate s-scores:
+#    s = 2 * (mean_rank_group1 - mean_rank_group2) / n
+#    bounded [-1, 1], positive = enriched at high PC score
+# ---------------------------------------------------------
+run_2d_enrichment_single <- function(gene_set, ranked_df, min_size = 5) {
+  # filter gene set to genes present in PCA data
+  members <- intersect(gene_set, ranked_df$gene_id)
+  n1 <- length(members)
+
+  if (n1 < min_size) return(NULL)
+
+  n2 <- nrow(ranked_df) - n1
+  if (n2 < 1) return(NULL)
+
+  # split into group 1 (members) and group 2 (rest)
+  df_g1 <- ranked_df %>% filter(gene_id %in% members)
+  df_g2 <- ranked_df %>% filter(!gene_id %in% members)
+
+  # MANOVA on ranked data (the Cox & Mann non-parametric 2D test)
+  combined <- bind_rows(
+    df_g1 %>% mutate(group = 1L),
+    df_g2 %>% mutate(group = 2L)
+  )
+
+  fit <- tryCatch(
+    summary(manova(cbind(rank_PC1, rank_PC2) ~ factor(group),
+                   data = combined),
+            test = "Pillai"),
+    error = function(e) NULL
+  )
+
+  if (is.null(fit)) return(NULL)
+
+  p_value <- fit$stats["factor(group)", "Pr(>F)"]
+
+  # s-scores: 2*(mean_rank_g1 - mean_rank_g2) / n_total
+  # as defined in Cox & Mann eq. for s
+  n_total <- nrow(ranked_df)
+  s_pc1 <- 2 * (mean(df_g1$rank_PC1) - mean(df_g2$rank_PC1)) / n_total
+  s_pc2 <- 2 * (mean(df_g1$rank_PC2) - mean(df_g2$rank_PC2)) / n_total
+
+  tibble(
+    n_members    = n1,
+    p_value      = p_value,
+    s.PC1        = s_pc1,
+    s.PC2        = s_pc2
+  )
+}
+
+# Wrapper to run across a named list of gene sets and apply BH FDR
+run_2d_enrichment <- function(genesets, ranked_df, min_size = 5, label = "") {
+  cat("Running 2D enrichment:", label, "-", length(genesets), "gene sets\n")
+
+  results <- map(names(genesets), function(set_name) {
+    res <- run_2d_enrichment_single(genesets[[set_name]], ranked_df, min_size)
+    if (!is.null(res)) res %>% mutate(set = set_name)
+    else NULL
+  }) %>%
+    compact() %>%
+    bind_rows()
+
+  if (nrow(results) == 0) {
+    cat("  No results returned\n")
+    return(results)
+  }
+
+  # Benjamini-Hochberg FDR correction across all tested sets
+  results <- results %>%
+    mutate(p.adjust = p.adjust(p_value, method = "BH")) %>%
+    arrange(p.adjust) %>%
+    select(set, n_members, p_value, p.adjust, s.PC1, s.PC2)
+
+  n_sig <- sum(results$p.adjust < 0.05, na.rm = TRUE)
+  cat(" ", nrow(results), "sets tested |", n_sig, "significant (FDR < 0.05)\n")
+  results
+}
+```
+
+```{r build-go-genesets}
+# ---------------------------------------------------------
+# Build GO gene sets from org.Sc.sgd.db + GO.db
+# (same approach as script 04 to keep annotation consistent)
+# ---------------------------------------------------------
+cat("Building GO gene sets from org.Sc.sgd.db...\n")
+
+build_go_genesets <- function(ontology) {
+  go_map <- AnnotationDbi::select(
+    org.Sc.sgd.db,
+    keys    = keys(org.Sc.sgd.db, keytype = "ORF"),
+    columns = c("GO", "ONTOLOGY"),
+    keytype = "ORF"
+  ) %>%
+    filter(ONTOLOGY == ontology, !is.na(GO)) %>%
+    dplyr::select(ORF, GO)
+
+  go_terms <- AnnotationDbi::select(
+    GO.db,
+    keys    = unique(go_map$GO),
+    columns = "TERM",
+    keytype = "GOID"
+  ) %>%
+    dplyr::rename(GO = GOID)
+
+  go_map %>%
+    left_join(go_terms, by = "GO") %>%
+    mutate(label = if_else(!is.na(TERM),
+                           paste0(TERM, " (", GO, ")"), GO)) %>%
+    group_by(label) %>%
+    summarise(genes = list(unique(ORF)), .groups = "drop") %>%
+    deframe()
+}
+
+go_genesets <- c(
+  build_go_genesets("BP"),
+  build_go_genesets("MF"),
+  build_go_genesets("CC")
+)
+cat("GO gene sets built:", length(go_genesets), "\n")
+```
+
+```{r build-tf-genesets}
+# ---------------------------------------------------------
+# TF gene sets from Mahendrawada et al. 2025
+# Tables A (binding), C (activation/repression), E (direct)
+# Same construction as script 05
+# ---------------------------------------------------------
+supp_path <- file.path(tables_dir, "Supp Table 3.xlsx")
+table_a   <- read_excel(supp_path, sheet = "Table-S3a")
+table_c   <- read_excel(supp_path, sheet = "Table-S3c")
+table_e   <- read_excel(supp_path, sheet = "Table-S3e")
+
+# Table A: binding gene sets
+tf_cols_a   <- colnames(table_a)[-1]
+genesets_tf_a <- map(tf_cols_a, ~table_a %>% filter(.data[[.x]] == 1) %>% pull(gene_id)) %>%
+  set_names(paste0(tf_cols_a, "_bound")) %>%
+  keep(~length(.x) >= 5)
+
+# Table C: activated (log2FC < 0) and repressed (log2FC > 0)
+tf_cols_c     <- setdiff(colnames(table_c), c("gene_id", "Kmeans_clusters"))
+table_c_long  <- table_c %>%
+  select(gene_id, all_of(tf_cols_c)) %>%
+  pivot_longer(-gene_id, names_to = "TF", values_to = "log2FC") %>%
+  filter(!is.na(log2FC))
+
+genesets_tf_c <- bind_rows(
+  table_c_long %>% filter(log2FC < 0) %>%
+    group_by(TF) %>% summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+    mutate(TF = paste0(TF, "_activated")),
+  table_c_long %>% filter(log2FC > 0) %>%
+    group_by(TF) %>% summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+    mutate(TF = paste0(TF, "_repressed"))
+) %>%
+  filter(map_int(genes, length) >= 5) %>%
+  deframe()
+
+# Table E: direct targets
+tf_cols_e    <- colnames(table_e)[-1]
+table_e_long <- table_e %>%
+  pivot_longer(-gene_id, names_to = "TF", values_to = "log2FC") %>%
+  filter(!is.na(log2FC))
+
+genesets_tf_e <- bind_rows(
+  table_e_long %>% filter(log2FC < 0) %>%
+    group_by(TF) %>% summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+    mutate(TF = paste0(TF, "_direct_activated")),
+  table_e_long %>% filter(log2FC > 0) %>%
+    group_by(TF) %>% summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+    mutate(TF = paste0(TF, "_direct_repressed"))
+) %>%
+  filter(map_int(genes, length) >= 5) %>%
+  deframe()
+
+cat("TF gene sets - Table A:", length(genesets_tf_a),
+    "| Table C:", length(genesets_tf_c),
+    "| Table E:", length(genesets_tf_e), "\n")
+```
+
+```{r run-enrichment}
+# ---------------------------------------------------------
+# Run 2D enrichment across GO and TF gene sets
+# ---------------------------------------------------------
+results_go <- run_2d_enrichment(go_genesets,    pca_ranked, label = "GO terms")
+results_tf_a <- run_2d_enrichment(genesets_tf_a, pca_ranked, label = "TF binding (Table A)")
+results_tf_c <- run_2d_enrichment(genesets_tf_c, pca_ranked, label = "TF act/rep (Table C)")
+results_tf_e <- run_2d_enrichment(genesets_tf_e, pca_ranked, label = "TF direct (Table E)")
+```
+
+```{r plot-function}
+# ---------------------------------------------------------
+# 2D scatter plot of (s.PC1, s.PC2) for significant terms,
+# matching Cox & Mann Figure 4 layout.
+# Colour = significance; quadrant labels added.
+# ---------------------------------------------------------
+if (!requireNamespace("ggrepel", quietly = TRUE)) install.packages("ggrepel")
+library(ggrepel)
+
+plot_2d_enrichment <- function(results, title, fdr_cutoff = 0.05,
+                                n_label = 12) {
+  sig <- results %>% filter(p.adjust < fdr_cutoff)
+
+  if (nrow(sig) == 0) {
+    cat("No significant results for:", title, "\n")
+    return(NULL)
+  }
+
+  # label most extreme terms per quadrant
+  df_label <- sig %>%
+    mutate(
+      dist = sqrt(s.PC1^2 + s.PC2^2),
+      quadrant = case_when(
+        s.PC1 >= 0 & s.PC2 >= 0 ~ "Q1",
+        s.PC1 <  0 & s.PC2 >= 0 ~ "Q2",
+        s.PC1 <  0 & s.PC2 <  0 ~ "Q3",
+        s.PC1 >= 0 & s.PC2 <  0 ~ "Q4"
+      )
+    ) %>%
+    group_by(quadrant) %>%
+    slice_max(dist, n = ceiling(n_label / 4)) %>%
+    ungroup() %>%
+    mutate(label = if_else(nchar(set) > 40,
+                           str_trunc(set, 40, ellipsis = "..."), set))
+
+  ggplot(sig, aes(x = s.PC1, y = s.PC2)) +
+    geom_point(aes(color = -log10(p.adjust)), alpha = 0.7, size = 2) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+    ggrepel::geom_text_repel(
+      data = df_label,
+      aes(label = label),
+      size = 2.5, max.overlaps = 20
+    ) +
+    scale_color_gradient(low = "grey80", high = "#d6604d") +
+    annotate("text", x = Inf,  y = Inf,  label = "high PC1\nhigh PC2",
+             hjust = 1.1, vjust = 1.5, size = 2.8, color = "grey40") +
+    annotate("text", x = -Inf, y = Inf,  label = "low PC1\nhigh PC2",
+             hjust = -0.1, vjust = 1.5, size = 2.8, color = "grey40") +
+    annotate("text", x = Inf,  y = -Inf, label = "high PC1\nlow PC2",
+             hjust = 1.1, vjust = -0.5, size = 2.8, color = "grey40") +
+    annotate("text", x = -Inf, y = -Inf, label = "low PC1\nlow PC2",
+             hjust = -0.1, vjust = -0.5, size = 2.8, color = "grey40") +
+    labs(
+      title = title,
+      subtitle = paste0(nrow(sig), " significant terms (FDR < ",
+                        fdr_cutoff, ") from ", nrow(results), " tested"),
+      x = "Effect size PC1 (s.PC1)",
+      y = "Effect size PC2 (s.PC2)",
+      color = expression(-log[10]("adj. p-value"))
+    ) +
+    theme_bw()
+}
+```
+
+```{r plots, fig.width=10, fig.height=9}
+plot_2d_enrichment(results_go,   "2D annotation enrichment - GO terms (Cox & Mann 2012)")
+plot_2d_enrichment(results_tf_a, "2D annotation enrichment - TF binding / Table A (Cox & Mann 2012)")
+plot_2d_enrichment(results_tf_c, "2D annotation enrichment - TF act/rep / Table C (Cox & Mann 2012)")
+plot_2d_enrichment(results_tf_e, "2D annotation enrichment - TF direct targets / Table E (Cox & Mann 2012)")
+```
+
+```{r save-outputs}
+write_tsv(results_go,   file.path(output_dir, "2d_enrichment_go.txt"))
+write_tsv(results_tf_a, file.path(output_dir, "2d_enrichment_tf_tableA.txt"))
+write_tsv(results_tf_c, file.path(output_dir, "2d_enrichment_tf_tableC.txt"))
+write_tsv(results_tf_e, file.path(output_dir, "2d_enrichment_tf_tableE.txt"))
+
+plots <- list(
+  go   = plot_2d_enrichment(results_go,   "2D enrichment - GO terms"),
+  tf_a = plot_2d_enrichment(results_tf_a, "2D enrichment - TF binding (Table A)"),
+  tf_c = plot_2d_enrichment(results_tf_c, "2D enrichment - TF act/rep (Table C)"),
+  tf_e = plot_2d_enrichment(results_tf_e, "2D enrichment - TF direct (Table E)")
+)
+
+for (nm in names(plots)) {
+  if (!is.null(plots[[nm]])) {
+    ggsave(file.path(figures_dir, paste0("2d_enrichment_", nm, ".png")),
+           plot = plots[[nm]], width = 10, height = 9)
+  }
+}
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```

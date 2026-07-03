@@ -1,0 +1,280 @@
+---
+title: "GO Enrichment - mitch (PC1/PC2)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+project_dir <- file.path(path.expand("~"), "Downloads", "AC_combined_analysis", "Adriana_analysis")
+tables_dir  <- file.path(project_dir, "tables")
+figures_dir <- file.path(project_dir, "figures")
+output_dir  <- file.path(project_dir, "output_tables")
+
+dir.create(figures_dir, showWarnings = FALSE)
+dir.create(output_dir, showWarnings = FALSE)
+```
+
+```{r libraries}
+library(tidyverse)
+library(mitch)
+library(org.Sc.sgd.db)
+library(AnnotationDbi)
+
+# pin dplyr::select after loading annotation packages
+select <- dplyr::select
+```
+
+```{r load-data}
+# ---------------------------------------------------------
+# PCA_genes_AC.txt: gene-level PC scores
+# Only PC1/PC2 carry meaningful signal (PC4+ is noise)
+# ---------------------------------------------------------
+pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"), show_col_types = FALSE)
+```
+
+```{r build-go-genesets}
+# ---------------------------------------------------------
+# Build GO gene sets locally from org.Sc.sgd.db.
+# Gene set names use GO term descriptions (not IDs) so plots
+# are human-readable. Term descriptions fetched via GO.db.
+# ---------------------------------------------------------
+cat("Building GO gene sets from org.Sc.sgd.db...\n")
+
+if (!requireNamespace("GO.db", quietly = TRUE)) {
+  BiocManager::install("GO.db")
+}
+library(GO.db)
+
+build_go_genesets <- function(ontology) {
+  go_map <- AnnotationDbi::select(
+    org.Sc.sgd.db,
+    keys    = keys(org.Sc.sgd.db, keytype = "ORF"),
+    columns = c("GO", "ONTOLOGY"),
+    keytype = "ORF"
+  ) %>%
+    filter(ONTOLOGY == ontology, !is.na(GO)) %>%
+    dplyr::select(ORF, GO)
+
+  # look up human-readable term names from GO.db
+  go_ids <- unique(go_map$GO)
+  go_terms <- AnnotationDbi::select(
+    GO.db,
+    keys    = go_ids,
+    columns = "TERM",
+    keytype = "GOID"
+  ) %>%
+    dplyr::rename(GO = GOID)
+
+  go_map <- go_map %>%
+    left_join(go_terms, by = "GO") %>%
+    mutate(label = if_else(!is.na(TERM), paste0(TERM, " (", GO, ")"), GO))
+
+  # build named list: term label -> vector of ORF gene IDs
+  go_map %>%
+    group_by(label) %>%
+    summarise(genes = list(unique(ORF)), .groups = "drop") %>%
+    deframe()
+}
+
+go_genesets_bp <- build_go_genesets("BP")
+go_genesets_mf <- build_go_genesets("MF")
+go_genesets_cc <- build_go_genesets("CC")
+
+go_genesets <- c(go_genesets_bp, go_genesets_mf, go_genesets_cc)
+
+cat("Gene sets built:",
+    length(go_genesets_bp), "BP |",
+    length(go_genesets_mf), "MF |",
+    length(go_genesets_cc), "CC |",
+    length(go_genesets), "total\n")
+```
+
+```{r prepare-input}
+# ---------------------------------------------------------
+# mitch input format: a data frame with rownames = gene IDs
+# and one column per contrast (PC score here).
+# Running PC1 and PC2 as a single two-contrast mitch call
+# enables the multi-dimensional enrichment that is mitch's
+# key advantage - it can find gene sets that respond
+# consistently or divergently across both PCs simultaneously.
+# ---------------------------------------------------------
+mitch_input <- pca_genes %>%
+  select(gene_id, PC1, PC2) %>%
+  column_to_rownames("gene_id")
+
+cat("mitch input dimensions:", nrow(mitch_input), "genes x", ncol(mitch_input), "contrasts\n")
+cat("Contrasts:", colnames(mitch_input), "\n")
+```
+
+```{r run-mitch}
+# ---------------------------------------------------------
+# mitch enrichment.
+# priority = "effect" ranks results by effect size (s.dist),
+# which is the standard approach recommended in the mitch
+# documentation and matches what Adriana's previous student
+# used for the TF enrichment analysis.
+# cores = 1 for reproducibility; increase for speed if needed.
+# ---------------------------------------------------------
+cat("Running mitch enrichment (PC1 + PC2 jointly)...\n")
+
+mitch_result <- mitch_calc(
+  x        = mitch_input,
+  genesets = go_genesets,
+  priority = "effect",
+  cores    = 1
+)
+
+cat("mitch complete.\n")
+cat("Total gene sets tested:", nrow(mitch_result$enrichment_result), "\n")
+
+# Filter to significant results (p.adjustMANOVA < 0.05)
+mitch_sig <- mitch_result$enrichment_result %>%
+  filter(p.adjustMANOVA < 0.05) %>%
+  arrange(p.adjustMANOVA)
+
+cat("Significant gene sets (p.adjustMANOVA < 0.05):", nrow(mitch_sig), "\n")
+```
+
+```{r plot-pc1-effect}
+# ---------------------------------------------------------
+# Plot 1: top 20 gene sets ranked by PC1 effect size (s.PC1),
+# coloured by direction - matches the single-contrast view
+# from scripts 01-03 for direct comparison
+# ---------------------------------------------------------
+plot_mitch_single <- function(df, pc_col, title, n_top = 20) {
+  if (nrow(df) == 0) {
+    cat("No significant terms for:", title, "\n")
+    return(NULL)
+  }
+
+  df_top <- df %>%
+    arrange(desc(abs(.data[[pc_col]]))) %>%
+    slice_head(n = n_top) %>%
+    mutate(
+      set_short = if_else(
+        nchar(set) > 60,
+        str_trunc(set, 60, ellipsis = "..."),
+        set
+      ),
+      set_short = str_wrap(set_short, width = 40),
+      set_short = fct_reorder(set_short, .data[[pc_col]]),
+      direction = if_else(.data[[pc_col]] > 0,
+                          "Positive\n(high PC score)",
+                          "Negative\n(low PC score)")
+    )
+
+  ggplot(df_top, aes(x = .data[[pc_col]], y = set_short,
+                     size = -log10(p.adjustMANOVA), color = direction)) +
+    geom_point(alpha = 0.8) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+    scale_color_manual(values = c(
+      "Positive\n(high PC score)" = "#d6604d",
+      "Negative\n(low PC score)"  = "#4393c3"
+    )) +
+    labs(
+      title = title,
+      x = paste("Effect size (s.", sub("s\\.", "", pc_col), ")", sep = ""),
+      y = NULL,
+      size = expression(-log[10]("adj. p-value")),
+      color = "Direction"
+    ) +
+    theme_bw() +
+    theme(
+      axis.text.y     = element_text(size = 7),
+      legend.position = "right"
+    )
+}
+
+plot_mitch_single(mitch_sig, "s.PC1", "PC1 - GO enrichment (mitch, top 20 by PC1 effect size)")
+```
+
+```{r plot-pc2-effect}
+plot_mitch_single(mitch_sig, "s.PC2", "PC2 - GO enrichment (mitch, top 20 by PC2 effect size)")
+```
+
+```{r plot-2d}
+# ---------------------------------------------------------
+# Plot 2: 2D scatter of s.PC1 vs s.PC2 effect sizes -
+# this is mitch's unique output unavailable from the other
+# three methods. Gene sets in off-diagonal quadrants are
+# enriched differently in PC1 vs PC2, i.e. they respond
+# to the size-dependent TOR/PKA pathway axis but not the
+# independent (mitochondrial) axis, or vice versa.
+# Labelling the most extreme outliers in each quadrant.
+# ---------------------------------------------------------
+plot_mitch_2d <- function(df, title, n_label = 10) {
+  if (nrow(df) == 0) {
+    cat("No data to plot for:", title, "\n")
+    return(NULL)
+  }
+
+  # Label the most extreme terms in each quadrant
+  df_label <- df %>%
+    mutate(
+      quadrant = case_when(
+        s.PC1 > 0 & s.PC2 > 0 ~ "Q1",
+        s.PC1 < 0 & s.PC2 > 0 ~ "Q2",
+        s.PC1 < 0 & s.PC2 < 0 ~ "Q3",
+        s.PC1 > 0 & s.PC2 < 0 ~ "Q4"
+      ),
+      dist_from_origin = sqrt(s.PC1^2 + s.PC2^2)
+    ) %>%
+    group_by(quadrant) %>%
+    slice_max(dist_from_origin, n = ceiling(n_label / 4)) %>%
+    ungroup() %>%
+    mutate(label = if_else(
+      nchar(set) > 40,
+      str_trunc(set, 40, ellipsis = "..."),
+      set
+    ))
+
+  ggplot(df, aes(x = s.PC1, y = s.PC2)) +
+    geom_point(aes(color = -log10(p.adjustMANOVA)), alpha = 0.6, size = 1.5) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+    ggrepel::geom_text_repel(
+      data = df_label,
+      aes(label = label),
+      size = 2.5, max.overlaps = 20
+    ) +
+    scale_color_gradient(low = "grey80", high = "#d6604d") +
+    labs(
+      title = title,
+      x = "Effect size PC1 (s.PC1)",
+      y = "Effect size PC2 (s.PC2)",
+      color = expression(-log[10]("adj. p-value"))
+    ) +
+    theme_bw()
+}
+
+# ggrepel needed for labels - install if missing
+if (!requireNamespace("ggrepel", quietly = TRUE)) {
+  install.packages("ggrepel")
+}
+library(ggrepel)
+
+plot_mitch_2d(mitch_sig, "GO enrichment - mitch 2D (PC1 vs PC2 effect sizes)")
+```
+
+```{r save-outputs}
+# Save full significant results table
+write_tsv(mitch_sig, file.path(output_dir, "go_mitch_pc1_pc2_significant.txt"))
+
+# Save individual PC effect-size plots
+p_pc1 <- plot_mitch_single(mitch_sig, "s.PC1",
+                            "PC1 - GO enrichment (mitch)")
+p_pc2 <- plot_mitch_single(mitch_sig, "s.PC2",
+                            "PC2 - GO enrichment (mitch)")
+p_2d  <- plot_mitch_2d(mitch_sig,
+                        "GO enrichment - mitch 2D (PC1 vs PC2)")
+
+if (!is.null(p_pc1)) ggsave(file.path(figures_dir, "go_mitch_pc1.png"),
+                             plot = p_pc1, width = 10, height = 9)
+if (!is.null(p_pc2)) ggsave(file.path(figures_dir, "go_mitch_pc2.png"),
+                             plot = p_pc2, width = 10, height = 9)
+if (!is.null(p_2d))  ggsave(file.path(figures_dir, "go_mitch_2d.png"),
+                             plot = p_2d,  width = 10, height = 9)
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```

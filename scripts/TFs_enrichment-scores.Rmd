@@ -1,0 +1,690 @@
+---
+title: "TF-enrichment-analysis"
+author: "AC"
+date: "2026-05-14"
+output: word_document
+---
+
+```{r setup}
+rm(list=ls())
+library(MASS)
+library(plotly)
+library(broom)
+library(corrr)
+library(viridis)
+library(tidyverse)
+library(readxl)
+#BiocManager::install("mitch")
+library(mitch)
+library(ggrepel)
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path)) #assumes you're in scripts folder 
+load('../../../../shared_code/r_functions/plotting_functions.rda')
+getwd()
+```
+
+# Data wrangling
+```{r cars}
+PCA_genes <- read_tsv("../tables/PCA_genes_AC.txt", show_col_types=FALSE) # read table with principle components scores for all genes
+
+file_path <- "~/Library/CloudStorage/OneDrive-UniversityofEdinburgh/Swaffer lab documents/NGS_metadata/AC_combined_analysis/analysis/tables/Supp Table 3.xlsx"
+file.exists(file_path)
+excel_sheets(file_path) #Check sheet names
+
+S3A <- read_excel(file_path, sheet = "Table-S3a")
+S3C <- read_excel(file_path, sheet = "Table-S3c")
+S3E <- read_excel(file_path, sheet = "Table-S3e")
+
+
+pca_mat <- PCA_genes %>%
+  select(gene_id, PC1, PC2) # filter for PC1 and PC2, as they are the components where most of the variation is explained
+ 
+```
+
+# Check gene overlap
+```{r}
+# Check genes overlap between S3A and PCA
+
+common_genes <- intersect(pca_mat$gene_id, S3A$gene_id)
+length(common_genes) #4370 genes overlap
+
+#Filter all tables
+pca_mat <- pca_mat %>%
+  filter(gene_id %in% common_genes)
+
+# all four data frames (pca_mat, S3A, S3C, and S3E) contain only the genes that were shared between pca_mat and S3A.
+S3A <- S3A %>% filter(gene_id %in% common_genes)
+S3C <- S3C %>% filter(gene_id %in% common_genes)
+S3E <- S3E %>% filter(gene_id %in% common_genes)
+```
+
+# Build TF gene sets for enrichment
+```{r}
+# Table A (binding yes or no)
+tf_bound <- S3A %>%
+  pivot_longer(-gene_id, names_to = "TF", values_to = "bound") %>% #convert to long format but keep gene_id
+  filter(bound == 1) %>% #filter for TFs that bind
+  group_by(TF) %>% #group by TF
+  summarise(genes = list(unique(gene_id)), .groups = "drop") %>% #For each TF create a list of genes. e TF1 -> c(Gene 1, gene 2) etc
+  deframe() # convert from data frame to a list
+
+# Table C, TF-activated genes (TF depletion ↓ expression → TF normally activates gene)
+tf_activated <- S3C %>%
+  select(-Kmeans_clusters) %>%   # remove annotation columns
+  pivot_longer(
+    cols = -gene_id,
+    names_to = "TF",
+    values_to = "log2FC"
+  ) %>%
+  filter(!is.na(log2FC)) %>%
+  filter(log2FC < 0) %>% #TF depleted < 0 equals repressed under this condition. Therefore, TF normally needed to activate gene
+  group_by(TF) %>%
+  summarise(
+    genes = list(unique(gene_id)),
+    .groups = "drop"
+  ) %>%
+  deframe()
+
+# Table C, TF-repressed genes (TF depletion expression goes up → TF normally represses gene)
+tf_repressed <- S3C %>%
+  select(-Kmeans_clusters) %>%
+  pivot_longer(
+    cols = -gene_id,
+    names_to = "TF",
+    values_to = "log2FC"
+  ) %>%
+  filter(!is.na(log2FC)) %>%
+  filter(log2FC > 0) %>%
+  group_by(TF) %>%
+  summarise(
+    genes = list(unique(gene_id)),
+    .groups = "drop"
+  ) %>%
+  deframe()
+
+# Table E, TF-direct activated genes 
+tf_direct_activated <- S3E %>%
+  pivot_longer(
+    cols = -gene_id,
+    names_to = "TF",
+    values_to = "log2FC"
+  ) %>%
+  filter(!is.na(log2FC)) %>%
+  filter(log2FC < 0) %>%
+  group_by(TF) %>%
+  summarise(
+    genes = list(unique(gene_id)),
+    .groups = "drop"
+  ) %>%
+  deframe()
+
+# Table E, TF-direct repressed genes 
+tf_direct_repressed <- S3E %>%
+  pivot_longer(
+    cols = -gene_id,
+    names_to = "TF",
+    values_to = "log2FC"
+  ) %>%
+  filter(!is.na(log2FC)) %>%
+  filter(log2FC > 0) %>%
+  group_by(TF) %>%
+  summarise(
+    genes = list(unique(gene_id)),
+    .groups = "drop"
+  ) %>%
+  deframe()
+```
+
+#Create PCA matrix for Mitch, run enrichment, extract results for A ONLY
+```{r}
+ranked_genes <- pca_mat %>%
+  column_to_rownames("gene_id") #gene IDs stored as row names (remove gene_id as column title)
+
+#Enrichment for A
+res_bound <- mitch_calc(
+  ranked_genes,#take ranked genes data frame
+  tf_bound, # take tf_bound
+  minsetsize = 5, #TF binds min. 5 genes
+  cores = 1, #CPU used
+  priority = "effect" # rank enrichments based on effect size (alternative is p value)
+)
+
+#Extract results 
+df_bound <- res_bound$enrichment_result %>%
+  rename(TF = set) #rename TF as Set
+```
+
+#Plotting A PC1 vs PC2 by filtering according to most sign. p value
+```{r}
+labels_A <- df_bound %>%
+  arrange(p.adjustMANOVA) %>%
+  slice_head(n = 20)
+
+Plot <- ggplot(df_bound, aes(x = s.PC1, y = s.PC2)) +
+
+  geom_hline(yintercept = 0, linetype = 2, color = "grey70") +
+  geom_vline(xintercept = 0, linetype = 2, color = "grey70") +
+
+  geom_point(aes(size = setSize, color = -log10(p.adjustMANOVA)), alpha = 0.8) +
+  
+  scale_size_continuous(
+    breaks = c(100, 500, 1000, 2000)
+  ) +
+
+  geom_text_repel(data = labels_A, aes(label = TF), size = 4) +
+
+  scale_color_viridis_c() +
+  theme_bw() +
+
+  labs(
+    x = "PC1 enrichment",
+    y = "PC2 enrichment",
+    size = "No of target genes per TF",
+    color = "-log10(Adj. p-value)",
+  )
+Plot
+#ggsave(Plot, filename = "./figures/TFs_enrichment.png", dpi = 600, width = 8, height = 5)
+
+```
+# Another plot but here instead of filtering based on most sign. p-value (which is a combination of pC1 and PC2= MANOVA), I filter according to those TFs that drive most of the variation in PC1 and PC2 space. HERE I DON'T CARE ABOUT DIRECTION (pos. or neg) of my PCs. I am just looking at the largest PCs effects 
+```{r}
+#TFs driving PC1 (irrespective of whether they are positive or negative)
+labels_PC1 <- df_bound %>%
+  arrange(desc(abs(s.PC1))) %>%
+  slice_head(n = 20)
+
+#TFs driving PC2 (irrespective of whether they are positive or negative)
+labels_PC2 <- df_bound %>%
+  arrange(desc(abs(s.PC2))) %>%
+  slice_head(n = 20)
+
+#Combine them
+labels_C <- bind_rows(
+  labels_PC1,
+  labels_PC2
+) %>%
+  distinct(TF, .keep_all = TRUE)
+
+#Plot PC1 vs PC2
+Plot_C <- ggplot(df_bound, aes(x = s.PC1, y = s.PC2)) +
+
+  geom_hline(yintercept = 0, linetype = 2, color = "grey70") +
+  geom_vline(xintercept = 0, linetype = 2, color = "grey70") +
+
+  geom_point(
+    aes(size = setSize, color = -log10(p.adjustMANOVA)),
+    alpha = 0.8
+  ) +
+
+  geom_text_repel(
+    data = labels_C,
+    aes(label = TF),
+    size = 2.0
+  ) +
+
+  scale_size_continuous(
+    breaks = c(100, 500, 1000, 2000)
+  ) +
+
+  scale_color_viridis_c() +
+  theme_bw() +
+
+  labs(
+    x = "PC1 enrichment",
+    y = "PC2 enrichment",
+    size = "No of target genes per TF",
+    color = "-log10(Adj. p-value)"
+  )
+Plot_C
+#ggsave(Plot_C, filename = "./figures/TFs_enrichment.png", dpi = 600, width = 8, height = 5)
+
+```
+#Another plot to show main drivers of PC1 and PC2 separatly (top 20) (not based on p value but on s.PC1 and s.PC2). HERE I CARE ABOUT THE DIRECTION OF PC1/2 + and - (used for poster 260625)
+```{r}
+top_pos_PC1 <- df_bound %>%
+  arrange(desc(s.PC1)) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC1 positive")
+
+top_neg_PC1 <- df_bound %>%
+  arrange(s.PC1) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC1 negative")
+
+top_pos_PC2 <- df_bound %>%
+  arrange(desc(s.PC2)) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC2 positive")
+
+top_neg_PC2 <- df_bound %>%
+  arrange(s.PC2) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC2 negative")
+
+labels <- bind_rows(      #create dataframe combining all top 20s
+  top_pos_PC1,
+  top_neg_PC1,
+  top_pos_PC2,
+  top_neg_PC2
+) %>%
+  distinct(TF, .keep_all = TRUE)
+
+#create a new table to specify which TFs are regulated by TORC1/PKA
+tf_regulation <- tibble::tibble(
+  TF = c("IFH1","FHL1","SFP1","MSN2","MSN4","GCN4","RAP1","GLN3",
+         "STB1","MIG1","MIG2","ADR1"),
+  regulation = c("TORC1/PKA","TORC1/PKA","TORC1/PKA",
+                 "TORC1/PKA","TORC1/PKA",
+                 "TORC1","TORC1",
+                 "TORC1",
+                 "TORC1/PKA",
+                 "PKA","PKA","PKA")
+)
+
+labels_new <- labels %>% 
+  left_join(tf_regulation, by = "TF") %>%
+  mutate(label = ifelse(is.na(regulation), TF, regulation)) # create a new column called label, where targets of TORC1/PKA are called like we told it to, while the other TFs keep their name
+
+Plot5 <- ggplot(df_bound, aes(x = s.PC1, y = s.PC2)) +
+
+  geom_hline(
+    yintercept = 0,
+    linetype = 2,
+    color = "grey70"
+  ) +
+
+  geom_vline(
+    xintercept = 0,
+    linetype = 2,
+    color = "grey70"
+  ) +
+
+  geom_point(
+    aes(
+      size = setSize,
+      color = -log10(p.adjustMANOVA)
+    ),
+    alpha = 0.8
+  ) +
+
+  geom_text_repel(
+    data = labels_new,
+    aes(label = regulation),
+    size = 3
+  ) +
+
+  scale_size_continuous(
+    breaks = c(100, 500, 1000, 2000)
+  ) +
+
+  scale_color_viridis_c() +
+
+  theme_bw() +
+
+  labs(
+    x = "PC1 enrichment",
+    y = "PC2 enrichment",
+    size = "No. of target genes per TF",
+    color = "-log10(Adj. p-value)"
+  )
+Plot5
+ggsave(Plot5, filename = "./figures/TFs_enrichment_2.png", dpi = 600, width = 8, height = 5)
+```
+
+# Enrichment for Table C and E
+```{r}
+#Enrichment for C ACTIVATED 
+res_activated <- mitch_calc(
+  ranked_genes,
+  tf_activated,
+  minsetsize = 5, #TF binds min. 5 genes
+  cores = 1,
+  priority = "effect"
+)
+#Extract results 
+df_activated <- res_activated$enrichment_result %>%
+  rename(TF = set)
+
+#Enrichment for C REPRESSED
+res_repressed <- mitch_calc(
+  ranked_genes,
+  tf_repressed,
+  minsetsize = 5, #TF binds min. 5 genes
+  cores = 1,
+  priority = "effect"
+)
+#Extract results 
+df_repressed <- res_repressed$enrichment_result %>%
+  rename(TF = set)
+
+#Enrichment for E DIRECT ACTIVATED 
+res_direct_activated <- mitch_calc(
+  ranked_genes,
+  tf_direct_activated,
+  minsetsize = 5, #TF binds min. 5 genes
+  cores = 1,
+  priority = "effect"
+)
+#Extract results 
+df_direct_activated <- res_direct_activated$enrichment_result %>%
+  rename(TF = set)
+
+#Enrichment for E DIRECT REPRESSED
+res_direct_repressed <- mitch_calc(
+  ranked_genes,
+  tf_direct_repressed,
+  minsetsize = 5, #TF binds min. 5 genes
+  cores = 1,
+  priority = "effect"
+)
+#Extract results 
+df_direct_repressed <- res_direct_repressed$enrichment_result %>%
+  rename(TF = set)
+```
+
+#Plotting E df_direct activated
+```{r}
+top_pos_PC1_E <- df_direct_activated %>%
+  arrange(desc(s.PC1)) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC1 positive")
+
+top_neg_PC1_E <- df_direct_activated %>%
+  arrange(s.PC1) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC1 negative")
+
+top_pos_PC2_E <- df_direct_activated %>%
+  arrange(desc(s.PC2)) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC2 positive")
+
+top_neg_PC2_E <- df_direct_activated %>%
+  arrange(s.PC2) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC2 negative")
+
+labels_1 <- bind_rows(      #create dataframe combining all top 20s
+  top_pos_PC1_E,
+  top_neg_PC1_E,
+  top_pos_PC2_E,
+  top_neg_PC2_E
+) %>%
+  distinct(TF, .keep_all = TRUE)
+
+Plot6 <- ggplot(df_direct_activated, aes(x = s.PC1, y = s.PC2)) +
+
+  geom_hline(
+    yintercept = 0,
+    linetype = 2,
+    color = "grey70"
+  ) +
+
+  geom_vline(
+    xintercept = 0,
+    linetype = 2,
+    color = "grey70"
+  ) +
+
+  geom_point(
+    aes(
+      size = setSize,
+      color = -log10(p.adjustMANOVA)
+    ),
+    alpha = 0.8
+  ) +
+
+  geom_text_repel(
+    data = labels_1,
+    aes(label = TF),
+    size = 3
+  ) +
+
+  scale_size_continuous(
+    breaks = c(10, 25, 50, 100)
+  ) +
+
+  scale_color_viridis_c() +
+
+  theme_bw() +
+
+  labs(
+    x = "PC1 enrichment",
+    y = "PC2 enrichment",
+    size = "No. of target genes per TF",
+    color = "-log10(Adj. p-value)"
+  )
+Plot6
+ggsave(Plot6, filename = "./figures/TFs_enrichment_E_A.png", dpi = 600, width = 8, height = 5)
+```
+
+#Plotting E df_direct repressed
+```{r}
+top_pos_PC1_E_2 <- df_direct_repressed %>%
+  arrange(desc(s.PC1)) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC1 positive")
+
+top_neg_PC1_E_2 <- df_direct_repressed %>%
+  arrange(s.PC1) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC1 negative")
+
+top_pos_PC2_E_2 <- df_direct_repressed %>%
+  arrange(desc(s.PC2)) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC2 positive")
+
+top_neg_PC2_E_2 <- df_direct_repressed %>%
+  arrange(s.PC2) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC2 negative")
+
+labels_2 <- bind_rows(      #create dataframe combining all top 20s
+  top_pos_PC1_E_2,
+  top_neg_PC1_E_2,
+  top_pos_PC2_E_2,
+  top_neg_PC2_E_2
+) %>%
+  distinct(TF, .keep_all = TRUE)
+
+Plot7 <- ggplot(df_direct_repressed, aes(x = s.PC1, y = s.PC2)) +
+
+  geom_hline(
+    yintercept = 0,
+    linetype = 2,
+    color = "grey70"
+  ) +
+
+  geom_vline(
+    xintercept = 0,
+    linetype = 2,
+    color = "grey70"
+  ) +
+
+  geom_point(
+    aes(
+      size = setSize,
+      color = -log10(p.adjustMANOVA)
+    ),
+    alpha = 0.8
+  ) +
+
+  geom_text_repel(
+    data = labels_2,
+    aes(label = TF),
+    size = 3
+  ) +
+
+  scale_size_continuous(
+    breaks = c(10, 25, 50, 100)
+  ) +
+
+  scale_color_viridis_c() +
+
+  theme_bw() +
+
+  labs(
+    x = "PC1 enrichment",
+    y = "PC2 enrichment",
+    size = "No. of target genes per TF",
+    color = "-log10(Adj. p-value)"
+  )
+Plot7
+ggsave(Plot7, filename = "./figures/TFs_enrichment_E_R.png", dpi = 600, width = 8, height = 5)
+
+```
+#Plotting C df_activated
+```{r}
+#Plotting C df_activated
+
+top_pos_PC1_C <- df_activated %>%
+  arrange(desc(s.PC1)) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC1 positive")
+
+top_neg_PC1_C <- df_activated %>%
+  arrange(s.PC1) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC1 negative")
+
+top_pos_PC2_C <- df_activated  %>%
+  arrange(desc(s.PC2)) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC2 positive")
+
+top_neg_PC2_C <- df_activated %>%
+  arrange(s.PC2) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC2 negative")
+
+labels_C <- bind_rows(      #create dataframe combining all top 20s
+  top_pos_PC1_C,
+  top_neg_PC1_C,
+  top_pos_PC2_C,
+  top_neg_PC2_C
+) %>%
+  distinct(TF, .keep_all = TRUE)
+
+Plot8 <- ggplot(df_activated, aes(x = s.PC1, y = s.PC2)) +
+
+  geom_hline(
+    yintercept = 0,
+    linetype = 2,
+    color = "grey70"
+  ) +
+
+  geom_vline(
+    xintercept = 0,
+    linetype = 2,
+    color = "grey70"
+  ) +
+
+  geom_point(
+    aes(
+      size = setSize,
+      color = -log10(p.adjustMANOVA)
+    ),
+    alpha = 0.8
+  ) +
+
+  geom_text_repel(
+    data = labels_C,
+    aes(label = TF),
+    size = 3
+  ) +
+
+  scale_size_continuous(
+    breaks = c(10, 25, 50, 100)
+  ) +
+
+  scale_color_viridis_c() +
+
+  theme_bw() +
+
+  labs(
+    x = "PC1 enrichment",
+    y = "PC2 enrichment",
+    size = "No. of target genes per TF",
+    color = "-log10(Adj. p-value)"
+  )
+Plot8
+ggsave(Plot8, filename = "./figures/TFs_enrichment_C_A.png", dpi = 600, width = 8, height = 5)
+```
+#Plotting C df_repressed
+```{r}
+#Plotting C df_repressed
+
+top_pos_PC1_C_2 <- df_repressed %>%
+  arrange(desc(s.PC1)) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC1 positive")
+
+top_neg_PC1_C_2 <- df_repressed %>%
+  arrange(s.PC1) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC1 negative")
+
+top_pos_PC2_C_2 <- df_repressed  %>%
+  arrange(desc(s.PC2)) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC2 positive")
+
+top_neg_PC2_C_2 <- df_repressed %>%
+  arrange(s.PC2) %>%
+  slice_head(n = 20) %>%
+  mutate(driver = "PC2 negative")
+
+labels_C_2 <- bind_rows(      #create dataframe combining all top 20s
+  top_pos_PC1_C_2,
+  top_neg_PC1_C_2,
+  top_pos_PC2_C_2,
+  top_neg_PC2_C_2
+) %>%
+  distinct(TF, .keep_all = TRUE)
+
+Plot9 <- ggplot(df_repressed, aes(x = s.PC1, y = s.PC2)) +
+
+  geom_hline(
+    yintercept = 0,
+    linetype = 2,
+    color = "grey70"
+  ) +
+
+  geom_vline(
+    xintercept = 0,
+    linetype = 2,
+    color = "grey70"
+  ) +
+
+  geom_point(
+    aes(
+      size = setSize,
+      color = -log10(p.adjustMANOVA)
+    ),
+    alpha = 0.8
+  ) +
+
+  geom_text_repel(
+    data = labels_C_2,
+    aes(label = TF),
+    size = 3
+  ) +
+
+  scale_size_continuous(
+    breaks = c(10, 25, 50, 100)
+  ) +
+
+  scale_color_viridis_c() +
+
+  theme_bw() +
+
+  labs(
+    x = "PC1 enrichment",
+    y = "PC2 enrichment",
+    size = "No. of target genes per TF",
+    color = "-log10(Adj. p-value)"
+  )
+Plot9
+ggsave(Plot9, filename = "./figures/TFs_enrichment_C_R.png", dpi = 600, width = 8, height = 5)
+```
