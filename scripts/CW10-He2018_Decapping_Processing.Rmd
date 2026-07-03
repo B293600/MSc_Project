@@ -1,0 +1,153 @@
+---
+title: "CW10-He2018_Decapping_Processing"
+output: html_document
+---
+
+# He et al. 2018 (eLife, GSE107841) -- Decapping activators
+# pat1Δ, lsm1Δ, dhh1Δ vs WT RNA-seq (deletion strains, YPD)
+# CAVEAT: deletion strains -- transcriptional buffering likely as per Vijjamarri
+# Output: tables/df_he2018_gba.txt
+#         figures/He2018_decapping_scatter.png
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis")
+library(tidyverse)
+library(patchwork)
+
+col_small <- "#784283"
+col_large <- "#ffa8cb"
+col_A    <- "#e5000c"
+
+load("scripts/gba_functions.rda")
+
+clean_df <- function(df) {
+  df %>%
+    filter(!grepl("unspliced", id)) %>%
+    mutate(gene_id = str_split_fixed(id, "_", 2)[, 1]) %>%
+    filter(grepl("^Y", gene_id)) %>%
+    distinct(gene_id, .keep_all = TRUE)
+}
+```
+
+```{r load-data}
+df_pat1 <- read_tsv("tables/GSE107841_wt_pat1_expressions.txt.gz",
+                    show_col_types = FALSE)
+
+df_lsm1 <- read_tsv("tables/GSE107841_wt_lsm1_expressions.txt.gz",
+                    show_col_types = FALSE)
+
+df_dhh1 <- read_tsv("tables/GSE107841_wt_dhh1_expressions.txt.gz",
+                    show_col_types = FALSE)
+
+df_fc <- read_tsv("output_tables/df_WT_consensus_hl_fc.txt",
+                  show_col_types = FALSE)
+
+cat("pat1 columns:", paste(colnames(df_pat1), collapse=", "), "\n")
+```
+
+```{r process}
+df_pat1_clean <- clean_df(df_pat1) %>%
+  filter(!is.na(wt_pat1_log2FoldChange), is.finite(wt_pat1_log2FoldChange)) %>%
+  dplyr::select(gene_id, wt_pat1_log2FoldChange)
+
+df_lsm1_clean <- clean_df(df_lsm1) %>%
+  filter(!is.na(wt_lsm1_log2FoldChange), is.finite(wt_lsm1_log2FoldChange)) %>%
+  dplyr::select(gene_id, wt_lsm1_log2FoldChange)
+
+df_dhh1_clean <- clean_df(df_dhh1) %>%
+  filter(!is.na(wt_dhh1_log2FoldChange), is.finite(wt_dhh1_log2FoldChange)) %>%
+  dplyr::select(gene_id, wt_dhh1_log2FoldChange)
+
+cat("pat1Δ genes:", nrow(df_pat1_clean), "\n")
+cat("lsm1Δ genes:", nrow(df_lsm1_clean), "\n")
+cat("dhh1Δ genes:", nrow(df_dhh1_clean), "\n")
+```
+
+```{r merge}
+df_he2018 <- df_pat1_clean %>%
+  full_join(df_lsm1_clean, by = "gene_id") %>%
+  full_join(df_dhh1_clean, by = "gene_id")
+
+colnames(df_he2018) <- c("gene_id", "log2FC_pat1D", "log2FC_lsm1D", "log2FC_dhh1D")
+
+cat("Genes in merged table:", nrow(df_he2018), "\n")
+summary(df_he2018[, c("log2FC_pat1D", "log2FC_lsm1D", "log2FC_dhh1D")])
+```
+
+```{r sanity-check}
+r_pat1_lsm1 <- cor(df_he2018$log2FC_pat1D, df_he2018$log2FC_lsm1D,
+                   method = "spearman", use = "complete.obs")
+r_pat1_dhh1 <- cor(df_he2018$log2FC_pat1D, df_he2018$log2FC_dhh1D,
+                   method = "spearman", use = "complete.obs")
+r_lsm1_dhh1 <- cor(df_he2018$log2FC_lsm1D, df_he2018$log2FC_dhh1D,
+                   method = "spearman", use = "complete.obs")
+
+cat("pat1Δ vs lsm1Δ R:", round(r_pat1_lsm1, 3), "\n")
+cat("pat1Δ vs dhh1Δ R:", round(r_pat1_dhh1, 3), "\n")
+cat("lsm1Δ vs dhh1Δ R:", round(r_lsm1_dhh1, 3), "\n")
+```
+
+```{r merge-fc}
+df_merged <- df_he2018 %>%
+  inner_join(df_fc, by = "gene_id")
+
+cat("Genes after merging with WT hl FC:", nrow(df_merged), "\n")
+```
+
+```{r figure1-scatter}
+r_pat1 <- cor(df_merged$log2FC_pat1D, df_merged$WT_hl_fc,
+              method = "spearman", use = "complete.obs")
+r_lsm1 <- cor(df_merged$log2FC_lsm1D, df_merged$WT_hl_fc,
+              method = "spearman", use = "complete.obs")
+r_dhh1 <- cor(df_merged$log2FC_dhh1D, df_merged$WT_hl_fc,
+              method = "spearman", use = "complete.obs")
+
+cat("pat1Δ vs WT_hl_fc R:", round(r_pat1, 3), "\n")
+cat("lsm1Δ vs WT_hl_fc R:", round(r_lsm1, 3), "\n")
+cat("dhh1Δ vs WT_hl_fc R:", round(r_dhh1, 3), "\n")
+
+make_scatter <- function(df, x_col, r_val, n_val, x_lab, pt_col) {
+  ggplot(df, aes(x = .data[[x_col]], y = WT_hl_fc)) +
+    geom_point(colour = pt_col, alpha = 0.3, size = 0.8) +
+    geom_smooth(colour = "black", se = FALSE, span = 0.4) +
+    annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 1.5,
+             label = paste0("R = ", round(r_val, 3)),
+             size = 6, fontface = "bold") +
+    annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 3.2,
+             label = paste0("n = ", format(n_val, big.mark = ",")),
+             size = 5, colour = "grey40") +
+    labs(x = x_lab, y = "log2 half-life FC (large / small cells)") +
+    theme_classic() +
+    theme(axis.title = element_text(size = 12, colour = "black"),
+          axis.text  = element_text(size = 11, colour = "black"))
+}
+
+n_pat1 <- sum(!is.na(df_merged$log2FC_pat1D) & !is.na(df_merged$WT_hl_fc))
+n_lsm1 <- sum(!is.na(df_merged$log2FC_lsm1D) & !is.na(df_merged$WT_hl_fc))
+n_dhh1 <- sum(!is.na(df_merged$log2FC_dhh1D) & !is.na(df_merged$WT_hl_fc))
+
+p_pat1 <- make_scatter(df_merged, "log2FC_pat1D", r_pat1, n_pat1,
+                       "log2 FC after pat1\u0394 (He et al. 2018)", col_large) +
+  labs(tag = "A")
+
+p_lsm1 <- make_scatter(df_merged, "log2FC_lsm1D", r_lsm1, n_lsm1,
+                       "log2 FC after lsm1\u0394 (He et al. 2018)", col_large) +
+  labs(tag = "B")
+
+p_dhh1 <- make_scatter(df_merged, "log2FC_dhh1D", r_dhh1, n_dhh1,
+                       "log2 FC after dhh1\u0394 (He et al. 2018)", col_large) +
+  labs(tag = "C")
+
+p_panel <- p_pat1 | p_lsm1 | p_dhh1
+p_panel
+ggsave("figures/He2018_decapping_scatter.png", p_panel,
+       width = 18, height = 6, dpi = 150)
+cat("Saved figures/He2018_decapping_scatter.png\n")
+```
+
+```{r save}
+write.table(df_he2018, "tables/df_he2018_gba.txt",
+            sep = "\t", row.names = FALSE, quote = FALSE)
+cat("Saved tables/df_he2018_gba.txt\n")
+```

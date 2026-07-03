@@ -1,0 +1,925 @@
+gene_bins	experiment_strain_condition	experiment	strain	condition	timepoint	size	translation	time	molecules_per_fL
+[  1.02,    6.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	1.8279253660586126
+[  1.02,    6.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	0.6805444722286261
+[  1.02,    6.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	0.24643164584415395
+[  1.02,    6.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.07027779812577321
+[  1.02,    6.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.03876594403087269
+[  1.02,    6.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[  1.02,    6.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	1.050365145789427
+[  1.02,    6.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	0.6823594032880813
+[  1.02,    6.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	0.3556634748917301
+[  1.02,    6.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	0.1400085275099461
+[  1.02,    6.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.07721580079588598
+[  1.02,    6.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[  1.02,    6.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	2.845775129114395
+[  1.02,    6.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	2.1818234880628076
+[  1.02,    6.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	1.6698063523500946
+[  1.02,    6.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	1.2547055928885515
+[  1.02,    6.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	1.0234692147449846
+[  1.02,    6.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	0.6959123557144944
+[  1.02,    6.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	0.42529910840939694
+[  1.02,    6.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[  1.02,    6.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	0.7586453523723821
+[  1.02,    6.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	0.6011696894874781
+[  1.02,    6.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	0.47599701460125315
+[  1.02,    6.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	0.4150892311914707
+[  1.02,    6.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.2744941832220137
+[  1.02,    6.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.1877751595626001
+[  1.02,    6.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.16119844912580292
+[  1.02,    6.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[  1.02,    6.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	2.5363918377773333
+[  1.02,    6.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	1.9786302875402098
+[  1.02,    6.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	1.5270283632697235
+[  1.02,    6.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	1.2594212451457798
+[  1.02,    6.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	0.994241475830095
+[  1.02,    6.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	0.7520162770847661
+[  1.02,    6.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	0.4766820476981052
+[  1.02,    6.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[  1.02,    6.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	0.8840927701934322
+[  1.02,    6.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	0.6902784889237257
+[  1.02,    6.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	0.5502009165963336
+[  1.02,    6.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	0.5206082259156486
+[  1.02,    6.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.35503008461880853
+[  1.02,    6.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.2430470998544775
+[  1.02,    6.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.17518958027537018
+[  1.02,    6.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[  6.07,    9.71)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	3.9629792823030137
+[  6.07,    9.71)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	1.37973650272019
+[  6.07,    9.71)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	0.5102157654285548
+[  6.07,    9.71)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.14698320992651456
+[  6.07,    9.71)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.07786582862525823
+[  6.07,    9.71)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[  6.07,    9.71)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	2.3066542246443316
+[  6.07,    9.71)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	1.3778774247718562
+[  6.07,    9.71)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	0.6928586496048772
+[  6.07,    9.71)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	0.2899743672355038
+[  6.07,    9.71)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.14496626025609827
+[  6.07,    9.71)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[  6.07,    9.71)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	5.548007832809005
+[  6.07,    9.71)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	4.042127671349119
+[  6.07,    9.71)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	3.206859662476455
+[  6.07,    9.71)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	2.484904503142585
+[  6.07,    9.71)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	1.9496255930670048
+[  6.07,    9.71)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	1.2712949509385434
+[  6.07,    9.71)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	0.904743798030412
+[  6.07,    9.71)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[  6.07,    9.71)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	1.6772406531702853
+[  6.07,    9.71)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	1.1064357915503618
+[  6.07,    9.71)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	1.0184464109598255
+[  6.07,    9.71)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	0.8732616384340001
+[  6.07,    9.71)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.5943563666799614
+[  6.07,    9.71)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.45931721304011425
+[  6.07,    9.71)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.3709864043648527
+[  6.07,    9.71)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[  6.07,    9.71)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	4.741528395482463
+[  6.07,    9.71)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	3.841510068108796
+[  6.07,    9.71)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	3.11470688389901
+[  6.07,    9.71)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	2.4355390522367566
+[  6.07,    9.71)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	2.189317250279959
+[  6.07,    9.71)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	1.5548056169096405
+[  6.07,    9.71)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	1.0629698341356113
+[  6.07,    9.71)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[  6.07,    9.71)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	1.7879883473367215
+[  6.07,    9.71)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	1.3905320359073843
+[  6.07,    9.71)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	1.1453318453517625
+[  6.07,    9.71)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	0.9534056512624213
+[  6.07,    9.71)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.7898855115271343
+[  6.07,    9.71)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.5846197441374765
+[  6.07,    9.71)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.41054987659066167
+[  6.07,    9.71)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[  9.71,   13.09)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	5.912267662929653
+[  9.71,   13.09)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	2.100303997241929
+[  9.71,   13.09)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	0.7235460856335069
+[  9.71,   13.09)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.19003284250612434
+[  9.71,   13.09)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.09930805188139467
+[  9.71,   13.09)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[  9.71,   13.09)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	3.290418008848913
+[  9.71,   13.09)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	2.0131285429036483
+[  9.71,   13.09)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	1.0476685844741294
+[  9.71,   13.09)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	0.39191360767086425
+[  9.71,   13.09)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.18312634331539723
+[  9.71,   13.09)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[  9.71,   13.09)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	8.566911734269063
+[  9.71,   13.09)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	6.358898704989792
+[  9.71,   13.09)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	4.731258496229712
+[  9.71,   13.09)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	3.8425931761922163
+[  9.71,   13.09)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	2.7249001449006447
+[  9.71,   13.09)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	2.062815082197655
+[  9.71,   13.09)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	1.469460796997022
+[  9.71,   13.09)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[  9.71,   13.09)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	2.374155159390529
+[  9.71,   13.09)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	1.673135652728966
+[  9.71,   13.09)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	1.3882174403154965
+[  9.71,   13.09)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	1.0677634261646163
+[  9.71,   13.09)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.7176517463501428
+[  9.71,   13.09)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.44319854388098073
+[  9.71,   13.09)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.4012129920134097
+[  9.71,   13.09)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[  9.71,   13.09)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	7.247867263686164
+[  9.71,   13.09)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	5.544346942768573
+[  9.71,   13.09)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	4.252014131026738
+[  9.71,   13.09)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	3.381133767053402
+[  9.71,   13.09)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	3.042145327459489
+[  9.71,   13.09)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	2.2330494449918628
+[  9.71,   13.09)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	1.4556830779663594
+[  9.71,   13.09)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[  9.71,   13.09)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	2.3640238646686775
+[  9.71,   13.09)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	1.9114727887147052
+[  9.71,   13.09)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	1.383461702260301
+[  9.71,   13.09)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	1.125866408815123
+[  9.71,   13.09)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.8056772052481287
+[  9.71,   13.09)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.5816497062083809
+[  9.71,   13.09)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.3695100881707728
+[  9.71,   13.09)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 13.09,   16.15)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	7.318593010970892
+[ 13.09,   16.15)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	2.7364521601915386
+[ 13.09,   16.15)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	0.9078907768067335
+[ 13.09,   16.15)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.2358198147797285
+[ 13.09,   16.15)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.11369257739019571
+[ 13.09,   16.15)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 13.09,   16.15)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	3.6337349502739045
+[ 13.09,   16.15)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	2.3498182089963593
+[ 13.09,   16.15)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	1.144058902881245
+[ 13.09,   16.15)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	0.4088923970902784
+[ 13.09,   16.15)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.18612609879259756
+[ 13.09,   16.15)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 13.09,   16.15)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	9.11679422833275
+[ 13.09,   16.15)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	6.906902785197644
+[ 13.09,   16.15)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	5.04748661626405
+[ 13.09,   16.15)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	3.897914503230627
+[ 13.09,   16.15)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	2.3275733713272
+[ 13.09,   16.15)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	1.7878843961290853
+[ 13.09,   16.15)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	1.1787611568939058
+[ 13.09,   16.15)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 13.09,   16.15)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	2.4522327719498
+[ 13.09,   16.15)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	1.8255040294405296
+[ 13.09,   16.15)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	1.5273980846404376
+[ 13.09,   16.15)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	1.1889018373454598
+[ 13.09,   16.15)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.7723054886520488
+[ 13.09,   16.15)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.4791125211765175
+[ 13.09,   16.15)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.3603442629453793
+[ 13.09,   16.15)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 13.09,   16.15)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	7.538132454678291
+[ 13.09,   16.15)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	5.830466599891922
+[ 13.09,   16.15)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	4.391145637317355
+[ 13.09,   16.15)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	3.323555640907378
+[ 13.09,   16.15)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	2.6762832985793827
+[ 13.09,   16.15)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	1.9690764873556648
+[ 13.09,   16.15)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	1.1695244761482475
+[ 13.09,   16.15)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 13.09,   16.15)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	2.286744505081724
+[ 13.09,   16.15)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	1.9884531360395876
+[ 13.09,   16.15)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	1.4039591517964711
+[ 13.09,   16.15)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	1.1666391873894404
+[ 13.09,   16.15)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.7950330907052666
+[ 13.09,   16.15)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.4670674517914854
+[ 13.09,   16.15)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.360794304552667
+[ 13.09,   16.15)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 16.15,   19.38)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	8.482519942128663
+[ 16.15,   19.38)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	3.034699644776052
+[ 16.15,   19.38)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	1.0630205614010388
+[ 16.15,   19.38)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.27401092436159524
+[ 16.15,   19.38)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.12774005046092254
+[ 16.15,   19.38)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 16.15,   19.38)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	4.207785945435088
+[ 16.15,   19.38)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	2.6713120142744553
+[ 16.15,   19.38)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	1.305594024872665
+[ 16.15,   19.38)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	0.42666424369690176
+[ 16.15,   19.38)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.20108636113379902
+[ 16.15,   19.38)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 16.15,   19.38)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	9.734421728905483
+[ 16.15,   19.38)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	7.6816650877140935
+[ 16.15,   19.38)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	5.668048231537044
+[ 16.15,   19.38)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	4.50101383035307
+[ 16.15,   19.38)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	2.8710597264074575
+[ 16.15,   19.38)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	2.1425347707243505
+[ 16.15,   19.38)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	1.4966605945087716
+[ 16.15,   19.38)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 16.15,   19.38)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	2.5418848778224716
+[ 16.15,   19.38)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	1.8071794822157978
+[ 16.15,   19.38)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	1.6108968114804525
+[ 16.15,   19.38)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	1.223480619464846
+[ 16.15,   19.38)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.8057568204642768
+[ 16.15,   19.38)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.48309782017385794
+[ 16.15,   19.38)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.39909007229859406
+[ 16.15,   19.38)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 16.15,   19.38)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	8.158614037233777
+[ 16.15,   19.38)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	6.4652710142354985
+[ 16.15,   19.38)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	4.855578113217853
+[ 16.15,   19.38)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	3.7023972683220916
+[ 16.15,   19.38)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	3.160848537348669
+[ 16.15,   19.38)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	2.213473329544799
+[ 16.15,   19.38)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	1.3458514217688788
+[ 16.15,   19.38)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 16.15,   19.38)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	2.352669839316786
+[ 16.15,   19.38)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	2.030787333355354
+[ 16.15,   19.38)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	1.4610468988912253
+[ 16.15,   19.38)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	1.2804691228467617
+[ 16.15,   19.38)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.8377063551643902
+[ 16.15,   19.38)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.5021557350618424
+[ 16.15,   19.38)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.41399152307588144
+[ 16.15,   19.38)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 19.38,   23.01)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	9.992987947273578
+[ 19.38,   23.01)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	3.9099442851074033
+[ 19.38,   23.01)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	1.3539572885807154
+[ 19.38,   23.01)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.3530677348249434
+[ 19.38,   23.01)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.16189495723590214
+[ 19.38,   23.01)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 19.38,   23.01)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	5.363949815282835
+[ 19.38,   23.01)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	3.566282155560254
+[ 19.38,   23.01)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	1.8118617629145033
+[ 19.38,   23.01)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	0.6027053074228312
+[ 19.38,   23.01)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.27655401948481206
+[ 19.38,   23.01)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 19.38,   23.01)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	12.030391229769432
+[ 19.38,   23.01)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	9.489116852383404
+[ 19.38,   23.01)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	7.1262051826592385
+[ 19.38,   23.01)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	5.551897607874761
+[ 19.38,   23.01)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	3.65851373210846
+[ 19.38,   23.01)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	2.727709674601044
+[ 19.38,   23.01)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	1.9046661776711584
+[ 19.38,   23.01)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 19.38,   23.01)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	3.3957518260433397
+[ 19.38,   23.01)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	2.356356026981109
+[ 19.38,   23.01)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	2.027711080020024
+[ 19.38,   23.01)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	1.5473194282385123
+[ 19.38,   23.01)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.0150963060822162
+[ 19.38,   23.01)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.6405663842738557
+[ 19.38,   23.01)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.5116238771461926
+[ 19.38,   23.01)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 19.38,   23.01)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	10.340722596486389
+[ 19.38,   23.01)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	7.95192256080349
+[ 19.38,   23.01)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	6.003232661567027
+[ 19.38,   23.01)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	4.8055151545602
+[ 19.38,   23.01)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	4.009700947497123
+[ 19.38,   23.01)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	2.811947079707836
+[ 19.38,   23.01)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	1.8015971349447988
+[ 19.38,   23.01)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 19.38,   23.01)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	3.0698037964065756
+[ 19.38,   23.01)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	2.5638001390656884
+[ 19.38,   23.01)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	1.8388092652059636
+[ 19.38,   23.01)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	1.5828977162719227
+[ 19.38,   23.01)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.0499623623391097
+[ 19.38,   23.01)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.6102080667689086
+[ 19.38,   23.01)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.5089671665346166
+[ 19.38,   23.01)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 23.01,   27.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	11.35907790227489
+[ 23.01,   27.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	4.299493854882762
+[ 23.01,   27.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	1.4755263917644987
+[ 23.01,   27.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.36804105919086516
+[ 23.01,   27.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.16562070184397706
+[ 23.01,   27.07)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 23.01,   27.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	5.811768803321678
+[ 23.01,   27.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	3.7625984595811897
+[ 23.01,   27.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	1.8753714425087702
+[ 23.01,   27.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	0.6145728111831261
+[ 23.01,   27.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.27489619803083587
+[ 23.01,   27.07)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 23.01,   27.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	13.466730956694256
+[ 23.01,   27.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	10.677174658720014
+[ 23.01,   27.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	7.906021237840806
+[ 23.01,   27.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	6.1679039322678735
+[ 23.01,   27.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	4.27764645524069
+[ 23.01,   27.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	3.1186020678641424
+[ 23.01,   27.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	1.9377915296273054
+[ 23.01,   27.07)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 23.01,   27.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	3.7137855311777543
+[ 23.01,   27.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	2.6355618727979078
+[ 23.01,   27.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	2.2665565835438697
+[ 23.01,   27.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	1.76396731301415
+[ 23.01,   27.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.1316940798471327
+[ 23.01,   27.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.7004040707223874
+[ 23.01,   27.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.5869080873160144
+[ 23.01,   27.07)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 23.01,   27.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	12.055996484576088
+[ 23.01,   27.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	9.378064967745786
+[ 23.01,   27.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	7.107991814878567
+[ 23.01,   27.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	5.378953092169457
+[ 23.01,   27.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	4.423710607280778
+[ 23.01,   27.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	3.2043391185188574
+[ 23.01,   27.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	2.0341082340222174
+[ 23.01,   27.07)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 23.01,   27.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	3.425677764014139
+[ 23.01,   27.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	2.9392642988368443
+[ 23.01,   27.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	2.1387378061907616
+[ 23.01,   27.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	1.7845288634670606
+[ 23.01,   27.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.1436162067322444
+[ 23.01,   27.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.7199321771014471
+[ 23.01,   27.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.4950531776081486
+[ 23.01,   27.07)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 27.07,   31.23)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	13.326992464951127
+[ 27.07,   31.23)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	5.298112829801805
+[ 27.07,   31.23)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	1.8524369850835554
+[ 27.07,   31.23)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.479948958048086
+[ 27.07,   31.23)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.2298968989564168
+[ 27.07,   31.23)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 27.07,   31.23)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	7.008019454741843
+[ 27.07,   31.23)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	4.736061215190285
+[ 27.07,   31.23)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	2.4646821784916555
+[ 27.07,   31.23)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	0.8139859110056712
+[ 27.07,   31.23)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.36948126625581
+[ 27.07,   31.23)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 27.07,   31.23)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	14.963763825010192
+[ 27.07,   31.23)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	12.080880985430895
+[ 27.07,   31.23)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	9.149006098022108
+[ 27.07,   31.23)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	7.0673632933737105
+[ 27.07,   31.23)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	4.235236311057465
+[ 27.07,   31.23)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	3.5255914784111324
+[ 27.07,   31.23)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	2.4338565042358287
+[ 27.07,   31.23)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 27.07,   31.23)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	4.666688649886502
+[ 27.07,   31.23)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	3.4887829149824205
+[ 27.07,   31.23)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	3.0669189735859406
+[ 27.07,   31.23)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	2.423270019054914
+[ 27.07,   31.23)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.5896064523990034
+[ 27.07,   31.23)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.9978676845846783
+[ 27.07,   31.23)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.8231371424210092
+[ 27.07,   31.23)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 27.07,   31.23)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	13.69655780499483
+[ 27.07,   31.23)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	11.051044854919978
+[ 27.07,   31.23)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	8.52297635200621
+[ 27.07,   31.23)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	6.796098474624754
+[ 27.07,   31.23)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	5.824208691690415
+[ 27.07,   31.23)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	4.192324453528113
+[ 27.07,   31.23)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	2.7050398166967162
+[ 27.07,   31.23)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 27.07,   31.23)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	4.5372152041256655
+[ 27.07,   31.23)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	4.018422165088654
+[ 27.07,   31.23)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	3.205856156103201
+[ 27.07,   31.23)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	2.722792441900989
+[ 27.07,   31.23)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.9762695188164983
+[ 27.07,   31.23)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.2145592325622525
+[ 27.07,   31.23)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.0405075005879485
+[ 27.07,   31.23)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 31.23,   36.25)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	14.886846616225796
+[ 31.23,   36.25)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	6.207277688568982
+[ 31.23,   36.25)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	2.116496194506378
+[ 31.23,   36.25)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.4943907166528085
+[ 31.23,   36.25)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.21697419616706193
+[ 31.23,   36.25)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 31.23,   36.25)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	7.601254381149996
+[ 31.23,   36.25)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	5.204820798445603
+[ 31.23,   36.25)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	2.674829954249331
+[ 31.23,   36.25)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	0.8227611426147426
+[ 31.23,   36.25)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.3548521491389103
+[ 31.23,   36.25)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 31.23,   36.25)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	15.493807874564583
+[ 31.23,   36.25)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	12.47942655741846
+[ 31.23,   36.25)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	9.1109710976228
+[ 31.23,   36.25)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	7.258448375877258
+[ 31.23,   36.25)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	4.7791111147172876
+[ 31.23,   36.25)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	3.3746324815676307
+[ 31.23,   36.25)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	2.31277830552987
+[ 31.23,   36.25)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 31.23,   36.25)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	4.503643175900013
+[ 31.23,   36.25)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	3.3560675608353954
+[ 31.23,   36.25)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	2.77791470090346
+[ 31.23,   36.25)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	2.0886347887149936
+[ 31.23,   36.25)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.3617341139437371
+[ 31.23,   36.25)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.8294548003031333
+[ 31.23,   36.25)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.7335861520121005
+[ 31.23,   36.25)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 31.23,   36.25)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	13.847710951514136
+[ 31.23,   36.25)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	10.92191741464671
+[ 31.23,   36.25)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	8.1617805675849
+[ 31.23,   36.25)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	6.360839034542549
+[ 31.23,   36.25)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	5.28525504353515
+[ 31.23,   36.25)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	3.5590484084225387
+[ 31.23,   36.25)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	2.325658761857269
+[ 31.23,   36.25)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 31.23,   36.25)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	4.209996030223441
+[ 31.23,   36.25)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	3.6212826709290336
+[ 31.23,   36.25)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	2.579249151792383
+[ 31.23,   36.25)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	2.2079720766389634
+[ 31.23,   36.25)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.456684881012765
+[ 31.23,   36.25)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.8510437799459709
+[ 31.23,   36.25)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.676642280400135
+[ 31.23,   36.25)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 36.25,   42.06)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	16.50146549057817
+[ 36.25,   42.06)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	7.356321547189169
+[ 36.25,   42.06)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	2.654964179357459
+[ 36.25,   42.06)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.5737800074529178
+[ 36.25,   42.06)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.21878111780207354
+[ 36.25,   42.06)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 36.25,   42.06)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	8.50258648675745
+[ 36.25,   42.06)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	6.078263596927704
+[ 36.25,   42.06)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	3.31304140828329
+[ 36.25,   42.06)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	1.0374979982094175
+[ 36.25,   42.06)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.40623196915108445
+[ 36.25,   42.06)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 36.25,   42.06)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	16.013797286726273
+[ 36.25,   42.06)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	13.018098629994444
+[ 36.25,   42.06)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	9.2974327565451
+[ 36.25,   42.06)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	7.392224922200925
+[ 36.25,   42.06)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	5.312401124348501
+[ 36.25,   42.06)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	3.5537592858549787
+[ 36.25,   42.06)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	2.336727263296732
+[ 36.25,   42.06)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 36.25,   42.06)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	4.908523322471045
+[ 36.25,   42.06)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	3.7190103999870936
+[ 36.25,   42.06)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	3.029678866276375
+[ 36.25,   42.06)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	2.3277715660196296
+[ 36.25,   42.06)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.5080424387751579
+[ 36.25,   42.06)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.9595240903421377
+[ 36.25,   42.06)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.7993292501671637
+[ 36.25,   42.06)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 36.25,   42.06)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	15.462964464559134
+[ 36.25,   42.06)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	11.564283214688675
+[ 36.25,   42.06)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	9.49542519375469
+[ 36.25,   42.06)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	6.505979414039916
+[ 36.25,   42.06)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	5.382231405040243
+[ 36.25,   42.06)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	3.938437708678131
+[ 36.25,   42.06)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	2.415988862602252
+[ 36.25,   42.06)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 36.25,   42.06)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	4.804762373502814
+[ 36.25,   42.06)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	3.866944602029001
+[ 36.25,   42.06)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	2.970839957273365
+[ 36.25,   42.06)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	2.3522692123959663
+[ 36.25,   42.06)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.661858937490955
+[ 36.25,   42.06)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.9500072740085318
+[ 36.25,   42.06)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.7959515839535027
+[ 36.25,   42.06)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 42.06,   49.58)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	18.821360604345685
+[ 42.06,   49.58)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	8.412978434570217
+[ 42.06,   49.58)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	3.03184614109557
+[ 42.06,   49.58)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.6428402463425951
+[ 42.06,   49.58)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.2613074771875391
+[ 42.06,   49.58)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 42.06,   49.58)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	9.11172736669528
+[ 42.06,   49.58)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	6.5287242626626165
+[ 42.06,   49.58)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	3.5099808581961143
+[ 42.06,   49.58)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	1.0772241193376986
+[ 42.06,   49.58)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.4269116546778662
+[ 42.06,   49.58)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 42.06,   49.58)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	18.962417575457025
+[ 42.06,   49.58)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	15.269771611814813
+[ 42.06,   49.58)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	11.192066170811719
+[ 42.06,   49.58)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	8.927761993586476
+[ 42.06,   49.58)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	6.227862397982121
+[ 42.06,   49.58)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	4.079671379023085
+[ 42.06,   49.58)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	2.7776143334135224
+[ 42.06,   49.58)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 42.06,   49.58)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	5.574803541246894
+[ 42.06,   49.58)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	4.2581650952133225
+[ 42.06,   49.58)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	3.4659213727397145
+[ 42.06,   49.58)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	2.6468685659679845
+[ 42.06,   49.58)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.6896263080314997
+[ 42.06,   49.58)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.0242896372213615
+[ 42.06,   49.58)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.9077916651190563
+[ 42.06,   49.58)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 42.06,   49.58)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	17.359480088491303
+[ 42.06,   49.58)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	13.695538209211186
+[ 42.06,   49.58)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	10.261000266558566
+[ 42.06,   49.58)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	7.852474523146523
+[ 42.06,   49.58)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	6.467378594268348
+[ 42.06,   49.58)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	4.358840083389736
+[ 42.06,   49.58)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	2.73424009628415
+[ 42.06,   49.58)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 42.06,   49.58)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	5.370861498001246
+[ 42.06,   49.58)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	4.508742835003067
+[ 42.06,   49.58)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	3.2546061876392005
+[ 42.06,   49.58)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	2.730228041948623
+[ 42.06,   49.58)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.7537900396122714
+[ 42.06,   49.58)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.0816559431746477
+[ 42.06,   49.58)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.836981026200802
+[ 42.06,   49.58)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 49.58,   58.98)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	21.526305931896967
+[ 49.58,   58.98)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	10.362836352862859
+[ 49.58,   58.98)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	3.9984653858217176
+[ 49.58,   58.98)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.8542169267845471
+[ 49.58,   58.98)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.3176399138018735
+[ 49.58,   58.98)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 49.58,   58.98)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	11.227813285841748
+[ 49.58,   58.98)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	8.41080871177506
+[ 49.58,   58.98)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	4.900557121948154
+[ 49.58,   58.98)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	1.5107454001908736
+[ 49.58,   58.98)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.5694476039177576
+[ 49.58,   58.98)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 49.58,   58.98)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	19.718504655598277
+[ 49.58,   58.98)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	16.555476674896013
+[ 49.58,   58.98)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	12.358167476637478
+[ 49.58,   58.98)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	9.915139824715249
+[ 49.58,   58.98)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	6.8689668518793425
+[ 49.58,   58.98)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	4.61316857889508
+[ 49.58,   58.98)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	3.202238083872363
+[ 49.58,   58.98)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 49.58,   58.98)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	6.072186994715783
+[ 49.58,   58.98)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	4.812532573907423
+[ 49.58,   58.98)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	4.016424320945464
+[ 49.58,   58.98)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	2.9974455211978115
+[ 49.58,   58.98)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	1.996632450468873
+[ 49.58,   58.98)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.2675517503454947
+[ 49.58,   58.98)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.0867923737270972
+[ 49.58,   58.98)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 49.58,   58.98)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	18.329422926263256
+[ 49.58,   58.98)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	14.591310532481753
+[ 49.58,   58.98)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	11.386930816246112
+[ 49.58,   58.98)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	8.94448874926203
+[ 49.58,   58.98)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	7.305528477231872
+[ 49.58,   58.98)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	5.08245625486201
+[ 49.58,   58.98)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	3.251242605514915
+[ 49.58,   58.98)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 49.58,   58.98)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	5.702233249395031
+[ 49.58,   58.98)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	4.970332590936361
+[ 49.58,   58.98)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	3.6906647331648372
+[ 49.58,   58.98)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	3.1646535503305437
+[ 49.58,   58.98)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	2.087416612759858
+[ 49.58,   58.98)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.2362227313739977
+[ 49.58,   58.98)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.9522841050134411
+[ 49.58,   58.98)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 58.98,   71.45)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	25.23817666370762
+[ 58.98,   71.45)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	12.575446059044868
+[ 58.98,   71.45)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	4.940752633101682
+[ 58.98,   71.45)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	1.0558132315360014
+[ 58.98,   71.45)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.35120971928161593
+[ 58.98,   71.45)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 58.98,   71.45)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	13.402565042399996
+[ 58.98,   71.45)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	10.158563156593162
+[ 58.98,   71.45)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	5.9064331171742595
+[ 58.98,   71.45)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	1.8457602659759358
+[ 58.98,   71.45)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.6594674880545889
+[ 58.98,   71.45)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 58.98,   71.45)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	23.434864789087538
+[ 58.98,   71.45)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	19.26637341309206
+[ 58.98,   71.45)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	13.95283836369429
+[ 58.98,   71.45)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	10.630896734252039
+[ 58.98,   71.45)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	7.534626681326029
+[ 58.98,   71.45)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	5.053703077978534
+[ 58.98,   71.45)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	3.640776104786241
+[ 58.98,   71.45)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 58.98,   71.45)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	8.169519152904916
+[ 58.98,   71.45)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	6.4072413106001935
+[ 58.98,   71.45)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	5.221083119763528
+[ 58.98,   71.45)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	3.8017179106491183
+[ 58.98,   71.45)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	2.4459461813078045
+[ 58.98,   71.45)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.578681055084449
+[ 58.98,   71.45)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.2439067423807793
+[ 58.98,   71.45)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 58.98,   71.45)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	21.67313429500514
+[ 58.98,   71.45)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	17.168156962096518
+[ 58.98,   71.45)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	12.486977924559248
+[ 58.98,   71.45)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	9.578763429439384
+[ 58.98,   71.45)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	7.949882582320698
+[ 58.98,   71.45)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	5.477997351396414
+[ 58.98,   71.45)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	3.4700144417265455
+[ 58.98,   71.45)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 58.98,   71.45)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	7.747796071961059
+[ 58.98,   71.45)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	6.654645549197962
+[ 58.98,   71.45)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	4.8133132537009775
+[ 58.98,   71.45)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	4.02987648970236
+[ 58.98,   71.45)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	2.553346717555807
+[ 58.98,   71.45)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.4684017709983204
+[ 58.98,   71.45)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.07766430014621
+[ 58.98,   71.45)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 71.45,   87.76)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	30.824656517568734
+[ 71.45,   87.76)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	16.162596090558594
+[ 71.45,   87.76)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	6.532717827234845
+[ 71.45,   87.76)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	1.3935365505384092
+[ 71.45,   87.76)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.47071644099521415
+[ 71.45,   87.76)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 71.45,   87.76)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	16.169937463167923
+[ 71.45,   87.76)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	12.71546088112886
+[ 71.45,   87.76)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	7.706633903577863
+[ 71.45,   87.76)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	2.5221902364777367
+[ 71.45,   87.76)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.9033840862319324
+[ 71.45,   87.76)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 71.45,   87.76)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	25.87432759752293
+[ 71.45,   87.76)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	21.36226553003017
+[ 71.45,   87.76)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	15.29341047980359
+[ 71.45,   87.76)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	11.74928567279436
+[ 71.45,   87.76)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	8.597663201764052
+[ 71.45,   87.76)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	5.670238254074384
+[ 71.45,   87.76)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	3.711910435636728
+[ 71.45,   87.76)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 71.45,   87.76)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	9.102134428248801
+[ 71.45,   87.76)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	7.245947017031077
+[ 71.45,   87.76)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	5.724768013186848
+[ 71.45,   87.76)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	4.315004862792891
+[ 71.45,   87.76)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	2.7995135627878507
+[ 71.45,   87.76)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.7019182412544005
+[ 71.45,   87.76)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.4498575970486096
+[ 71.45,   87.76)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 71.45,   87.76)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	23.78906511240002
+[ 71.45,   87.76)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	18.786886875211625
+[ 71.45,   87.76)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	13.567616674401346
+[ 71.45,   87.76)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	10.47524603533614
+[ 71.45,   87.76)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	8.826514879082756
+[ 71.45,   87.76)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	6.050190739330839
+[ 71.45,   87.76)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	3.7953671567587026
+[ 71.45,   87.76)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 71.45,   87.76)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	8.577341595127605
+[ 71.45,   87.76)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	7.420762264222782
+[ 71.45,   87.76)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	5.311447548844131
+[ 71.45,   87.76)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	4.419897985126294
+[ 71.45,   87.76)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	2.8413706209994825
+[ 71.45,   87.76)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.5716055812370038
+[ 71.45,   87.76)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.2528267407817764
+[ 71.45,   87.76)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 87.76,  111.49)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	35.007223705127984
+[ 87.76,  111.49)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	19.66515634690492
+[ 87.76,  111.49)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	8.631438307177145
+[ 87.76,  111.49)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	1.8297051624792242
+[ 87.76,  111.49)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.6605215246507317
+[ 87.76,  111.49)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[ 87.76,  111.49)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	20.231819654117626
+[ 87.76,  111.49)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	16.374996642925968
+[ 87.76,  111.49)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	10.789976390172892
+[ 87.76,  111.49)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	3.9114729582114163
+[ 87.76,  111.49)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	1.4545225040445564
+[ 87.76,  111.49)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[ 87.76,  111.49)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	27.650351482465112
+[ 87.76,  111.49)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	22.629151528352775
+[ 87.76,  111.49)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	16.70672747575201
+[ 87.76,  111.49)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	14.04179545019761
+[ 87.76,  111.49)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	10.772024316971999
+[ 87.76,  111.49)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	6.65455763479359
+[ 87.76,  111.49)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	4.986489393608862
+[ 87.76,  111.49)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 87.76,  111.49)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	9.398470747086504
+[ 87.76,  111.49)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	7.412617710975769
+[ 87.76,  111.49)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	6.227685816075265
+[ 87.76,  111.49)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	4.725038934223443
+[ 87.76,  111.49)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	3.0903207428539927
+[ 87.76,  111.49)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.9119474329921395
+[ 87.76,  111.49)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.8141651493697706
+[ 87.76,  111.49)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[ 87.76,  111.49)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	27.109078192582416
+[ 87.76,  111.49)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	21.863900224427272
+[ 87.76,  111.49)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	16.045485389657774
+[ 87.76,  111.49)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	12.851812259148833
+[ 87.76,  111.49)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	10.804656593074121
+[ 87.76,  111.49)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	7.34473773774915
+[ 87.76,  111.49)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	4.645781160288983
+[ 87.76,  111.49)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[ 87.76,  111.49)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	9.182696620989582
+[ 87.76,  111.49)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	7.95254765018853
+[ 87.76,  111.49)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	6.001923299475705
+[ 87.76,  111.49)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	5.0860327973917085
+[ 87.76,  111.49)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	3.2999601062277386
+[ 87.76,  111.49)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	1.9056067051171584
+[ 87.76,  111.49)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.5249486006907795
+[ 87.76,  111.49)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[111.49,  151.57)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	46.26719646404626
+[111.49,  151.57)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	27.45707650715278
+[111.49,  151.57)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	12.475411749016285
+[111.49,  151.57)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	2.5309518537042077
+[111.49,  151.57)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.7570018352691589
+[111.49,  151.57)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[111.49,  151.57)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	23.894183946305482
+[111.49,  151.57)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	19.822493195680128
+[111.49,  151.57)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	13.149792116489493
+[111.49,  151.57)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	4.765440244488124
+[111.49,  151.57)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	1.6605930652675944
+[111.49,  151.57)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[111.49,  151.57)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	33.07469584399227
+[111.49,  151.57)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	27.296141527538566
+[111.49,  151.57)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	19.70195824222456
+[111.49,  151.57)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	15.53104312474504
+[111.49,  151.57)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	12.559816491136317
+[111.49,  151.57)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	7.655271265242118
+[111.49,  151.57)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	5.25918508415762
+[111.49,  151.57)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[111.49,  151.57)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	11.3970606345092
+[111.49,  151.57)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	9.049546374056968
+[111.49,  151.57)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	7.40904097018882
+[111.49,  151.57)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	5.525173771254263
+[111.49,  151.57)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	3.575043469690697
+[111.49,  151.57)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	2.1981543967475576
+[111.49,  151.57)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.9470038405366983
+[111.49,  151.57)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[111.49,  151.57)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	31.51575002658615
+[111.49,  151.57)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	24.64225113494738
+[111.49,  151.57)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	18.10102949741765
+[111.49,  151.57)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	14.218071380250144
+[111.49,  151.57)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	12.165774050429501
+[111.49,  151.57)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	8.31994359791225
+[111.49,  151.57)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	5.203474068273484
+[111.49,  151.57)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[111.49,  151.57)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	11.02835787464273
+[111.49,  151.57)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	9.305477004920226
+[111.49,  151.57)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	6.740332901863848
+[111.49,  151.57)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	5.721744549658377
+[111.49,  151.57)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	3.670651872668718
+[111.49,  151.57)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	2.154765558880155
+[111.49,  151.57)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.5891608573557747
+[111.49,  151.57)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[151.57,  211.89)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	56.33617714988319
+[151.57,  211.89)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	36.64908352357159
+[151.57,  211.89)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	18.835954106502758
+[151.57,  211.89)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	4.496823784222547
+[151.57,  211.89)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	1.2430649233119857
+[151.57,  211.89)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[151.57,  211.89)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	30.5181204885383
+[151.57,  211.89)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	25.77611651150592
+[151.57,  211.89)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	18.195577193612365
+[151.57,  211.89)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	7.681286063836083
+[151.57,  211.89)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	2.854149071264525
+[151.57,  211.89)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[151.57,  211.89)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	32.62337324823889
+[151.57,  211.89)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	28.297334560616495
+[151.57,  211.89)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	21.53633651471057
+[151.57,  211.89)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	16.914765107272885
+[151.57,  211.89)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	13.508379453396635
+[151.57,  211.89)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	8.253750224843287
+[151.57,  211.89)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	5.86059593166963
+[151.57,  211.89)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[151.57,  211.89)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	12.520613288508645
+[151.57,  211.89)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	10.547586093144671
+[151.57,  211.89)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	8.858698978273813
+[151.57,  211.89)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	6.62349437998372
+[151.57,  211.89)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	4.232463683992111
+[151.57,  211.89)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	2.6513723275528576
+[151.57,  211.89)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	2.3542447188208984
+[151.57,  211.89)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[151.57,  211.89)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	31.831969181965974
+[151.57,  211.89)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	25.56122397135172
+[151.57,  211.89)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	19.6615839541391
+[151.57,  211.89)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	15.782308608987863
+[151.57,  211.89)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	13.281606667308834
+[151.57,  211.89)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	8.950798925524257
+[151.57,  211.89)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	5.662810186454676
+[151.57,  211.89)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[151.57,  211.89)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	12.12699181057369
+[151.57,  211.89)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	10.59347959760691
+[151.57,  211.89)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	8.1430697110533
+[151.57,  211.89)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	6.828036416354718
+[151.57,  211.89)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	4.424184248125463
+[151.57,  211.89)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	2.472579850123986
+[151.57,  211.89)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	1.9085702748651114
+[151.57,  211.89)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[211.89,  329.13)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	79.76169647052085
+[211.89,  329.13)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	53.34127042430935
+[211.89,  329.13)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	29.745103430447507
+[211.89,  329.13)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	7.685692677691715
+[211.89,  329.13)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	2.1230864232415563
+[211.89,  329.13)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[211.89,  329.13)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	43.17019256139572
+[211.89,  329.13)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	37.06322427130591
+[211.89,  329.13)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	27.259175611786933
+[211.89,  329.13)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	12.562993304526463
+[211.89,  329.13)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	4.984292866391861
+[211.89,  329.13)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[211.89,  329.13)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	37.08662940717056
+[211.89,  329.13)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	31.21671595597115
+[211.89,  329.13)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	23.606574522638137
+[211.89,  329.13)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	19.101893704700707
+[211.89,  329.13)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	15.770409783802702
+[211.89,  329.13)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	9.236879301111458
+[211.89,  329.13)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	6.61721707197929
+[211.89,  329.13)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[211.89,  329.13)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	14.197336862426376
+[211.89,  329.13)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	11.533324546144344
+[211.89,  329.13)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	9.596617681891878
+[211.89,  329.13)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	7.66370519077322
+[211.89,  329.13)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	4.9271987205608045
+[211.89,  329.13)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	2.7388273341993945
+[211.89,  329.13)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	2.7049296340286926
+[211.89,  329.13)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[211.89,  329.13)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	35.929034379808456
+[211.89,  329.13)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	28.774579442620247
+[211.89,  329.13)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	22.02151691258718
+[211.89,  329.13)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	17.75102032940151
+[211.89,  329.13)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	14.707471173107622
+[211.89,  329.13)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	9.866317646868051
+[211.89,  329.13)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	6.169727383853447
+[211.89,  329.13)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[211.89,  329.13)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	13.881202696146596
+[211.89,  329.13)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	11.628405845513086
+[211.89,  329.13)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	8.926497688380161
+[211.89,  329.13)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	7.873478245273635
+[211.89,  329.13)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	4.956901478804132
+[211.89,  329.13)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	2.7828649231983733
+[211.89,  329.13)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	2.026828240331543
+[211.89,  329.13)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[329.13,  818.60)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	154.76542989649388
+[329.13,  818.60)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	107.50224050514088
+[329.13,  818.60)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	64.07142729914543
+[329.13,  818.60)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	18.637090249980186
+[329.13,  818.60)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	5.199338760445252
+[329.13,  818.60)	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[329.13,  818.60)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	88.98241021276927
+[329.13,  818.60)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	79.43889547511498
+[329.13,  818.60)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	57.950548517457364
+[329.13,  818.60)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	29.10810767579179
+[329.13,  818.60)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	13.227516832057917
+[329.13,  818.60)	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[329.13,  818.60)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	66.86380389884542
+[329.13,  818.60)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	55.89378252607026
+[329.13,  818.60)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	42.99846242714936
+[329.13,  818.60)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	35.41991555925137
+[329.13,  818.60)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	29.669420417094447
+[329.13,  818.60)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	16.575915290193528
+[329.13,  818.60)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	13.11429128454745
+[329.13,  818.60)	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[329.13,  818.60)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	27.708527000521343
+[329.13,  818.60)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	23.41403690357165
+[329.13,  818.60)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	19.74474475902404
+[329.13,  818.60)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	16.279343972283975
+[329.13,  818.60)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	10.950896947038272
+[329.13,  818.60)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	6.490206602569185
+[329.13,  818.60)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	5.851457993120713
+[329.13,  818.60)	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[329.13,  818.60)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	74.36216060208247
+[329.13,  818.60)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	62.18198239901761
+[329.13,  818.60)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	48.44403975508018
+[329.13,  818.60)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	40.94418719813976
+[329.13,  818.60)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	34.74781985262664
+[329.13,  818.60)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	24.402508168126854
+[329.13,  818.60)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	15.49529580274119
+[329.13,  818.60)	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[329.13,  818.60)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	30.746460842425503
+[329.13,  818.60)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	26.868401897730784
+[329.13,  818.60)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	22.51866938094609
+[329.13,  818.60)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	21.390412585027242
+[329.13,  818.60)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	14.383948143240785
+[329.13,  818.60)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	8.828512482164376
+[329.13,  818.60)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	7.59218548998971
+[329.13,  818.60)	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[818.60,11431.44]	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	508.245844320718
+[818.60,11431.44]	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	417.23896221340215
+[818.60,11431.44]	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	292.571329386312
+[818.60,11431.44]	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	118.03037146571839
+[818.60,11431.44]	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	33.62022125530047
+[818.60,11431.44]	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+[818.60,11431.44]	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	275.1913549757867
+[818.60,11431.44]	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	260.91490691234
+[818.60,11431.44]	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	225.72547211105467
+[818.60,11431.44]	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	149.11281994972697
+[818.60,11431.44]	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	85.30706138070553
+[818.60,11431.44]	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+[818.60,11431.44]	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	249.68485571748099
+[818.60,11431.44]	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	230.4500228127381
+[818.60,11431.44]	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	170.10412619135835
+[818.60,11431.44]	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	135.92619659135045
+[818.60,11431.44]	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	129.62142512042053
+[818.60,11431.44]	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	55.63606911593008
+[818.60,11431.44]	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	38.05642299345855
+[818.60,11431.44]	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[818.60,11431.44]	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	98.58099963659224
+[818.60,11431.44]	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	86.97983047590981
+[818.60,11431.44]	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	73.2953889970403
+[818.60,11431.44]	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	60.17149527513109
+[818.60,11431.44]	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	37.114056059511206
+[818.60,11431.44]	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	20.393273890056413
+[818.60,11431.44]	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	20.15558313686118
+[818.60,11431.44]	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+[818.60,11431.44]	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	265.2145444597041
+[818.60,11431.44]	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	230.64351684772495
+[818.60,11431.44]	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	184.29517636862457
+[818.60,11431.44]	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	142.52331088206867
+[818.60,11431.44]	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	109.7620079995868
+[818.60,11431.44]	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	71.22282552643414
+[818.60,11431.44]	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	40.24164379891966
+[818.60,11431.44]	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+[818.60,11431.44]	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	99.56159429770597
+[818.60,11431.44]	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	82.274292402014
+[818.60,11431.44]	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	66.21312524978178
+[818.60,11431.44]	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	61.10078147207836
+[818.60,11431.44]	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	35.2574971001409
+[818.60,11431.44]	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	17.968568417031832
+[818.60,11431.44]	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	9.967220838337372
+[818.60,11431.44]	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+NA	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T1	small	ON	4	0.221720290993877
+NA	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T3	small	ON	10	0.09960742010037242
+NA	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T5	small	ON	16	0.03125322413477148
+NA	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T6	small	ON	28	0.01312233067168811
+NA	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	T7	small	ON	40	0.015433653996978415
+NA	exp221207_MS96_1.5hr_arrest	exp221207	MS96	1.5hr_arrest	Tbackground	small	ON	NA	0
+NA	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T1	big	ON	4	0.11977199419364039
+NA	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T3	big	ON	10	0.10428217699301608
+NA	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T5	big	ON	16	0.06605759376702766
+NA	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T6	big	ON	28	0.02260547979989571
+NA	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	T7	big	ON	40	0.008202508028263427
+NA	exp221207_MS96_7hr_arrest	exp221207	MS96	7hr_arrest	Tbackground	big	ON	NA	0
+NA	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	0.49920919322497903
+NA	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	0.3920026260806098
+NA	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	0.29984012264323945
+NA	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	0.293984352861241
+NA	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	0.2921707949759649
+NA	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	0.12492626361769828
+NA	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	0.13535058170753722
+NA	exp241204_MS908_1.5hr_arrest_60min-PhIAA	exp241204	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+NA	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	0.09634381451283179
+NA	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	0.09807874136048235
+NA	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	0.0552725099400446
+NA	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	0.04770283006359855
+NA	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.05007601284182729
+NA	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.023726488721711014
+NA	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.030951205749826616
+NA	exp241204_MS908_7.5hr_arrest_60min-PhIAA	exp241204	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0
+NA	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T1	small	OFF	4	0.513309679401611
+NA	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T2	small	OFF	7	0.5862163122179074
+NA	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T3	small	OFF	10	0.3863230615752735
+NA	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T4	small	OFF	13	0.3731284875558416
+NA	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T5	small	OFF	18	0.355050597387742
+NA	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T6	small	OFF	28	0.210809710184787
+NA	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	T7	small	OFF	44	0.11516926036827047
+NA	exp250423_MS908_1.5hr_arrest_60min-PhIAA	exp250423	MS908	1.5hr_arrest_60min-PhIAA	Tbackground	small	OFF	NA	0
+NA	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T1	big	OFF	4	0.16203636961874354
+NA	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T2	big	OFF	7	0.1049913307717649
+NA	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T3	big	OFF	10	0.07837398912535044
+NA	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T4	big	OFF	13	0.08223575792904207
+NA	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T5	big	OFF	18	0.09095223502223411
+NA	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T6	big	OFF	28	0.04758571992669591
+NA	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	T7	big	OFF	44	0.019277313442599548
+NA	exp250423_MS908_7.5hr_arrest_60min-PhIAA	exp250423	MS908	7.5hr_arrest_60min-PhIAA	Tbackground	big	OFF	NA	0

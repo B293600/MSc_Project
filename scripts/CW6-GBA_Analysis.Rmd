@@ -1,0 +1,254 @@
+---
+title: "Guilt-by-Association Analysis -- mRNA Decay Pathway Signatures"
+author: "CW"
+date: "2026-05-28"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+setwd("/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis/scripts")
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+library(ggtext)
+library(Hmisc)
+
+load("gba_functions.rda")
+```
+
+```{r load}
+## Consensus half-life fold change -- SE < 0.75, c1 fitting
+## gene_id, WT_small_hl, WT_large_hl, WT_hl_fc
+df_consensus <- read_tsv("../output_tables/df_WT_consensus_hl_fc.txt",
+                         show_col_types = FALSE)
+
+## Vijjamarri et al. 2023 -- Dcp2 and Xrn1 deletion steady-state RNA-seq
+## gene_id, log2FC_dcp2D_vs_WT, padj_dcp2D, log2FC_xrn1D_vs_WT, padj_xrn1D,
+## TE_vijjamarri_WT
+## CAVEAT: deletion mutants in YPD, not G1-arrested AID depletion
+## steady-state accumulation confounded by transcriptional compensation
+df_vijjamarri <- read_tsv("../tables/df_vijjamarri_gba.txt",
+                           show_col_types = FALSE)
+
+## Chappleboim et al. 2022 -- Not1 and Xrn1 AID depletion time course
+## gene_id, log2FC_not1_60min, log2FC_xrn1_60min,
+## not1_sensitive (>0.75), xrn1_sensitive (>1.5)
+## CAVEAT: AID depletion in exponentially growing cells, not G1-arrested
+## 60 min time point used to limit transcriptional compensation
+df_chappleboim <- read_tsv("../tables/df_chappleboim_gba.txt",
+                            show_col_types = FALSE)
+
+cat("Consensus genes:", nrow(df_consensus), "\n")
+cat("Vijjamarri genes:", nrow(df_vijjamarri), "\n")
+cat("Chappleboim genes:", nrow(df_chappleboim), "\n")
+```
+
+```{r join}
+## Join all datasets by gene_id
+df_gba <- df_consensus %>%
+  dplyr::left_join(df_vijjamarri,  by = "gene_id") %>%
+  dplyr::left_join(df_chappleboim, by = "gene_id")
+
+cat("Genes after join:", nrow(df_gba), "\n")
+cat("Genes with Vijjamarri data:",
+    sum(!is.na(df_gba$log2FC_dcp2D_vs_WT)), "\n")
+cat("Genes with Chappleboim data:",
+    sum(!is.na(df_gba$log2FC_not1_60min)), "\n")
+
+## Check actual data range for ylim setting
+cat("WT_hl_fc range (1st-99th percentile):\n")
+print(quantile(df_gba$WT_hl_fc, c(0.01, 0.99), na.rm = TRUE))
+```
+
+```{r s1_dcp2_correlation}
+## Section 1 -- Half-life fold change vs Dcp2 deletion signature
+## Vijjamarri et al. -- log2FC in dcp2D vs WT
+## Positive dcp2D FC = Dcp2-dependent decay target
+## Negative R suggests Dcp2 targets do NOT gain more stability in large cells
+## CAVEAT: deletion mutant in YPD -- chronic transcriptional compensation
+##         likely explains the unexpected negative correlation
+
+p1a <- scatter_binned(df_gba,
+                      x_col     = "log2FC_dcp2D_vs_WT",
+                      y_col     = "WT_hl_fc",
+                      x_lab     = "log2 FC after Dcp2 deletion (Vijjamarri)",
+                      y_lab     = "log2 half-life FC (large/small)",
+                      title     = "Half-life FC vs Dcp2 deletion signature",
+                      point_col = col_small,
+                      ylim      = c(-2.5, 2.5),
+                      xlim      = c(-4, 4)) +
+  labs(tag = "A")
+
+p1a
+ggsave("../figures/GBA_dcp2_correlation.png",
+       plot = p1a, width = 5, height = 5, dpi = 150)
+```
+
+```{r s2_xrn1_vijjamarri_correlation}
+## Section 2 -- Half-life fold change vs Xrn1 deletion signature (Vijjamarri)
+## Negative R -- same caveat as Dcp2; steady-state deletion confounded by
+## widespread transcriptional buffering (Sun et al. 2013 showed ~1.6x increase
+## in synthesis rates in xrn1D, masking true decay effects)
+
+p2a <- scatter_binned(df_gba,
+                      x_col     = "log2FC_xrn1D_vs_WT",
+                      y_col     = "WT_hl_fc",
+                      x_lab     = "log2 FC after Xrn1 deletion (Vijjamarri)",
+                      y_lab     = "log2 half-life FC (large/small)",
+                      title     = "Half-life FC vs Xrn1 deletion signature",
+                      point_col = col_large,
+                      ylim      = c(-2.5, 2.5),
+                      xlim      = c(-5, 2)) +
+  labs(tag = "B")
+
+p2a
+ggsave("../figures/GBA_xrn1_vijjamarri_correlation.png",
+       plot = p2a, width = 5, height = 5, dpi = 150)
+```
+
+```{r s3_not1_correlation}
+## Section 3 -- Half-life fold change vs Not1 depletion signature (Chappleboim)
+## R ~ 0 -- CCR4-NOT deadenylation does not drive size-dependent stability
+
+p3a <- scatter_binned(df_gba,
+                      x_col     = "log2FC_not1_60min",
+                      y_col     = "WT_hl_fc",
+                      x_lab     = "log2 FC after Not1 depletion, 60 min (Chappleboim)",
+                      y_lab     = "log2 half-life FC (large/small)",
+                      title     = "Half-life FC vs Not1 depletion signature",
+                      point_col = col_small,
+                      ylim      = c(-2.5, 2.5),
+                      xlim      = c(-1, 2)) +
+  labs(tag = "C")
+
+p3a
+ggsave("../figures/GBA_not1_correlation.png",
+       plot = p3a, width = 5, height = 5, dpi = 150)
+```
+
+```{r s4_xrn1_chappleboim_correlation}
+## Section 4 -- Half-life fold change vs Xrn1 depletion signature (Chappleboim)
+## Weakly positive R -- Xrn1-sensitive transcripts show slightly larger
+## stability increases in large cells. Most biologically consistent result.
+## AID depletion at 60 min limits transcriptional compensation artefacts.
+
+p4a <- scatter_binned(df_gba,
+                      x_col     = "log2FC_xrn1_60min",
+                      y_col     = "WT_hl_fc",
+                      x_lab     = "log2 FC after Xrn1 depletion, 60 min (Chappleboim)",
+                      y_lab     = "log2 half-life FC (large/small)",
+                      title     = "Half-life FC vs Xrn1 depletion signature",
+                      point_col = col_large,
+                      ylim      = c(-2.5, 2.5),
+                      xlim      = c(-0.5, 2.5)) +
+  labs(tag = "D")
+
+p4a
+ggsave("../figures/GBA_xrn1_chappleboim_correlation.png",
+       plot = p4a, width = 5, height = 5, dpi = 150)
+```
+
+```{r s5_gene_set_not1}
+## Section 5 -- Gene set comparison: Not1-sensitive vs other
+## p = 0.308 -- Not1-sensitive genes do not show significantly different
+## half-life fold changes. Consistent with near-zero continuous correlation.
+
+p5a <- violin_comparison(df_gba,
+                         flag_col         = "not1_sensitive",
+                         value_col        = "WT_hl_fc",
+                         x_lab            = "",
+                         y_lab            = "log2 half-life FC (large/small)",
+                         title            = "Not1-sensitive vs other genes",
+                         sensitive_label  = "Not1-sensitive\n(n=622)",
+                         other_label      = "Other",
+                         ylim             = c(-2.5, 2.5)) +
+  labs(tag = "E")
+
+p5a
+ggsave("../figures/GBA_not1_geneset.png",
+       plot = p5a, width = 5, height = 5, dpi = 150)
+```
+
+```{r s6_gene_set_xrn1}
+## Section 6 -- Gene set comparison: Xrn1-sensitive vs other
+## p < 0.001 -- Xrn1-sensitive genes show significantly higher fold changes
+## median 0.876 vs 0.799. Consistent with positive continuous correlation.
+
+p6a <- violin_comparison(df_gba,
+                         flag_col         = "xrn1_sensitive",
+                         value_col        = "WT_hl_fc",
+                         x_lab            = "",
+                         y_lab            = "log2 half-life FC (large/small)",
+                         title            = "Xrn1-sensitive vs other genes",
+                         sensitive_label  = "Xrn1-sensitive\n(n=303)",
+                         other_label      = "Other",
+                         ylim             = c(-2.5, 2.5)) +
+  labs(tag = "F")
+
+p6a
+ggsave("../figures/GBA_xrn1_geneset.png",
+       plot = p6a, width = 5, height = 5, dpi = 150)
+```
+
+```{r s7_summary_panel}
+## Section 7 -- Summary panel: all six plots together
+
+panel <- (p1a | p2a | p3a) /
+         (p4a | p5a | p6a) +
+  plot_layout(heights = c(1, 1))
+
+panel
+ggsave("../figures/GBA_summary_panel.png",
+       plot   = panel,
+       width  = 15,
+       height = 10,
+       dpi    = 150)
+
+cat("Saved GBA_summary_panel.png\n")
+```
+
+```{r s8_overlap}
+## Section 8 -- Overlap between sensitive gene sets
+
+n_not1      <- sum(df_gba$not1_sensitive, na.rm = TRUE)
+n_xrn1      <- sum(df_gba$xrn1_sensitive, na.rm = TRUE)
+n_both      <- sum(df_gba$not1_sensitive & df_gba$xrn1_sensitive, na.rm = TRUE)
+n_not1_only <- n_not1 - n_both
+n_xrn1_only <- n_xrn1 - n_both
+
+cat("Not1-sensitive only:", n_not1_only, "\n")
+cat("Xrn1-sensitive only:", n_xrn1_only, "\n")
+cat("Both Not1 and Xrn1 sensitive:", n_both, "\n")
+cat("Neither:", nrow(df_gba) - n_not1 - n_xrn1 + n_both, "\n")
+
+df_gba <- df_gba %>%
+  dplyr::mutate(sensitivity_group = case_when(
+    not1_sensitive & xrn1_sensitive ~ "Both",
+    not1_sensitive                  ~ "Not1 only",
+    xrn1_sensitive                  ~ "Xrn1 only",
+    TRUE                            ~ "Neither"))
+
+p8 <- ggplot(df_gba %>% dplyr::filter(is.finite(WT_hl_fc)),
+             aes(x = sensitivity_group, y = WT_hl_fc,
+                 fill = sensitivity_group)) +
+  geom_violin(alpha = 0.6, linewidth = 0.4, trim = TRUE) +
+  geom_boxplot(width = 0.12, outlier.shape = NA,
+               linewidth = 0.4, fill = "white") +
+  scale_fill_manual(values = c(
+    "Both"      = col_A,
+    "Not1 only" = col_small,
+    "Xrn1 only" = col_large,
+    "Neither"   = "grey70")) +
+  coord_cartesian(ylim = c(-2.5, 2.5)) +
+  labs(x     = "",
+       y     = "log2 half-life FC (large/small)",
+       title = "Half-life fold change by decay pathway sensitivity",
+       tag   = "G") +
+  cell_theme +
+  theme(legend.position = "none")
+
+p8
+ggsave("../figures/GBA_sensitivity_groups.png",
+       plot = p8, width = 7, height = 5, dpi = 150)
+```

@@ -1,0 +1,142 @@
+---
+title: "GBA Functions"
+author: "CW"
+date: "2026-06-02"
+output: html_document
+---
+
+```{r create_gba_functions}
+library(tidyverse)
+library(ggplot2)
+library(Hmisc)
+
+col_small <- "#784283"
+col_large <- "#ffa8cb"
+col_A     <- "#e5000c"
+
+cell_theme_gba <- theme_classic(base_size = 26) +
+  theme(
+    axis.title        = element_text(size = 22, colour = "black"),
+    axis.text         = element_text(size = 15, colour = "black"),
+    axis.line         = element_line(colour = "black", linewidth = 0.6),
+    axis.ticks        = element_line(colour = "black", linewidth = 0.6),
+    axis.ticks.length = unit(4, "pt"),
+    panel.border      = element_blank(),
+    plot.tag          = element_text(size = 28, face = "bold", colour = "black"),
+    plot.tag.position = "topleft",
+    plot.title        = element_blank(),
+    legend.position   = "none",
+    plot.margin       = margin(16, 16, 16, 16),
+    plot.background   = element_rect(fill = "white", colour = NA)
+  )
+
+r_label_gba <- function(x, y) {
+  keep <- !is.na(x) & !is.na(y) & is.finite(x) & is.finite(y)
+  r    <- round(cor(x[keep], y[keep], method = "spearman"), 3)
+  paste0("R = ", r)
+}
+
+n_label_gba <- function(x, y) {
+  keep <- !is.na(x) & !is.na(y) & is.finite(x) & is.finite(y)
+  paste0("n = ", format(sum(keep), big.mark = ","))
+}
+
+scatter_binned_gba <- function(data, x_col, y_col, x_lab, y_lab,
+                               point_col = col_small,
+                               bins      = 20,
+                               ylim      = NULL,
+                               xlim      = NULL) {
+  df <- data %>%
+    dplyr::filter(!is.na(.data[[x_col]]), !is.na(.data[[y_col]]),
+                  is.finite(.data[[x_col]]), is.finite(.data[[y_col]]))
+
+  df_bin <- df
+  if (!is.null(xlim)) df_bin <- dplyr::filter(df_bin,
+                                               .data[[x_col]] >= xlim[1],
+                                               .data[[x_col]] <= xlim[2])
+
+  bin_sum <- Hmisc::cut2(df_bin[[x_col]], g = bins) %>%
+    bind_cols(df_bin[[x_col]], df_bin[[y_col]]) %>%
+    dplyr::rename(bin = 1, x = 2, y = 3) %>%
+    drop_na() %>%
+    dplyr::group_by(bin) %>%
+    dplyr::summarise(x = mean(x), y = mean(y), .groups = "drop")
+
+  r_text <- r_label_gba(df[[x_col]], df[[y_col]])
+  n_text <- n_label_gba(df[[x_col]], df[[y_col]])
+
+  p <- ggplot(df, aes(x = .data[[x_col]], y = .data[[y_col]])) +
+    geom_point(size = 2, alpha = 0.25, colour = point_col) +
+    geom_line(data = bin_sum, aes(x = x, y = y),
+              colour = "black", linewidth = 1.2) +
+    annotate("text", x = -Inf, y = Inf,
+             label = r_text, hjust = -0.1, vjust = 1.5,
+             size  = 10, colour = "black") +
+    annotate("text", x = -Inf, y = Inf,
+             label = n_text, hjust = -0.1, vjust = 3.5,
+             size  = 8, colour = "grey40") +
+    labs(x = x_lab, y = y_lab) +
+    cell_theme_gba
+
+  if (!is.null(ylim) & !is.null(xlim)) {
+    p <- p + coord_cartesian(ylim = ylim, xlim = xlim)
+  } else if (!is.null(ylim)) {
+    p <- p + coord_cartesian(ylim = ylim)
+  } else if (!is.null(xlim)) {
+    p <- p + coord_cartesian(xlim = xlim)
+  }
+  p
+}
+
+violin_comparison_gba <- function(data, flag_col, value_col,
+                                  x_lab, y_lab,
+                                  sensitive_label = "Sensitive",
+                                  other_label     = "Other",
+                                  ylim = NULL) {
+  df <- data %>%
+    dplyr::filter(!is.na(.data[[flag_col]]),
+                  !is.na(.data[[value_col]]),
+                  is.finite(.data[[value_col]])) %>%
+    dplyr::mutate(group = ifelse(.data[[flag_col]],
+                                 sensitive_label, other_label),
+                  group = factor(group,
+                                 levels = c(sensitive_label, other_label)))
+
+  sens  <- df[[value_col]][df$group == sensitive_label]
+  other <- df[[value_col]][df$group == other_label]
+  wt    <- wilcox.test(sens, other)
+  pval  <- signif(wt$p.value, 3)
+  plab  <- if (pval < 0.001) "p < 0.001" else paste0("p = ", pval)
+
+  med_sens  <- round(median(sens,  na.rm = TRUE), 3)
+  med_other <- round(median(other, na.rm = TRUE), 3)
+
+  p <- ggplot(df, aes(x = group, y = .data[[value_col]],
+                       fill = group)) +
+    geom_violin(alpha = 0.6, linewidth = 0.4, trim = TRUE) +
+    geom_boxplot(width = 0.12, outlier.shape = NA,
+                 linewidth = 0.5, fill = "white") +
+    scale_fill_manual(values = c(col_small, "grey70")) +
+    annotate("text", x = 1.5, y = Inf,
+             label = plab, vjust = 1.8, size = 9, colour = "black") +
+    annotate("text", x = 1, y = -Inf,
+             label = paste0("median\n", med_sens),
+             vjust = -0.2, size = 7, colour = col_small) +
+    annotate("text", x = 2, y = -Inf,
+             label = paste0("median\n", med_other),
+             vjust = -0.2, size = 7, colour = "grey40") +
+    labs(x = x_lab, y = y_lab) +
+    cell_theme_gba +
+    theme(legend.position = "none")
+
+  if (!is.null(ylim)) p <- p + coord_cartesian(ylim = ylim)
+  p
+}
+
+save(cell_theme_gba, r_label_gba, n_label_gba,
+     scatter_binned_gba, violin_comparison_gba,
+     col_small, col_large, col_A,
+     file = "gba_functions.rda")
+
+cat("Saved gba_functions.rda\n")
+```

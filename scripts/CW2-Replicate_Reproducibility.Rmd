@@ -1,0 +1,491 @@
+---
+title: "WT Replicate Reproducibility and Half-Life Fold Change Analysis"
+author: "CW"
+date: "2026-05-21"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+load("plotting_functions.rda")
+load("fitting_function.rda")
+load("correlation_functions_updated.rda")
+load("reproducibility_functions.rda")
+```
+
+```{r load}
+sample_info  <- read_csv("../tables/sample_info_combined.csv", show_col_types = FALSE)
+verified_ORF <- read_tsv("../tables/2230128_verified_ORF.txt", show_col_types = FALSE) %>%
+  filter(species == "S_cerevisiae")
+
+hl_files <- dir(path = "../output_tables/",
+                pattern = ".*output.*\\.txt",
+                full.names = TRUE)
+
+df_hl_long <- hl_files %>%
+  map(~read_tsv(., show_col_types = FALSE)) %>%
+  set_names(substr(basename(hl_files),
+                   nchar(basename(hl_files)) - 5,
+                   nchar(basename(hl_files)) - 4)) %>%
+  bind_rows(.id = "fitting_strategy") %>%
+  left_join(sample_info, join_by(experiment_strain_condition)) %>%
+  filter(condition == "WT")
+```
+
+```{r process}
+df_hl_wide <- df_hl_long %>%
+  pivot_wider(id_cols     = gene_id,
+              names_from  = c(label, fitting_strategy),
+              values_from = estimate_half_life,
+              names_glue  = "{label}_estimate_half_life_by_{fitting_strategy}")
+
+fitting_strategies <- c("a1", "b1", "b2", "b3", "c1")
+replicates         <- c("MS96", "MS1039")
+
+for (fs in fitting_strategies) {
+  for (rep in replicates) {
+    small_col <- paste0(rep, "_small_estimate_half_life_by_", fs)
+    large_col <- paste0(rep, "_large_estimate_half_life_by_", fs)
+    fc_col    <- paste0(rep, "_hl_fc_by_", fs)
+    if (small_col %in% colnames(df_hl_wide) & large_col %in% colnames(df_hl_wide)) {
+      df_hl_wide[[fc_col]] <- log2(df_hl_wide[[large_col]] / df_hl_wide[[small_col]])
+    }
+  }
+}
+
+nrow(df_hl_wide)
+colnames(df_hl_wide)
+```
+
+## Section 1 -- Replicate reproducibility: raw half-life MS96 vs MS1039
+
+```{r s1}
+walk(fitting_strategies, function(fs) {
+  p <- plot_hl_pair(df_hl_wide,
+                    fitting_strategy = fs,
+                    rep_x = "MS96",
+                    rep_y = "MS1039",
+                    type  = "halflife")
+  ## print suppressed -- RStudio preview causing file permission error on OneDrive
+  save_pair(p, paste0("../figures/replicate_halflife_", fs, ".png"))
+})
+```
+
+## Section 2 -- Replicate reproducibility: half-life fold change MS96 vs MS1039
+
+```{r s2}
+walk(fitting_strategies, function(fs) {
+  p <- plot_hl_pair(df_hl_wide,
+                    fitting_strategy = fs,
+                    rep_x = "MS96",
+                    rep_y = "MS1039",
+                    type  = "fc")
+  ## print suppressed -- RStudio preview causing file permission error on OneDrive
+  save_single(p, paste0("../figures/replicate_fc_", fs, ".png"))
+})
+```
+
+## Section 3 -- Correlation matrix: Spearman R across all fitting strategies
+
+```{r s3}
+r_summary <- map_dfr(fitting_strategies, function(fs) {
+  df <- df_hl_wide %>%
+    filter(
+      !is.na(.data[[paste0("MS96_small_estimate_half_life_by_",   fs)]]),
+      !is.na(.data[[paste0("MS1039_small_estimate_half_life_by_", fs)]]),
+      !is.na(.data[[paste0("MS96_large_estimate_half_life_by_",   fs)]]),
+      !is.na(.data[[paste0("MS1039_large_estimate_half_life_by_", fs)]]),
+      !is.na(.data[[paste0("MS96_hl_fc_by_",                      fs)]]),
+      !is.na(.data[[paste0("MS1039_hl_fc_by_",                    fs)]]),
+      .data[[paste0("MS96_small_estimate_half_life_by_",   fs)]] > 0,
+      .data[[paste0("MS1039_small_estimate_half_life_by_", fs)]] > 0,
+      .data[[paste0("MS96_large_estimate_half_life_by_",   fs)]] > 0,
+      .data[[paste0("MS1039_large_estimate_half_life_by_", fs)]] > 0)
+
+  tibble(
+    fitting_strategy = fs,
+    R_small_hl = get_spearman_r(df,
+                                paste0("MS96_small_estimate_half_life_by_",   fs),
+                                paste0("MS1039_small_estimate_half_life_by_", fs)),
+    R_large_hl = get_spearman_r(df,
+                                paste0("MS96_large_estimate_half_life_by_",   fs),
+                                paste0("MS1039_large_estimate_half_life_by_", fs)),
+    R_fc       = get_spearman_r(df,
+                                paste0("MS96_hl_fc_by_",   fs),
+                                paste0("MS1039_hl_fc_by_", fs))
+  )
+})
+
+print(r_summary)
+
+p_matrix <- plot_reproducibility_matrix(r_summary)
+p_matrix
+save_single(p_matrix, "../figures/replicate_reproducibility_matrix.png",
+            width = 8, height = 4)
+```
+
+## Section 4 -- Averaged WT half-life and fold change (c1 only)
+
+```{r s4}
+df_hl_consensus <- df_hl_wide %>%
+  mutate(
+    WT_small_hl = rowMeans(across(c(MS96_small_estimate_half_life_by_c1,
+                                    MS1039_small_estimate_half_life_by_c1)),
+                           na.rm = TRUE),
+    WT_large_hl = rowMeans(across(c(MS96_large_estimate_half_life_by_c1,
+                                    MS1039_large_estimate_half_life_by_c1)),
+                           na.rm = TRUE),
+    WT_hl_fc    = log2(WT_large_hl / WT_small_hl)
+  ) %>%
+  dplyr::select(gene_id, WT_small_hl, WT_large_hl, WT_hl_fc) %>%
+  filter(!is.na(WT_hl_fc), is.finite(WT_hl_fc))
+
+nrow(df_hl_consensus)
+summary(df_hl_consensus$WT_hl_fc)
+
+ggplot(df_hl_consensus, aes(x = WT_hl_fc)) +
+  geom_histogram(bins = 100, fill = "royalblue3", alpha = 0.7) +
+  geom_vline(xintercept = 0, colour = "grey") +
+  labs(x     = "log2 half-life fold change (large/small)",
+       y     = "Number of genes",
+       title = "mRNA half-life fold change in WT cells (large vs small, averaged across replicates)") +
+  correlation_theme
+
+ggsave("../figures/WT_hl_fc_distribution.png",
+       width = 6, height = 5, dpi = 300)
+
+write_tsv(df_hl_consensus, "../output_tables/df_WT_consensus_hl_fc.txt")
+cat("Saved df_WT_consensus_hl_fc.txt --", nrow(df_hl_consensus), "genes\n")
+```
+
+## Section 5 -- Effect of SE filter on gene count and reproducibility
+
+```{r s5}
+df_c1_raw <- read_tsv("../output_tables/df_fit_output_c1.txt",
+                       show_col_types = FALSE) %>%
+  left_join(sample_info, join_by(experiment_strain_condition)) %>%
+  filter(condition == "WT")
+
+se_thresholds <- c(0.25, 0.5, 0.75, 1.0)
+
+se_summary <- map_dfr(se_thresholds, function(thresh) {
+  df <- df_c1_raw %>%
+    filter(std.error_log_k < thresh) %>%
+    pivot_wider(id_cols     = gene_id,
+                names_from  = label,
+                values_from = estimate_half_life,
+                names_glue  = "{label}_hl") %>%
+    mutate(
+      MS96_hl_fc   = log2(MS96_large_hl / MS96_small_hl),
+      MS1039_hl_fc = log2(MS1039_large_hl / MS1039_small_hl)) %>%
+    filter(
+      !is.na(MS96_small_hl),   !is.na(MS1039_small_hl),
+      !is.na(MS96_large_hl),   !is.na(MS1039_large_hl),
+      !is.na(MS96_hl_fc),      !is.na(MS1039_hl_fc),
+      MS96_small_hl   > 0,     MS1039_small_hl   > 0,
+      MS96_large_hl   > 0,     MS1039_large_hl   > 0,
+      is.finite(MS96_hl_fc),   is.finite(MS1039_hl_fc))
+
+  tibble(
+    threshold  = thresh,
+    filter     = "SE only",
+    n_genes    = nrow(df),
+    R_small_hl = get_spearman_r(df, "MS96_small_hl",  "MS1039_small_hl"),
+    R_large_hl = get_spearman_r(df, "MS96_large_hl",  "MS1039_large_hl"),
+    R_fc       = get_spearman_r(df, "MS96_hl_fc",      "MS1039_hl_fc")
+  )
+})
+
+print(se_summary)
+
+se_long <- se_summary %>%
+  pivot_longer(cols      = c(R_small_hl, R_large_hl, R_fc),
+               names_to  = "metric",
+               values_to = "R") %>%
+  mutate(metric = recode(metric,
+                         R_small_hl = "Half-life small cells",
+                         R_large_hl = "Half-life large cells",
+                         R_fc       = "Fold change large/small"))
+
+p_se_r <- ggplot(se_long, aes(x = threshold, y = R, colour = metric)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_colour_manual(values = c(
+    "Half-life small cells"   = "orange",
+    "Half-life large cells"   = "steelblue",
+    "Fold change large/small" = "royalblue3")) +
+  scale_x_continuous(breaks = se_thresholds) +
+  labs(x      = "std.error_log_k threshold",
+       y      = "Spearman R (MS96 vs MS1039)",
+       title  = "Effect of SE filter on replicate reproducibility - c1 fitting",
+       colour = NULL) +
+  correlation_theme
+
+p_se_n <- ggplot(se_summary, aes(x = threshold, y = n_genes)) +
+  geom_line(linewidth = 0.8, colour = "royalblue3") +
+  geom_point(size = 2, colour = "royalblue3") +
+  scale_x_continuous(breaks = se_thresholds) +
+  labs(x     = "std.error_log_k threshold",
+       y     = "Number of genes retained",
+       title = "Effect of SE filter on gene coverage - c1 fitting") +
+  correlation_theme
+
+p_se_r + p_se_n
+save_pair(p_se_r + p_se_n,
+          "../figures/SE_filter_effect_on_reproducibility.png")
+```
+
+## Section 6 -- Effect of minimum half-life filter on gene count and reproducibility
+
+```{r s6}
+min_hl_thresholds <- c(0, 3, 5, 10)
+
+hl_summary <- map_dfr(min_hl_thresholds, function(min_hl) {
+  df <- df_c1_raw %>%
+    filter(std.error_log_k < 0.75) %>%
+    pivot_wider(id_cols     = gene_id,
+                names_from  = label,
+                values_from = estimate_half_life,
+                names_glue  = "{label}_hl") %>%
+    mutate(
+      MS96_hl_fc   = log2(MS96_large_hl / MS96_small_hl),
+      MS1039_hl_fc = log2(MS1039_large_hl / MS1039_small_hl)) %>%
+    filter(
+      !is.na(MS96_small_hl),   !is.na(MS1039_small_hl),
+      !is.na(MS96_large_hl),   !is.na(MS1039_large_hl),
+      !is.na(MS96_hl_fc),      !is.na(MS1039_hl_fc),
+      MS96_small_hl   > min_hl, MS1039_small_hl > min_hl,
+      MS96_large_hl   > min_hl, MS1039_large_hl > min_hl,
+      is.finite(MS96_hl_fc),   is.finite(MS1039_hl_fc))
+
+  tibble(
+    min_hl_threshold = min_hl,
+    n_genes          = nrow(df),
+    R_small_hl       = get_spearman_r(df, "MS96_small_hl",  "MS1039_small_hl"),
+    R_large_hl       = get_spearman_r(df, "MS96_large_hl",  "MS1039_large_hl"),
+    R_fc             = get_spearman_r(df, "MS96_hl_fc",      "MS1039_hl_fc")
+  )
+})
+
+print(hl_summary)
+
+hl_long <- hl_summary %>%
+  pivot_longer(cols      = c(R_small_hl, R_large_hl, R_fc),
+               names_to  = "metric",
+               values_to = "R") %>%
+  mutate(metric = recode(metric,
+                         R_small_hl = "Half-life small cells",
+                         R_large_hl = "Half-life large cells",
+                         R_fc       = "Fold change large/small"))
+
+p_hl_r <- ggplot(hl_long, aes(x = min_hl_threshold, y = R, colour = metric)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_colour_manual(values = c(
+    "Half-life small cells"   = "orange",
+    "Half-life large cells"   = "steelblue",
+    "Fold change large/small" = "royalblue3")) +
+  scale_x_continuous(breaks = min_hl_thresholds) +
+  labs(x      = "Minimum half-life threshold (min)",
+       y      = "Spearman R (MS96 vs MS1039)",
+       title  = "Effect of minimum half life filter on replicate reproducibility - c1 fitting",
+       colour = NULL) +
+  correlation_theme
+
+p_hl_n <- ggplot(hl_summary, aes(x = min_hl_threshold, y = n_genes)) +
+  geom_line(linewidth = 0.8, colour = "royalblue3") +
+  geom_point(size = 2, colour = "royalblue3") +
+  scale_x_continuous(breaks = min_hl_thresholds) +
+  labs(x     = "Minimum half-life threshold (min)",
+       y     = "Number of genes retained",
+       title = "Effect of minimum half life filter on gene coverage - c1 fitting") +
+  correlation_theme
+
+p_hl_r + p_hl_n
+save_pair(p_hl_r + p_hl_n,
+          "../figures/minHL_filter_effect_on_reproducibility.png")
+```
+
+## Section 7 -- Fold change vs half-life in small and large cells separately
+
+```{r s7}
+df_hl_consensus_75 <- df_c1_raw %>%
+  filter(std.error_log_k < 0.75) %>%
+  pivot_wider(id_cols     = gene_id,
+              names_from  = label,
+              values_from = estimate_half_life,
+              names_glue  = "{label}_hl") %>%
+  filter(
+    !is.na(MS96_small_hl),  !is.na(MS1039_small_hl),
+    !is.na(MS96_large_hl),  !is.na(MS1039_large_hl),
+    MS96_small_hl  > 0,     MS1039_small_hl  > 0,
+    MS96_large_hl  > 0,     MS1039_large_hl  > 0) %>%
+  mutate(
+    WT_small_hl = rowMeans(across(c(MS96_small_hl, MS1039_small_hl)), na.rm = TRUE),
+    WT_large_hl = rowMeans(across(c(MS96_large_hl, MS1039_large_hl)), na.rm = TRUE),
+    WT_hl_fc    = log2(WT_large_hl / WT_small_hl)
+  ) %>%
+  filter(!is.na(WT_hl_fc), is.finite(WT_hl_fc)) %>%
+  dplyr::select(gene_id, WT_small_hl, WT_large_hl, WT_hl_fc)
+
+nrow(df_hl_consensus_75)
+
+p_fc_vs_hl <- scatter_cor_binned_pair(
+  data          = df_hl_consensus_75,
+  x_small       = "WT_small_hl",
+  y_small       = "WT_hl_fc",
+  x_large       = "WT_large_hl",
+  y_large       = "WT_hl_fc",
+  x_lab         = "Consensus half-life (min)",
+  y_lab         = "log2 half-life fold change (large/small)",
+  title_small   = "Small cells",
+  title_large   = "Large cells",
+  bins          = 30,
+  show_diagonal = FALSE) &
+  coord_cartesian(ylim = c(-4, 4))
+
+p_fc_vs_hl
+save_pair(p_fc_vs_hl, "../figures/fc_vs_halflife.png")
+```
+
+## Section 8 -- Effect of R-squared filter (with SE < 0.75) on reproducibility
+
+```{r s8}
+df_c1_rsq <- read_tsv("../output_tables/df_fit_output_c1_rsq.txt",
+                       show_col_types = FALSE) %>%
+  left_join(sample_info, join_by(experiment_strain_condition)) %>%
+  filter(condition == "WT")
+
+rsq_thresholds <- c(0.5, 0.7, 0.8, 0.9)
+
+rsq_se_summary <- map_dfr(rsq_thresholds, function(thresh) {
+  df <- df_c1_rsq %>%
+    filter(std.error_log_k < 0.75,
+           r_squared >= thresh) %>%
+    pivot_wider(id_cols     = gene_id,
+                names_from  = label,
+                values_from = estimate_half_life,
+                names_glue  = "{label}_hl") %>%
+    mutate(
+      MS96_hl_fc   = log2(MS96_large_hl / MS96_small_hl),
+      MS1039_hl_fc = log2(MS1039_large_hl / MS1039_small_hl)) %>%
+    filter(
+      !is.na(MS96_small_hl),  !is.na(MS1039_small_hl),
+      !is.na(MS96_large_hl),  !is.na(MS1039_large_hl),
+      !is.na(MS96_hl_fc),     !is.na(MS1039_hl_fc),
+      MS96_small_hl  > 0,     MS1039_small_hl > 0,
+      MS96_large_hl  > 0,     MS1039_large_hl > 0,
+      is.finite(MS96_hl_fc),  is.finite(MS1039_hl_fc))
+
+  tibble(
+    threshold  = thresh,
+    filter     = "SE + R-squared",
+    n_genes    = nrow(df),
+    R_small_hl = get_spearman_r(df, "MS96_small_hl",  "MS1039_small_hl"),
+    R_large_hl = get_spearman_r(df, "MS96_large_hl",  "MS1039_large_hl"),
+    R_fc       = get_spearman_r(df, "MS96_hl_fc",      "MS1039_hl_fc")
+  )
+})
+
+print(rsq_se_summary)
+
+rsq_se_long <- rsq_se_summary %>%
+  pivot_longer(cols      = c(R_small_hl, R_large_hl, R_fc),
+               names_to  = "metric",
+               values_to = "R") %>%
+  mutate(metric = recode(metric,
+                         R_small_hl = "Half-life small cells",
+                         R_large_hl = "Half-life large cells",
+                         R_fc       = "Fold change large/small"))
+
+p_rsq_se_r <- ggplot(rsq_se_long, aes(x = threshold, y = R, colour = metric)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_colour_manual(values = c(
+    "Half-life small cells"   = "orange",
+    "Half-life large cells"   = "steelblue",
+    "Fold change large/small" = "royalblue3")) +
+  scale_x_continuous(breaks = rsq_thresholds) +
+  labs(x      = "Minimum R-squared threshold (SE < 0.75 applied)",
+       y      = "Spearman R (MS96 vs MS1039)",
+       title  = "Effect of R-squared filter (with SE) on reproducibility - c1 fitting",
+       colour = NULL) +
+  correlation_theme
+
+p_rsq_se_n <- ggplot(rsq_se_summary, aes(x = threshold, y = n_genes)) +
+  geom_line(linewidth = 0.8, colour = "royalblue3") +
+  geom_point(size = 2, colour = "royalblue3") +
+  scale_x_continuous(breaks = rsq_thresholds) +
+  labs(x     = "Minimum R-squared threshold (SE < 0.75 applied)",
+       y     = "Number of genes retained",
+       title = "Effect of R-squared filter (with SE) on gene coverage - c1 fitting") +
+  correlation_theme
+
+p_rsq_se_r + p_rsq_se_n
+save_pair(p_rsq_se_r + p_rsq_se_n,
+          "../figures/Rsq_SE_filter_effect_on_reproducibility.png")
+```
+
+## Section 9 -- R-squared only vs SE only vs SE + R-squared comparison
+
+```{r s9}
+rsq_only_summary <- map_dfr(rsq_thresholds, function(thresh) {
+  df <- df_c1_rsq %>%
+    filter(r_squared >= thresh) %>%
+    pivot_wider(id_cols     = gene_id,
+                names_from  = label,
+                values_from = estimate_half_life,
+                names_glue  = "{label}_hl") %>%
+    mutate(
+      MS96_hl_fc   = log2(MS96_large_hl / MS96_small_hl),
+      MS1039_hl_fc = log2(MS1039_large_hl / MS1039_small_hl)) %>%
+    filter(
+      !is.na(MS96_small_hl),  !is.na(MS1039_small_hl),
+      !is.na(MS96_large_hl),  !is.na(MS1039_large_hl),
+      !is.na(MS96_hl_fc),     !is.na(MS1039_hl_fc),
+      MS96_small_hl  > 0,     MS1039_small_hl > 0,
+      MS96_large_hl  > 0,     MS1039_large_hl > 0,
+      is.finite(MS96_hl_fc),  is.finite(MS1039_hl_fc))
+
+  tibble(
+    threshold  = thresh,
+    filter     = "R-squared only",
+    n_genes    = nrow(df),
+    R_small_hl = get_spearman_r(df, "MS96_small_hl",  "MS1039_small_hl"),
+    R_large_hl = get_spearman_r(df, "MS96_large_hl",  "MS1039_large_hl"),
+    R_fc       = get_spearman_r(df, "MS96_hl_fc",      "MS1039_hl_fc")
+  )
+})
+
+print(rsq_only_summary)
+
+combined_summary <- bind_rows(
+  se_summary,
+  rsq_only_summary,
+  rsq_se_summary)
+
+p_compare <- ggplot(combined_summary,
+                    aes(x = n_genes, y = R_fc,
+                        colour = filter,
+                        label  = round(threshold, 2))) +
+  geom_point(size = 3) +
+  geom_line() +
+  geom_text(vjust = -0.8, size = 3.5) +
+  scale_colour_manual(values = c(
+    "SE only"        = "#ffa8cb",
+    "R-squared only" = "#784283",
+    "SE + R-squared" = "#e5000c")) +
+  labs(x      = "Number of genes retained",
+       y      = "Spearman R fold change (MS96 vs MS1039)",
+       title  = "Filter comparison - fold change reproducibility vs gene coverage",
+       colour = NULL) +
+  correlation_theme
+
+p_compare
+save_single(p_compare,
+            "../figures/filter_comparison.png",
+            width = 8, height = 6)
+```

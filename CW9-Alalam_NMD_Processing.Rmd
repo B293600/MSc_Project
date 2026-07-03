@@ -1,0 +1,140 @@
+---
+title: "CW9-Alalam_NMD_Processing"
+output: html_document
+---
+
+# Alalam et al. 2022 (RNA journal) - Global SLAM-seq
+# GSE196690
+# S5: per-gene half-life estimates for WT and upf3Δ (3 replicates each)
+# S7: list of transcripts with significantly altered half-life (NMD targets)
+# Output: tables/df_alalam_gba.txt
+#         figures/Alalam_scatter_vs_hl_fc.png
+#         figures/Alalam_NMD_sensitive_violin.png
+#         figures/Alalam_upf3_violin.png
+
+```{r setup}
+library(tidyverse)
+
+col_small <- "#784283"
+col_large <- "#ffa8cb"
+col_A <- "#e5000c"
+
+load("scripts/gba_functions.rda")
+```
+
+```{r load-data}
+# Per-gene half-life estimates for WT and upf3Δ (S5)
+df_hl <- read.csv("tables/S5_full_dataset_hl_both_strains_unfiltered.csv")
+
+# NMD target list (S7)
+df_nmd <- read.csv("tables/S7_full_list_of_transcripts_with_altered_half_life.csv")
+
+# WT half-life fold change (size-dependent stability, our data)
+# Columns: gene_id, WT_small_hl, WT_large_hl, WT_hl_fc
+df_fc <- read.table("output_tables/df_WT_consensus_hl_fc.txt", header = TRUE, sep = "\t")
+```
+
+```{r process}
+df_alalam <- df_hl %>%
+  mutate(
+    hl_wt_mean = rowMeans(across(c(hl_wt_rep1, hl_wt_rep2, hl_wt_rep3)), na.rm = TRUE),
+    hl_upf3_mean = rowMeans(across(c(hl_UPF3_rep1, hl_UPF3_rep2, hl_UPF3_rep3)), na.rm = TRUE),
+    n_wt = rowSums(!is.na(across(c(hl_wt_rep1, hl_wt_rep2, hl_wt_rep3)))),
+    n_upf3 = rowSums(!is.na(across(c(hl_UPF3_rep1, hl_UPF3_rep2, hl_UPF3_rep3))))
+  ) %>%
+  filter(n_wt >= 2, n_upf3 >= 2) %>%
+  mutate(
+    log2FC_upf3_hl = log2(hl_upf3_mean / hl_wt_mean),
+    nmd_sensitive = name %in% df_nmd[[1]]
+  ) %>%
+  select(name, hl_wt_mean, hl_upf3_mean, log2FC_upf3_hl, nmd_sensitive)
+
+cat("Genes after filtering:", nrow(df_alalam), "\n")
+cat("NMD-sensitive genes:", sum(df_alalam$nmd_sensitive), "\n")
+summary(df_alalam$log2FC_upf3_hl)
+```
+
+```{r merge}
+# Merge with our WT half-life fold change
+# df_alalam uses "name", df_fc uses "gene_id"
+df_merged <- df_alalam %>%
+  inner_join(df_fc, by = c("name" = "gene_id"))
+
+cat("Genes after merging with WT hl FC:", nrow(df_merged), "\n")
+```
+
+```{r figure1-scatter}
+# Scatter: log2FC_upf3_hl vs WT_hl_fc (size-dependent stability)
+r_val <- cor(df_merged$log2FC_upf3_hl, df_merged$WT_hl_fc,
+             method = "spearman", use = "complete.obs")
+
+p1 <- ggplot(df_merged, aes(x = log2FC_upf3_hl, y = WT_hl_fc)) +
+  geom_point(colour = col_large, alpha = 0.3, size = 0.8) +
+  geom_smooth(colour = "black", se = FALSE, span = 0.4) +
+  annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 1.5,
+           label = paste0("R = ", round(r_val, 3)),
+           size = 6, fontface = "bold") +
+  annotate("text", x = -Inf, y = Inf, hjust = -0.1, vjust = 3.2,
+           label = paste0("n = ", format(nrow(df_merged), big.mark = ",")),
+           size = 5, colour = "grey40") +
+  labs(
+    title = "NMD sensitivity vs size-dependent mRNA stability",
+    x = "log2 half-life FC (upf3\u03b4 / WT, Alalam et al. 2022)",
+    y = "log2 half-life FC (large / small cells)"
+  ) +
+  theme_classic()
+
+print(p1)
+ggsave("figures/Alalam_scatter_vs_hl_fc.png", p1, width = 5, height = 5, dpi = 300)
+```
+
+```{r figure2-nmd-violin}
+# Violin: NMD-sensitive vs non-sensitive genes split by WT_hl_fc
+p2 <- ggplot(df_merged, aes(x = nmd_sensitive, y = WT_hl_fc,
+                              fill = nmd_sensitive)) +
+  geom_violin(alpha = 0.7) +
+  geom_boxplot(width = 0.08, fill = "white", outlier.shape = NA) +
+  scale_fill_manual(
+    values = c("FALSE" = col_large, "TRUE" = col_small),
+    labels = c("FALSE" = "Non-NMD", "TRUE" = "NMD-sensitive")
+  ) +
+  scale_x_discrete(labels = c("FALSE" = "Non-NMD", "TRUE" = "NMD-sensitive")) +
+  labs(
+    title = "Size-dependent stability by NMD sensitivity",
+    x = "Gene class (Alalam et al. 2022)",
+    y = "log2 half-life FC (large / small cells)"
+  ) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+print(p2)
+ggsave("figures/Alalam_NMD_sensitive_violin.png", p2, width = 4, height = 5, dpi = 300)
+```
+
+```{r figure3-upf3-violin}
+# Violin: upf3Δ half-life FC distribution by NMD sensitivity (sanity check)
+p3 <- ggplot(df_alalam, aes(x = nmd_sensitive, y = log2FC_upf3_hl,
+                              fill = nmd_sensitive)) +
+  geom_violin(alpha = 0.7) +
+  geom_boxplot(width = 0.08, fill = "white", outlier.shape = NA) +
+  scale_fill_manual(
+    values = c("FALSE" = col_large, "TRUE" = col_small),
+    labels = c("FALSE" = "Non-NMD", "TRUE" = "NMD-sensitive")
+  ) +
+  scale_x_discrete(labels = c("FALSE" = "Non-NMD", "TRUE" = "NMD-sensitive")) +
+  labs(
+    title = "Half-life FC in upf3\u03b4 by NMD sensitivity (sanity check)",
+    x = "Gene class (Alalam et al. 2022)",
+    y = "log2 half-life FC (upf3\u03b4 / WT)"
+  ) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+print(p3)
+ggsave("figures/Alalam_upf3_violin.png", p3, width = 4, height = 5, dpi = 300)
+```
+
+```{r save}
+write.table(df_alalam, "tables/df_alalam_gba.txt", sep = "\t", row.names = FALSE, quote = FALSE)
+cat("Saved to tables/df_alalam_gba.txt\n")
+```

@@ -1,0 +1,319 @@
+---
+title: "Chappleboim et al. 2022 GBA Dataset Processing"
+author: "CW"
+date: "2026-05-28"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+setwd("/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis/scripts")
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+
+load("gba_functions.rda")
+```
+
+```{r load}
+## GSE196937 -- Chappleboim et al. 2022 (Nucleic Acids Research)
+## 4tU-labelled RNA-seq time course following AID depletion of mRNA processing factors
+##
+## Strains processed:
+##   XRN1-AID  (nf227) -- 5'-3' exonuclease
+##   Not1-AID  (aa91)  -- CCR4-NOT scaffold (deadenylation)
+##   CCR4-AID  (aa118) -- CCR4-NOT deadenylase subunit
+##   Pop2-AID  (aa81, aa82) -- CCR4-NOT deadenylase subunit (two tagged versions, averaged)
+##   dcp2-AID  (aa40)  -- decapping enzyme
+##
+## PAN3-AID excluded: near-zero effect at 60 min, too few sensitive genes
+##
+## Thresholds at 60 min:
+##   Not1-sensitive:  log2FC > 0.75 (n~622, matches paper N=672)
+##   Xrn1-sensitive:  log2FC > 1.5  (n~303, natural break in distribution)
+##   CCR4-sensitive:  log2FC > 0.5  (n~124, weak effect -- lower threshold needed)
+##   Pop2-sensitive:  log2FC > 0.5  (n~123, weak effect -- lower threshold needed)
+##   dcp2-sensitive:  log2FC > 0.75 (n~691, strong effect)
+##
+## CAVEAT: AID depletion in exponentially growing cells, not G1-arrested
+
+samples   <- read_csv("../tables/GSE196937_samples.csv",   show_col_types = FALSE)
+genotypes <- read_csv("../tables/GSE196937_genotypes.csv", show_col_types = FALSE)
+features  <- read_csv("../tables/GSE196937_features.csv",  show_col_types = FALSE)
+
+cat("Samples:",   nrow(samples),   "\n")
+cat("Genotypes:", nrow(genotypes), "\n")
+cat("Features:",  nrow(features),  "\n")
+```
+
+```{r load_tc}
+## Load time course data -- filter to relevant strains only
+## PAN3-AID excluded (near-zero effect at 60 min)
+
+cat("Loading tc_data -- this may take a moment...\n")
+
+relevant_strains <- c("nf227",  ## XRN1-AID
+                      "aa91",   ## Not1-AID
+                      "aa118",  ## CCR4-AID
+                      "aa81",   ## Pop2-AID (NF066 tag)
+                      "aa82",   ## Pop2-AID (NF070 tag)
+                      "aa40")   ## dcp2-AID
+
+relevant_samples <- samples %>%
+  dplyr::filter(strain %in% relevant_strains, !is.na(iaa_time)) %>%
+  dplyr::pull(sample)
+
+cat("Relevant samples:", length(relevant_samples), "\n")
+
+tc_data <- read_csv("../tables/GSE196937_tc_data.csv",
+                    show_col_types = FALSE) %>%
+  dplyr::filter(sample %in% relevant_samples)
+
+cat("Rows after filtering:", nrow(tc_data), "\n")
+```
+
+```{r process}
+## Join with sample metadata and filter to verified ORFs
+tc_joined <- tc_data %>%
+  dplyr::left_join(
+    samples %>% dplyr::select(sample, strain, iaa_time, rep,
+                               control, remove_sample),
+    by = "sample") %>%
+  dplyr::left_join(
+    genotypes %>% dplyr::select(id, name),
+    by = c("strain" = "id")) %>%
+  dplyr::filter(is.na(remove_sample) | !remove_sample) %>%
+  dplyr::rename(gene_id = acc) %>%
+  dplyr::filter(grepl("^Y", gene_id))
+
+cat("Genes after ORF filter:", length(unique(tc_joined$gene_id)), "\n")
+cat("Strains:", paste(unique(tc_joined$name), collapse = ", "), "\n")
+```
+
+```{r normalise}
+## Calculate log2 fold change vs t=0 for each gene in each strain
+## Average across replicates at each time point
+
+t0 <- tc_joined %>%
+  dplyr::filter(iaa_time == 0) %>%
+  dplyr::group_by(name, gene_id) %>%
+  dplyr::summarise(reads_t0 = mean(reads, na.rm = TRUE), .groups = "drop") %>%
+  dplyr::filter(reads_t0 > 0)
+
+tc_avg <- tc_joined %>%
+  dplyr::group_by(name, gene_id, iaa_time) %>%
+  dplyr::summarise(reads_mean = mean(reads, na.rm = TRUE), .groups = "drop")
+
+tc_fc <- tc_avg %>%
+  dplyr::left_join(t0, by = c("name", "gene_id")) %>%
+  dplyr::filter(!is.na(reads_t0), reads_t0 > 0, reads_mean > 0) %>%
+  dplyr::mutate(log2FC = log2(reads_mean / reads_t0))
+
+## Average the two Pop2-AID tagged versions (aa81 and aa82)
+## Both tag Pop2 with AID, slight difference in tag construct
+tc_fc_pop2 <- tc_fc %>%
+  dplyr::filter(name == "Pop2-AID") %>%
+  dplyr::group_by(gene_id, iaa_time) %>%
+  dplyr::summarise(log2FC = mean(log2FC, na.rm = TRUE), .groups = "drop") %>%
+  dplyr::mutate(name = "Pop2-AID")
+
+tc_fc_clean <- tc_fc %>%
+  dplyr::filter(name != "Pop2-AID") %>%
+  bind_rows(tc_fc_pop2)
+
+cat("Genes with FC data:", length(unique(tc_fc_clean$gene_id)), "\n")
+cat("Strains after Pop2 averaging:",
+    paste(unique(tc_fc_clean$name), collapse = ", "), "\n")
+```
+
+```{r distributions_60min}
+## Extract 60 min fold changes for all strains
+tc_60 <- tc_fc_clean %>%
+  dplyr::filter(iaa_time == 60) %>%
+  dplyr::select(gene_id, name, log2FC)
+
+## Summary per strain
+tc_60 %>%
+  dplyr::group_by(name) %>%
+  dplyr::summarise(
+    n      = n(),
+    median = round(median(log2FC, na.rm = TRUE), 3),
+    mean   = round(mean(log2FC, na.rm = TRUE), 3),
+    p75    = round(quantile(log2FC, 0.75, na.rm = TRUE), 3),
+    p90    = round(quantile(log2FC, 0.90, na.rm = TRUE), 3),
+    .groups = "drop") %>%
+  print()
+
+## Distribution plots
+ggplot(tc_60, aes(x = log2FC)) +
+  geom_histogram(bins = 100, fill = "#784283", alpha = 0.7) +
+  geom_vline(xintercept = 0, colour = "black", linetype = "dashed") +
+  facet_wrap(~ name, scales = "free_y") +
+  labs(x     = "log2 FC at 60 min (depleted vs t=0)",
+       y     = "Number of genes",
+       title = "mRNA accumulation after AID depletion -- all strains, 60 min") +
+  theme_classic(base_size = 12)
+
+ggsave("../figures/chappleboim_all_strains_60min_distribution.png",
+       width = 14, height = 8, dpi = 150)
+cat("Saved chappleboim_all_strains_60min_distribution.png\n")
+```
+
+```{r pivot_wide}
+## Pivot to wide format -- one column per strain at 60 min
+tc_60_wide <- tc_60 %>%
+  dplyr::mutate(name = recode(name,
+    "XRN1-AID"  = "log2FC_xrn1_60",
+    "Not1-AID"  = "log2FC_not1_60",
+    "CCR4-AID"  = "log2FC_ccr4_60",
+    "Pop2-AID"  = "log2FC_pop2_60",
+    "dcp2-degM" = "log2FC_dcp2_chapp_60")) %>%
+  pivot_wider(names_from  = "name",
+              values_from = "log2FC")
+
+cat("Genes in wide table:", nrow(tc_60_wide), "\n")
+colnames(tc_60_wide)
+```
+
+```{r sensitivity_flags}
+## Add sensitivity flags at chosen thresholds
+## Not1  > 0.75 -- matches paper N=672
+## Xrn1  > 1.5  -- natural break in distribution
+## CCR4  > 0.5  -- weak effect, lower threshold needed (n=124)
+## Pop2  > 0.5  -- weak effect, lower threshold needed (n=123)
+## dcp2  > 0.75 -- strong effect (n=691)
+
+df_chappleboim_gba <- tc_60_wide %>%
+  dplyr::mutate(
+    not1_sensitive = !is.na(log2FC_not1_60)       & log2FC_not1_60       > 0.75,
+    xrn1_sensitive = !is.na(log2FC_xrn1_60)       & log2FC_xrn1_60       > 1.5,
+    ccr4_sensitive = !is.na(log2FC_ccr4_60)        & log2FC_ccr4_60       > 0.5,
+    pop2_sensitive = !is.na(log2FC_pop2_60)        & log2FC_pop2_60       > 0.5,
+    dcp2_sensitive = !is.na(log2FC_dcp2_chapp_60)  & log2FC_dcp2_chapp_60 > 0.75)
+
+cat("Not1-sensitive  (>0.75):", sum(df_chappleboim_gba$not1_sensitive, na.rm = TRUE), "\n")
+cat("Xrn1-sensitive  (>1.5): ", sum(df_chappleboim_gba$xrn1_sensitive, na.rm = TRUE), "\n")
+cat("CCR4-sensitive  (>0.5): ", sum(df_chappleboim_gba$ccr4_sensitive, na.rm = TRUE), "\n")
+cat("Pop2-sensitive  (>0.5): ", sum(df_chappleboim_gba$pop2_sensitive, na.rm = TRUE), "\n")
+cat("dcp2-sensitive  (>0.75):", sum(df_chappleboim_gba$dcp2_sensitive, na.rm = TRUE), "\n")
+
+write_tsv(df_chappleboim_gba, "../tables/df_chappleboim_gba.txt")
+cat("Saved df_chappleboim_gba.txt\n")
+```
+
+```{r qc_correlations}
+## QC -- pairwise correlations between all Chappleboim strains at 60 min
+cor_matrix <- df_chappleboim_gba %>%
+  dplyr::select(starts_with("log2FC")) %>%
+  cor(use = "pairwise.complete.obs", method = "spearman") %>%
+  round(3)
+
+print(cor_matrix)
+
+cat("\nKey pairwise R values:\n")
+cat("Not1 vs Xrn1  R:", cor_matrix["log2FC_not1_60",       "log2FC_xrn1_60"],       "\n")
+cat("CCR4 vs Not1  R:", cor_matrix["log2FC_ccr4_60",        "log2FC_not1_60"],        "\n")
+cat("CCR4 vs Pop2  R:", cor_matrix["log2FC_ccr4_60",        "log2FC_pop2_60"],        "\n")
+cat("dcp2 vs Xrn1  R:", cor_matrix["log2FC_dcp2_chapp_60",  "log2FC_xrn1_60"],        "\n")
+cat("dcp2 vs Not1  R:", cor_matrix["log2FC_dcp2_chapp_60",  "log2FC_not1_60"],        "\n")
+
+## Heatmap of Chappleboim internal correlations
+cor_long <- cor_matrix %>%
+  as.data.frame() %>%
+  rownames_to_column("var1") %>%
+  pivot_longer(-var1, names_to = "var2", values_to = "R") %>%
+  dplyr::mutate(
+    var1 = recode(var1,
+      log2FC_not1_60      = "Not1-AID",
+      log2FC_xrn1_60      = "XRN1-AID",
+      log2FC_ccr4_60      = "CCR4-AID",
+      log2FC_pop2_60      = "Pop2-AID",
+      log2FC_dcp2_chapp_60 = "dcp2-AID"),
+    var2 = recode(var2,
+      log2FC_not1_60      = "Not1-AID",
+      log2FC_xrn1_60      = "XRN1-AID",
+      log2FC_ccr4_60      = "CCR4-AID",
+      log2FC_pop2_60      = "Pop2-AID",
+      log2FC_dcp2_chapp_60 = "dcp2-AID"))
+
+p_cor_heatmap <- ggplot(cor_long, aes(x = var1, y = var2, fill = R)) +
+  geom_tile(colour = "white", linewidth = 0.8) +
+  geom_text(aes(label = round(R, 2)),
+            size = 5, colour = "white", fontface = "bold") +
+  scale_fill_gradient2(low      = "#ffa8cb",
+                       mid      = "white",
+                       high     = "#4575b4",
+                       midpoint = 0,
+                       limits   = c(-1, 1),
+                       name     = "Spearman R") +
+  labs(x = NULL, y = NULL,
+       title = "Pairwise Spearman R -- Chappleboim strains at 60 min") +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x     = element_text(angle = 45, hjust = 1,
+                                   size = 12, colour = "black"),
+    axis.text.y     = element_text(size = 12, colour = "black"),
+    axis.line       = element_blank(),
+    axis.ticks      = element_blank(),
+    plot.background = element_rect(fill = "white", colour = NA))
+
+p_cor_heatmap
+ggsave("../figures/chappleboim_internal_correlation_matrix.png",
+       plot   = p_cor_heatmap,
+       width  = 8, height = 7, dpi = 150)
+cat("Saved chappleboim_internal_correlation_matrix.png\n")
+```
+
+```{r qc_scatter}
+## QC scatter plots -- how well do related pathways agree?
+## CCR4 vs Not1 (both CCR4-NOT complex members)
+## Pop2 vs Not1 (both CCR4-NOT complex members)
+## dcp2 vs Xrn1 (sequential steps in 5'-3' decay)
+
+p_ccr4_not1 <- scatter_binned_gba(
+  df_chappleboim_gba,
+  x_col     = "log2FC_not1_60",
+  y_col     = "log2FC_ccr4_60",
+  x_lab     = "log2 FC after Not1 depletion, 60 min",
+  y_lab     = "log2 FC after CCR4 depletion, 60 min",
+  point_col = "#784283",
+  xlim      = c(-1, 2),
+  ylim      = c(-1, 2)) +
+  labs(tag = "A") +
+  theme(axis.title = element_text(size = 14),
+        axis.text  = element_text(size = 12))
+
+p_pop2_not1 <- scatter_binned_gba(
+  df_chappleboim_gba,
+  x_col     = "log2FC_not1_60",
+  y_col     = "log2FC_pop2_60",
+  x_lab     = "log2 FC after Not1 depletion, 60 min",
+  y_lab     = "log2 FC after Pop2 depletion, 60 min",
+  point_col = "#ffa8cb",
+  xlim      = c(-1, 2),
+  ylim      = c(-1, 2)) +
+  labs(tag = "B") +
+  theme(axis.title = element_text(size = 14),
+        axis.text  = element_text(size = 12))
+
+p_dcp2_xrn1 <- scatter_binned_gba(
+  df_chappleboim_gba,
+  x_col     = "log2FC_xrn1_60",
+  y_col     = "log2FC_dcp2_chapp_60",
+  x_lab     = "log2 FC after XRN1 depletion, 60 min",
+  y_lab     = "log2 FC after dcp2 depletion, 60 min",
+  point_col = "#e5000c",
+  xlim      = c(-1, 3),
+  ylim      = c(-1, 3)) +
+  labs(tag = "C") +
+  theme(axis.title = element_text(size = 14),
+        axis.text  = element_text(size = 12))
+
+p_qc_scatter <- p_ccr4_not1 | p_pop2_not1 | p_dcp2_xrn1
+
+p_qc_scatter
+ggsave("../figures/chappleboim_pathway_qc_scatter.png",
+       plot   = p_qc_scatter,
+       width  = 18, height = 6, dpi = 150)
+cat("Saved chappleboim_pathway_qc_scatter.png\n")
+```

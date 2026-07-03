@@ -1,0 +1,676 @@
+---
+title: "GBA Correlation Matrix"
+author: "CW"
+date: "2026-06-02"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+setwd("/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis/scripts")
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+
+load("correlation_functions_updated.rda")
+load("gba_functions.rda")
+```
+
+```{r load}
+## Consensus half-life fold change -- SE < 0.75, c1 fitting, n = 3358
+df_consensus <- read_tsv("../output_tables/df_WT_consensus_hl_fc.txt",
+                         show_col_types = FALSE)
+
+## Vijjamarri et al. 2023 -- Dcp2 and Xrn1 deletion steady-state RNA-seq
+## CAVEAT: deletion mutants, transcriptional buffering likely
+df_vijjamarri <- read_tsv("../tables/df_vijjamarri_gba.txt",
+                           show_col_types = FALSE)
+
+## Chappleboim et al. 2022 -- AID depletion time course at 60 min
+## Strains: XRN1-AID, Not1-AID, CCR4-AID, Pop2-AID, dcp2-AID
+df_chappleboim <- read_tsv("../tables/df_chappleboim_gba.txt",
+                            show_col_types = FALSE)
+
+## Audebert et al. 2024 -- SLAM-seq half-life fold changes
+## Direct half-life measurements after Pop2/CCR4 and Dcp2 depletion
+df_audebert <- read_tsv("../tables/df_audebert_gba.txt",
+                         show_col_types = FALSE)
+
+## Alalam et al. 2022 -- SLAM-seq half-life fold changes
+## Direct half-life measurements in upf3Δ vs WT
+df_alalam <- read_tsv("../tables/df_alalam_gba.txt",
+                      show_col_types = FALSE)
+
+## He et al. 2018 (GSE107841) -- Decapping activator deletions
+## pat1Δ, lsm1Δ, dhh1Δ vs WT steady-state RNA-seq
+## CAVEAT: deletion mutants, transcriptional buffering likely
+df_he2018 <- read_tsv("../tables/df_he2018_gba.txt",
+                      show_col_types = FALSE)
+
+## Yuyang in-house RNA-seq -- AID depletion in small and large cells
+## Factors: Not1, Pab1, Xrn1, eIF4E, eIF4G
+## log2FC PhIAA_1hr vs DMSO_1hr
+## NOTE: requires CW13 to be run first
+df_yuyang <- read_tsv("../tables/df_yuyang_gba.txt",
+                      show_col_types = FALSE)
+
+cat("Consensus:", nrow(df_consensus), "genes\n")
+cat("Vijjamarri:", nrow(df_vijjamarri), "genes\n")
+cat("Chappleboim:", nrow(df_chappleboim), "genes\n")
+cat("Audebert:", nrow(df_audebert), "genes\n")
+cat("Alalam:", nrow(df_alalam), "genes\n")
+cat("He2018:", nrow(df_he2018), "genes\n")
+cat("Yuyang:", nrow(df_yuyang), "genes\n")
+```
+
+```{r process_eif4g}
+## eIF4G depletion fold change -- MS908 (eIF4G-AID) vs MS1039 DMSO control
+## SE < 0.75 filter applied throughout
+
+sample_info <- read_csv("../tables/sample_info_combined.csv",
+                        show_col_types = FALSE)
+
+df_c1 <- read_tsv("../output_tables/df_fit_output_c1.txt",
+                  show_col_types = FALSE) %>%
+  left_join(sample_info, by = "experiment_strain_condition") %>%
+  filter(std.error_log_k < 0.75,
+         estimate_half_life > 0)
+
+df_ms1039_wt <- df_c1 %>%
+  filter(label %in% c("MS1039_small", "MS1039_large")) %>%
+  dplyr::select(gene_id, label, estimate_half_life) %>%
+  pivot_wider(names_from  = label,
+              values_from = estimate_half_life,
+              names_glue  = "{label}_hl_wt") %>%
+  filter(!is.na(MS1039_small_hl_wt), !is.na(MS1039_large_hl_wt),
+         MS1039_small_hl_wt > 0, MS1039_large_hl_wt > 0)
+
+df_ms908 <- df_c1 %>%
+  filter(strain == "MS908") %>%
+  dplyr::select(gene_id, label, estimate_half_life) %>%
+  pivot_wider(names_from  = label,
+              values_from = estimate_half_life,
+              names_glue  = "{label}_hl") %>%
+  filter(
+    !is.na(MS908_small_eIF4G_dep_1hr_rep1_hl),
+    !is.na(MS908_small_eIF4G_dep_1hr_rep2_hl),
+    !is.na(MS908_large_eIF4G_dep_1hr_rep1_hl),
+    !is.na(MS908_large_eIF4G_dep_1hr_rep2_hl),
+    MS908_small_eIF4G_dep_1hr_rep1_hl > 0,
+    MS908_small_eIF4G_dep_1hr_rep2_hl > 0,
+    MS908_large_eIF4G_dep_1hr_rep1_hl > 0,
+    MS908_large_eIF4G_dep_1hr_rep2_hl > 0) %>%
+  mutate(
+    MS908_small_hl = rowMeans(across(c(MS908_small_eIF4G_dep_1hr_rep1_hl,
+                                       MS908_small_eIF4G_dep_1hr_rep2_hl)),
+                              na.rm = TRUE),
+    MS908_large_hl = rowMeans(across(c(MS908_large_eIF4G_dep_1hr_rep1_hl,
+                                       MS908_large_eIF4G_dep_1hr_rep2_hl)),
+                              na.rm = TRUE)) %>%
+  dplyr::select(gene_id, MS908_small_hl, MS908_large_hl)
+
+df_eif4g <- df_ms908 %>%
+  inner_join(df_ms1039_wt, by = "gene_id") %>%
+  mutate(
+    eIF4G_dep_fc_small = log2(MS908_small_hl / MS1039_small_hl_wt),
+    eIF4G_dep_fc_large = log2(MS908_large_hl / MS1039_large_hl_wt),
+    eIF4G_dep_fc_mean  = (eIF4G_dep_fc_small + eIF4G_dep_fc_large) / 2) %>%
+  filter(
+    is.finite(eIF4G_dep_fc_small),
+    is.finite(eIF4G_dep_fc_large),
+    is.finite(eIF4G_dep_fc_mean))
+
+cat("Genes with eIF4G FC data:", nrow(df_eif4g), "\n")
+```
+
+```{r build_long}
+## Build single long-format table: gene_id | variable | value
+## Variables:
+##   WT_hl_fc              -- our fold change (large/small), primary outcome
+##   WT_small_hl           -- consensus half-life in small cells
+##   WT_large_hl           -- consensus half-life in large cells
+##   log2FC_dcp2D          -- Dcp2 deletion, Vijjamarri (steady-state)
+##   log2FC_xrn1D_vij      -- Xrn1 deletion, Vijjamarri (steady-state)
+##   TE_vijjamarri         -- WT TE, Vijjamarri
+##   log2FC_not1_60        -- Not1-AID 60 min, Chappleboim
+##   log2FC_xrn1_60        -- XRN1-AID 60 min, Chappleboim
+##   log2FC_ccr4_60        -- CCR4-AID 60 min, Chappleboim
+##   log2FC_pop2_60        -- Pop2-AID 60 min, Chappleboim
+##   log2FC_dcp2_chapp_60  -- dcp2-AID 60 min, Chappleboim
+##   log2FC_pop2ccr4_hl    -- Pop2/CCR4 depl HL FC, Audebert (direct decay)
+##   log2FC_dcp2_hl        -- Dcp2 depl HL FC, Audebert (direct decay)
+##   log2FC_upf3_hl        -- upf3Δ HL FC, Alalam (direct decay, NMD)
+##   log2FC_pat1D          -- pat1Δ, He et al. 2018 (steady-state)
+##   log2FC_lsm1D          -- lsm1Δ, He et al. 2018 (steady-state)
+##   log2FC_dhh1D          -- dhh1Δ, He et al. 2018 (steady-state)
+##   log2FC_Not1_large_YM  -- Not1-AID FC large cells, Yuyang RNA-seq
+##   log2FC_Not1_small_YM  -- Not1-AID FC small cells, Yuyang RNA-seq
+##   log2FC_Pab1_large_YM  -- Pab1-AID FC large cells, Yuyang RNA-seq
+##   log2FC_Pab1_small_YM  -- Pab1-AID FC small cells, Yuyang RNA-seq
+##   log2FC_Xrn1_large_YM  -- Xrn1-AID FC large cells, Yuyang RNA-seq
+##   log2FC_Xrn1_small_YM  -- Xrn1-AID FC small cells, Yuyang RNA-seq
+##   log2FC_eIF4E_large_YM -- eIF4E-AID FC large cells, Yuyang RNA-seq
+##   log2FC_eIF4E_small_YM -- eIF4E-AID FC small cells, Yuyang RNA-seq
+##   log2FC_eIF4G_large_YM -- eIF4G-AID FC large cells, Yuyang RNA-seq
+##   log2FC_eIF4G_small_YM -- eIF4G-AID FC small cells, Yuyang RNA-seq
+##   eIF4G_dep_fc_small    -- eIF4G-AID FC in small cells (EU pulse-chase)
+##   eIF4G_dep_fc_large    -- eIF4G-AID FC in large cells (EU pulse-chase)
+##   eIF4G_dep_fc_mean     -- eIF4G-AID FC mean (EU pulse-chase)
+
+df_long <- bind_rows(
+  df_consensus %>%
+    dplyr::select(gene_id, WT_hl_fc, WT_small_hl, WT_large_hl) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
+
+  df_vijjamarri %>%
+    dplyr::select(gene_id,
+                  log2FC_dcp2D     = log2FC_dcp2D_vs_WT,
+                  log2FC_xrn1D_vij = log2FC_xrn1D_vs_WT,
+                  TE_vijjamarri    = TE_vijjamarri_WT) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
+
+  df_chappleboim %>%
+    dplyr::select(gene_id,
+                  log2FC_not1_60,
+                  log2FC_xrn1_60,
+                  log2FC_ccr4_60,
+                  log2FC_pop2_60,
+                  log2FC_dcp2_chapp_60) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
+
+  df_audebert %>%
+    dplyr::select(gene_id,
+                  log2FC_pop2ccr4_hl,
+                  log2FC_dcp2_hl) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
+
+  df_alalam %>%
+    dplyr::select(gene_id = name,
+                  log2FC_upf3_hl) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
+
+  df_he2018 %>%
+    dplyr::select(gene_id,
+                  log2FC_pat1D,
+                  log2FC_lsm1D,
+                  log2FC_dhh1D) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
+
+  df_yuyang %>%
+    dplyr::select(gene_id,
+                  log2FC_Not1_large_YM,
+                  log2FC_Not1_small_YM,
+                  log2FC_Pab1_large_YM,
+                  log2FC_Pab1_small_YM,
+                  log2FC_Xrn1_large_YM,
+                  log2FC_Xrn1_small_YM,
+                  log2FC_eIF4E_large_YM,
+                  log2FC_eIF4E_small_YM,
+                  log2FC_eIF4G_large_YM,
+                  log2FC_eIF4G_small_YM) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value"),
+
+  df_eif4g %>%
+    dplyr::select(gene_id,
+                  eIF4G_dep_fc_small,
+                  eIF4G_dep_fc_large,
+                  eIF4G_dep_fc_mean) %>%
+    pivot_longer(-gene_id, names_to = "variable", values_to = "value")
+)
+
+cat("Long table rows:", nrow(df_long), "\n")
+cat("Variables:", paste(unique(df_long$variable), collapse = ", "), "\n")
+```
+
+```{r pivot_wide}
+df_wide <- df_long %>%
+  pivot_wider(names_from  = "variable",
+              values_from = "value")
+
+cat("Wide table:", nrow(df_wide), "genes x", ncol(df_wide) - 1, "variables\n")
+```
+
+```{r compute_matrix}
+variables <- c("WT_hl_fc",
+               "WT_small_hl",
+               "WT_large_hl",
+               "log2FC_dcp2D",
+               "log2FC_xrn1D_vij",
+               "TE_vijjamarri",
+               "log2FC_not1_60",
+               "log2FC_xrn1_60",
+               "log2FC_ccr4_60",
+               "log2FC_pop2_60",
+               "log2FC_dcp2_chapp_60",
+               "log2FC_pop2ccr4_hl",
+               "log2FC_dcp2_hl",
+               "log2FC_upf3_hl",
+               "log2FC_pat1D",
+               "log2FC_lsm1D",
+               "log2FC_dhh1D",
+               "log2FC_Not1_large_YM",
+               "log2FC_Not1_small_YM",
+               "log2FC_Pab1_large_YM",
+               "log2FC_Pab1_small_YM",
+               "log2FC_Xrn1_large_YM",
+               "log2FC_Xrn1_small_YM",
+               "log2FC_eIF4E_large_YM",
+               "log2FC_eIF4E_small_YM",
+               "log2FC_eIF4G_large_YM",
+               "log2FC_eIF4G_small_YM",
+               "eIF4G_dep_fc_small",
+               "eIF4G_dep_fc_large",
+               "eIF4G_dep_fc_mean")
+
+cor_pairs <- expand.grid(var1 = variables,
+                         var2 = variables,
+                         stringsAsFactors = FALSE) %>%
+  as_tibble()
+
+cor_results <- cor_pairs %>%
+  dplyr::mutate(
+    R = map2_dbl(var1, var2, function(v1, v2) {
+      x <- df_wide[[v1]]
+      y <- df_wide[[v2]]
+      keep <- !is.na(x) & !is.na(y) & is.finite(x) & is.finite(y)
+      if (sum(keep) < 10) return(NA_real_)
+      cor(x[keep], y[keep], method = "spearman")
+    }),
+    n = map2_int(var1, var2, function(v1, v2) {
+      x <- df_wide[[v1]]
+      y <- df_wide[[v2]]
+      sum(!is.na(x) & !is.na(y) & is.finite(x) & is.finite(y))
+    })
+  )
+
+label_map <- c(
+  WT_hl_fc             = "Half-life FC (large/small)",
+  WT_small_hl          = "Half-life, small cells",
+  WT_large_hl          = "Half-life, large cells",
+  log2FC_dcp2D         = "dcp2\u0394 vs WT (Vijjamarri)",
+  log2FC_xrn1D_vij     = "xrn1\u0394 vs WT (Vijjamarri)",
+  TE_vijjamarri        = "TE, WT (Vijjamarri)",
+  log2FC_not1_60       = "Not1-AID 60 min (Chappleboim)",
+  log2FC_xrn1_60       = "XRN1-AID 60 min (Chappleboim)",
+  log2FC_ccr4_60       = "CCR4-AID 60 min (Chappleboim)",
+  log2FC_pop2_60       = "Pop2-AID 60 min (Chappleboim)",
+  log2FC_dcp2_chapp_60 = "dcp2-AID 60 min (Chappleboim)",
+  log2FC_pop2ccr4_hl   = "Pop2/CCR4 depl HL FC (Audebert)",
+  log2FC_dcp2_hl       = "Dcp2 depl HL FC (Audebert)",
+  log2FC_upf3_hl       = "upf3\u0394 HL FC (Alalam)",
+  log2FC_pat1D         = "pat1\u0394 vs WT (He et al. 2018)",
+  log2FC_lsm1D         = "lsm1\u0394 vs WT (He et al. 2018)",
+  log2FC_dhh1D         = "dhh1\u0394 vs WT (He et al. 2018)",
+  log2FC_Not1_large_YM  = "Not1-AID FC, large cells (YM)",
+  log2FC_Not1_small_YM  = "Not1-AID FC, small cells (YM)",
+  log2FC_Pab1_large_YM  = "Pab1-AID FC, large cells (YM)",
+  log2FC_Pab1_small_YM  = "Pab1-AID FC, small cells (YM)",
+  log2FC_Xrn1_large_YM  = "Xrn1-AID FC, large cells (YM)",
+  log2FC_Xrn1_small_YM  = "Xrn1-AID FC, small cells (YM)",
+  log2FC_eIF4E_large_YM = "eIF4E-AID FC, large cells (YM)",
+  log2FC_eIF4E_small_YM = "eIF4E-AID FC, small cells (YM)",
+  log2FC_eIF4G_large_YM = "eIF4G-AID FC, large cells (YM)",
+  log2FC_eIF4G_small_YM = "eIF4G-AID FC, small cells (YM)",
+  eIF4G_dep_fc_small   = "eIF4G-AID FC, small cells (EU)",
+  eIF4G_dep_fc_large   = "eIF4G-AID FC, large cells (EU)",
+  eIF4G_dep_fc_mean    = "eIF4G-AID FC, mean (EU)")
+
+cor_results <- cor_results %>%
+  dplyr::mutate(
+    label1 = label_map[var1],
+    label2 = label_map[var2],
+    label1 = factor(label1, levels = label_map),
+    label2 = factor(label2, levels = label_map))
+
+## Print correlations with WT_hl_fc
+cat("\nCorrelations with WT_hl_fc:\n")
+cor_results %>%
+  dplyr::filter(var1 == "WT_hl_fc", var2 != "WT_hl_fc") %>%
+  dplyr::arrange(desc(R)) %>%
+  dplyr::select(var2, R, n) %>%
+  print(n = 35)
+```
+
+```{r r_squared_ceiling}
+## R² as percentage of replicate R² ceiling
+## Replicate R ≈ 0.5 → R² ceiling = 0.25
+
+r2_ceiling <- 0.5^2
+
+cor_fc_r2 <- cor_results %>%
+  dplyr::filter(var1 == "WT_hl_fc", var2 != "WT_hl_fc") %>%
+  dplyr::arrange(desc(R)) %>%
+  dplyr::mutate(
+    R2     = R^2,
+    R2_pct = round((R2 / r2_ceiling) * 100, 1)
+  ) %>%
+  dplyr::select(var2, R, n, R2, R2_pct)
+
+cat("\nR² as percentage of replicate ceiling (R²_ceiling = 0.25):\n")
+print(cor_fc_r2, n = 35)
+```
+
+```{r plot_full_matrix}
+label_map_single <- c(
+  WT_hl_fc             = "Half-life FC (large/small)",
+  WT_small_hl          = "Half-life, small cells",
+  WT_large_hl          = "Half-life, large cells",
+  log2FC_dcp2D         = "dcp2\u0394 vs WT (Vijjamarri)",
+  log2FC_xrn1D_vij     = "xrn1\u0394 vs WT (Vijjamarri)",
+  TE_vijjamarri        = "TE, WT (Vijjamarri)",
+  log2FC_not1_60       = "Not1-AID 60 min (Chappleboim)",
+  log2FC_xrn1_60       = "XRN1-AID 60 min (Chappleboim)",
+  log2FC_ccr4_60       = "CCR4-AID 60 min (Chappleboim)",
+  log2FC_pop2_60       = "Pop2-AID 60 min (Chappleboim)",
+  log2FC_dcp2_chapp_60 = "dcp2-AID 60 min (Chappleboim)",
+  log2FC_pop2ccr4_hl   = "Pop2/CCR4 depl HL FC (Audebert)",
+  log2FC_dcp2_hl       = "Dcp2 depl HL FC (Audebert)",
+  log2FC_upf3_hl       = "upf3\u0394 HL FC (Alalam)",
+  log2FC_pat1D         = "pat1\u0394 vs WT (He et al. 2018)",
+  log2FC_lsm1D         = "lsm1\u0394 vs WT (He et al. 2018)",
+  log2FC_dhh1D         = "dhh1\u0394 vs WT (He et al. 2018)",
+  log2FC_Not1_large_YM  = "Not1-AID FC, large cells (YM)",
+  log2FC_Not1_small_YM  = "Not1-AID FC, small cells (YM)",
+  log2FC_Pab1_large_YM  = "Pab1-AID FC, large cells (YM)",
+  log2FC_Pab1_small_YM  = "Pab1-AID FC, small cells (YM)",
+  log2FC_Xrn1_large_YM  = "Xrn1-AID FC, large cells (YM)",
+  log2FC_Xrn1_small_YM  = "Xrn1-AID FC, small cells (YM)",
+  log2FC_eIF4E_large_YM = "eIF4E-AID FC, large cells (YM)",
+  log2FC_eIF4E_small_YM = "eIF4E-AID FC, small cells (YM)",
+  log2FC_eIF4G_large_YM = "eIF4G-AID FC, large cells (YM)",
+  log2FC_eIF4G_small_YM = "eIF4G-AID FC, small cells (YM)",
+  eIF4G_dep_fc_small   = "eIF4G-AID FC, small cells (EU)",
+  eIF4G_dep_fc_large   = "eIF4G-AID FC, large cells (EU)",
+  eIF4G_dep_fc_mean    = "eIF4G-AID FC, mean (EU)")
+
+cor_results_plot <- cor_results %>%
+  filter(!is.na(R)) %>%
+  mutate(
+    label1 = factor(label_map_single[var1], levels = label_map_single),
+    label2 = factor(label_map_single[var2], levels = label_map_single))
+
+p_matrix_full <- ggplot(cor_results_plot,
+                        aes(x = label1, y = label2, fill = R)) +
+  geom_tile(colour = "white", linewidth = 1.2) +
+  geom_text(aes(label = ifelse(is.na(R), "", round(R, 2))),
+            size = 3.5, colour = "white", fontface = "bold") +
+  scale_fill_gradient2(low      = "#ffa8cb",
+                       mid      = "white",
+                       high     = "#4575b4",
+                       midpoint = 0,
+                       limits   = c(-1, 1),
+                       name     = "Spearman R") +
+  labs(x = NULL, y = NULL) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x     = element_text(angle = 45, hjust = 1,
+                                   size = 12, colour = "black"),
+    axis.text.y     = element_text(size = 12, colour = "black"),
+    axis.line       = element_blank(),
+    axis.ticks      = element_blank(),
+    legend.position = "right",
+    legend.title    = element_text(size = 12),
+    legend.text     = element_text(size = 11),
+    plot.background = element_rect(fill = "white", colour = NA),
+    plot.margin     = margin(20, 20, 20, 20))
+
+p_matrix_full
+ggsave("../figures/GBA_correlation_matrix_full.png",
+       plot   = p_matrix_full,
+       width  = 44,
+       height = 40,
+       dpi    = 200)
+cat("Saved GBA_correlation_matrix_full.png\n")
+```
+
+```{r plot_fc_subset}
+## Subset: only correlations with WT_hl_fc
+cor_fc <- cor_results %>%
+  dplyr::filter(var1 == "WT_hl_fc",
+                var2 != "WT_hl_fc") %>%
+  dplyr::arrange(R) %>%
+  dplyr::mutate(label2 = factor(label2, levels = label2))
+
+p_fc_bar <- ggplot(cor_fc, aes(x = R, y = label2, fill = R)) +
+  geom_col(width = 0.6) +
+  geom_text(aes(label = paste0("R = ", round(R, 3),
+                               "  (n = ", format(n, big.mark = ","), ")"),
+                x     = ifelse(R >= 0, R + 0.005, R - 0.005),
+                hjust = ifelse(R >= 0, 0, 1)),
+            size = 3.5, colour = "black") +
+  geom_vline(xintercept = 0, colour = "black", linewidth = 0.5) +
+  scale_fill_gradient2(low      = "#ffa8cb",
+                       mid      = "white",
+                       high     = "#4575b4",
+                       midpoint = 0,
+                       limits   = c(-0.5, 0.5),
+                       guide    = "none") +
+  coord_cartesian(xlim = c(-0.4, 0.4)) +
+  labs(x = "Spearman R with half-life FC (large/small)",
+       y = NULL) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text       = element_text(size = 10, colour = "black"),
+    axis.title      = element_text(size = 12, colour = "black"),
+    plot.background = element_rect(fill = "white", colour = NA),
+    plot.margin     = margin(10, 20, 10, 10))
+
+p_fc_bar
+ggsave("../figures/GBA_correlation_with_hl_fc.png",
+       plot   = p_fc_bar,
+       width  = 12,
+       height = 14,
+       dpi    = 150)
+cat("Saved GBA_correlation_with_hl_fc.png\n")
+```
+
+```{r eif4g_scatter}
+## eIF4G depletion EU pulse-chase FC vs WT_hl_fc -- small and large cells separately
+df_eif4g_plot <- df_wide %>%
+  dplyr::filter(!is.na(eIF4G_dep_fc_small),
+                !is.na(eIF4G_dep_fc_large),
+                !is.na(WT_hl_fc))
+
+p_eif4g_small <- scatter_binned_gba(
+  df_eif4g_plot,
+  x_col     = "eIF4G_dep_fc_small",
+  y_col     = "WT_hl_fc",
+  x_lab     = "log2 FC after eIF4G depletion, small cells",
+  y_lab     = "log2 half-life FC (large/small)",
+  point_col = col_small,
+  xlim      = c(-3, 1),
+  ylim      = c(-2.5, 2.5)) +
+  labs(tag = "A") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_eif4g_large <- scatter_binned_gba(
+  df_eif4g_plot,
+  x_col     = "eIF4G_dep_fc_large",
+  y_col     = "WT_hl_fc",
+  x_lab     = "log2 FC after eIF4G depletion, large cells",
+  y_lab     = "log2 half-life FC (large/small)",
+  point_col = col_large,
+  xlim      = c(-3, 1),
+  ylim      = c(-2.5, 2.5)) +
+  labs(tag = "B") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_eif4g_mean <- scatter_binned_gba(
+  df_eif4g_plot,
+  x_col     = "eIF4G_dep_fc_mean",
+  y_col     = "WT_hl_fc",
+  x_lab     = "log2 FC after eIF4G depletion, mean",
+  y_lab     = "log2 half-life FC (large/small)",
+  point_col = "grey50",
+  xlim      = c(-3, 1),
+  ylim      = c(-2.5, 2.5)) +
+  labs(tag = "C") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_eif4g_panel <- p_eif4g_small | p_eif4g_large | p_eif4g_mean
+
+p_eif4g_panel
+ggsave("../figures/GBA_eIF4G_vs_hl_fc.png",
+       plot   = p_eif4g_panel,
+       width  = 18,
+       height = 6,
+       dpi    = 150)
+cat("Saved GBA_eIF4G_vs_hl_fc.png\n")
+```
+
+```{r sanity_check}
+## Sanity check: two Xrn1 datasets against each other
+xrn1_r <- cor_results %>%
+  dplyr::filter(var1 == "log2FC_xrn1D_vij",
+                var2 == "log2FC_xrn1_60")
+
+cat("Xrn1 deletion vs Xrn1 AID depletion Spearman R:",
+    round(xrn1_r$R, 3), "(n =", xrn1_r$n, ")\n")
+
+p_xrn1_sanity <- scatter_binned_gba(
+  df_wide,
+  x_col     = "log2FC_xrn1D_vij",
+  y_col     = "log2FC_xrn1_60",
+  x_lab     = "log2 FC after xrn1\u0394 (Vijjamarri, steady-state)",
+  y_lab     = "log2 FC after XRN1-AID depletion 60 min (Chappleboim)",
+  point_col = col_large,
+  xlim      = c(-5, 2),
+  ylim      = c(-1, 3)) +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_xrn1_sanity
+ggsave("../figures/GBA_xrn1_dataset_comparison.png",
+       plot   = p_xrn1_sanity,
+       width  = 8,
+       height = 7,
+       dpi    = 150)
+cat("Saved GBA_xrn1_dataset_comparison.png\n")
+```
+
+```{r sanity_check_yuyang}
+## Sanity check: Yuyang vs Chappleboim for same factors
+
+xrn1_ym_r <- cor_results %>%
+  dplyr::filter(var1 == "log2FC_Xrn1_small_YM",
+                var2 == "log2FC_xrn1_60")
+
+cat("Xrn1-AID Yuyang small vs Chappleboim 60 min R:",
+    round(xrn1_ym_r$R, 3), "(n =", xrn1_ym_r$n, ")\n")
+
+p_xrn1_ym <- scatter_binned_gba(
+  df_wide,
+  x_col     = "log2FC_Xrn1_small_YM",
+  y_col     = "log2FC_xrn1_60",
+  x_lab     = "log2 FC after Xrn1-AID depletion, small cells (YM)",
+  y_lab     = "log2 FC after XRN1-AID depletion 60 min (Chappleboim)",
+  point_col = col_large,
+  xlim      = c(-5, 5),
+  ylim      = c(-1, 3)) +
+  labs(tag = "B") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+not1_ym_r <- cor_results %>%
+  dplyr::filter(var1 == "log2FC_Not1_small_YM",
+                var2 == "log2FC_not1_60")
+
+cat("Not1-AID Yuyang small vs Chappleboim 60 min R:",
+    round(not1_ym_r$R, 3), "(n =", not1_ym_r$n, ")\n")
+
+p_not1_ym <- scatter_binned_gba(
+  df_wide,
+  x_col     = "log2FC_Not1_small_YM",
+  y_col     = "log2FC_not1_60",
+  x_lab     = "log2 FC after Not1-AID depletion, small cells (YM)",
+  y_lab     = "log2 FC after Not1-AID depletion 60 min (Chappleboim)",
+  point_col = col_small,
+  xlim      = c(-5, 5),
+  ylim      = c(-2, 3)) +
+  labs(tag = "C") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_xrn1_sanity_tagged <- p_xrn1_sanity +
+  labs(tag = "A")
+
+p_sanity_panel <- p_xrn1_sanity_tagged | p_xrn1_ym | p_not1_ym
+
+p_sanity_panel
+ggsave("../figures/GBA_sanity_checks.png",
+       plot   = p_sanity_panel,
+       width  = 22,
+       height = 7,
+       dpi    = 150)
+cat("Saved GBA_sanity_checks.png\n")
+```
+
+```{r eif4g_vs_te}
+## eIF4G depletion FC vs translation efficiency
+## Tests whether genes most affected by eIF4G depletion have higher TE
+## TE: rRNA-depleted monosome+polysome, size-separated (Yuyang)
+
+df_TE <- read_csv("../tables/translation_efficiency.csv",
+                  show_col_types = FALSE) %>%
+  dplyr::select(gene_id,
+                TE_small = TE_rRNAdep_MandP_small_YM,
+                TE_large = TE_rRNAdep_MandP_large_YM)
+
+df_eif4g_te <- df_wide %>%
+  dplyr::select(gene_id, eIF4G_dep_fc_small, eIF4G_dep_fc_large) %>%
+  inner_join(df_TE, by = "gene_id") %>%
+  filter(!is.na(eIF4G_dep_fc_small), !is.na(eIF4G_dep_fc_large),
+         !is.na(TE_small), !is.na(TE_large),
+         is.finite(eIF4G_dep_fc_small), is.finite(eIF4G_dep_fc_large),
+         is.finite(TE_small), is.finite(TE_large),
+         TE_small > 0, TE_large > 0)
+
+cat("Genes for eIF4G vs TE plot:", nrow(df_eif4g_te), "\n")
+
+r_small <- cor(df_eif4g_te$eIF4G_dep_fc_small,
+               log2(df_eif4g_te$TE_small),
+               method = "spearman", use = "complete.obs")
+r_large <- cor(df_eif4g_te$eIF4G_dep_fc_large,
+               log2(df_eif4g_te$TE_large),
+               method = "spearman", use = "complete.obs")
+
+cat("eIF4G FC small vs TE small R:", round(r_small, 3), "\n")
+cat("eIF4G FC large vs TE large R:", round(r_large, 3), "\n")
+
+p_te_small <- scatter_binned_gba(
+  df_eif4g_te %>% mutate(TE_small_log2 = log2(TE_small)),
+  x_col     = "TE_small_log2",
+  y_col     = "eIF4G_dep_fc_small",
+  x_lab     = "Translation efficiency, small cells (log2)",
+  y_lab     = "log2 FC after eIF4G depletion, small cells",
+  point_col = col_small,
+  ylim      = c(-3, 1)) +
+  labs(tag = "A") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_te_large <- scatter_binned_gba(
+  df_eif4g_te %>% mutate(TE_large_log2 = log2(TE_large)),
+  x_col     = "TE_large_log2",
+  y_col     = "eIF4G_dep_fc_large",
+  x_lab     = "Translation efficiency, large cells (log2)",
+  y_lab     = "log2 FC after eIF4G depletion, large cells",
+  point_col = col_large,
+  ylim      = c(-3, 1)) +
+  labs(tag = "B") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_eif4g_te_panel <- p_te_small | p_te_large
+
+p_eif4g_te_panel
+ggsave("../figures/GBA_eIF4G_vs_TE.png",
+       plot   = p_eif4g_te_panel,
+       width  = 12,
+       height = 6,
+       dpi    = 150)
+cat("Saved GBA_eIF4G_vs_TE.png\n")
+```

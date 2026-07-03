@@ -1,0 +1,27 @@
+id,organism,derived-from,name,genotype-modification,selection,mating-type,comments
+nf164,s.cer,df5,2721,ura3::Ura3-osTir1-9Myc,,a,"AID wt strain, https://www.ncbi.nlm.nih.gov/pubmed/23836714"
+aa72,s.cer,nf164,NatΔXrn1,Xrn1::NatMX,"Nat,Ura",a,"replaced the Xrn1 ORF with PCR from (nf70) tagging plasmid, PCR and western validated"
+aa73,s.cer,nf164,HygΔXrn1,Xrn1::HygMX,"Hyg,Ura",a,"replaced the Xrn1 ORF with PCR from (nf66) tagging plasmid, PCR and western validated"
+nf227,s.cer,nf164,XRN1-AID,Xrn1-Myc-NatMX,"Ura,Nat",a,AID-tagged protein
+nf189,s.cer,nf164,SPT6-AID,Spt6-Flag-HygMX,"Ura, Hyg",a,AID-tagged protein
+aa100,s.cer,nf164,Pap2-AID,Pap2-Myc-NatMX,"Ura, Nat",a,"Tagged Pap2 with NF70, verified by PCR, sequencing, growth"
+aa91,s.cer,nf164,Not1-AID,Not1-Myc-NatMX,"Ura, Nat",a,"Tagged Not1 with NF70, verified by PCR, sequencing, growth, 4tU RNA seq"
+aa81,s.cer,nf164,Pop2-AID,Pop2-Flag-HygMX,"Ura, Hyg",a,"Tagged pop2 with NF066, verified by PCR and sequencing, growth with IAA, western validated"
+aa88,s.cer,nf227,Xrn1-Ski2-AID,Ski2-Myc-KanMX,"Ura, Nat, G418",a,Eli tagged Ski2 with AID (NF69) on the Xrn1-AID background. Validated by growth and PCR
+aa93,s.cer,nf164,Nrd1-AID,Nrd1-Myc-NatMX,"Ura, Nat",a,"Tagged Nrd1 with NF70, verified by PCR, sequencing, growth, 4tU RNA seq"
+aa92,s.cer,nf164,Nrd1-AID,Nrd1-Flag-HygMX,"Ura, Hyg",a,"Tagged Nrd1 with NF66, verified by PCR, sequencing, growth, 4tU RNA seq"
+aa90,s.cer,nf227,Xrn1-Ski8-AID,Ski8-Myc-KanMX,"Ura, Nat, G418",a,Eli tagged Ski2 with AID (NF69) on the Xrn1-AID background. Validated by growth and PCR
+aa98,s.cer,nf164,Sen1-AID,Sen1-Flag-HygMX,"Ura, Hyg",a,"Tagged Sen1 with NF66, verified by PCR, sequencing, growth"
+aa97,s.cer,nf164,Nab3-AID,Nab3-Myc-NatMX,"Ura, Nat",a,"Tagged Nab3 with NF70, verified by PCR, sequencing, growth"
+aa85,s.cer,nf164,fcp1-AID,Fcp1-Flag-HygMX,"Ura, Hyg",a,"Tagged fcp1 with NF066, verified by PCR and sequencing, growth with IAA, western validated"
+aa82,s.cer,nf164,Pop2-AID,Pop2-Myc-NatMX,"Ura, Nat",a,"Tagged pop2 with NF070, verified by PCR and sequencing, western unclear (tir1 overlap)"
+aa119,s.cer,nf164,PAN3-AID,Pan3-Myc-NatMX,"Ura, Nat",a,"Tagged Dis3 with NF70, verified by PCR, sequencing, growth, clone B"
+aa118,s.cer,nf164,CCR4-AID,Ccr4-Myc-NatMX,"Ura, Nat",a,"Tagged Ccr4 with NF70, verified by PCR, sequencing, growth, clone D. PCR fragment had unexpected size, primer issue?"
+aa114,s.cer,nf164,RRP6-AID,Rrp6-Myc-NatMX,"Ura, Nat",a,"Tagged Rrp6 with NF70, verified by PCR, sequencing, growth, clone C"
+aa44,s.cer,nf164,rat1-degF,rat1-AID-Flag-HygMX,"Ura,Hyg",a,"Tagged rat1 with NF066, verified by PCR and sequencing, growth with IAA, and western (western wasn't clear)"
+aa113,s.cer,nf164,DIS3-AID,Dis3-Myc-NatMX,"Ura, Nat",a,"Tagged Dis3 with NF70, verified by PCR, sequencing, growth, clone B"
+aa116,s.cer,nf164,PAB1-AID,Pab1-Myc-NatMX,"Ura, Nat",a,"Tagged Pab1 with NF70, verified by PCR, sequencing, growth, clone D"
+aa40,s.cer,nf164,dcp2-degM,dcp2-AID-Myc-NatMX,"Ura,Nat",a,"Tagged dcp2 with NF070, verified by PCR and sequencing, growth with IAA, and 4tU-RNAseq"
+nf198,s.cer,nf164,STH1-AID,Sth1-Flag-HygMX,"Ura, Hyg",a,AID-tagged protein
+aa46,s.cer,nf164,med14-degF,med14-AID-Flag-HygMX,"Ura,Hyg",a,"Tagged med14 with NF066, verified by PCR and sequencing, and growth with IAA"
+aa45,s.cer,nf164,rat1-degM,rat1-AID-Myc-NatMX,"Ura,Nat",a,"Tagged rat1 with NF070, verified by PCR and sequencing, growth with IAA, and 4tU-RNAseq"

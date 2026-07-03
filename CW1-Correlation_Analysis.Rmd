@@ -1,0 +1,288 @@
+---
+title: "Translation Efficiency and Poly(A) Tail Correlation Analysis"
+author: "CW"
+date: "2026-05-19"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+load("plotting_functions.rda")
+load("correlation_functions_updated.rda")
+```
+
+```{r load}
+sample_info  <- read_csv("../tables/sample_info_combined.csv", show_col_types = FALSE)
+df_TE        <- read_csv("../tables/translation_efficiency.csv", show_col_types = FALSE)
+df_ONT       <- read_csv("../tables/gene_fraction&tail_length.csv", show_col_types = FALSE)
+verified_ORF <- read_tsv("../tables/2230128_verified_ORF.txt", show_col_types = FALSE) %>%
+  filter(species == "S_cerevisiae")
+df_hl <- read_tsv("../output_tables/df_fit_output_c1.txt", show_col_types = FALSE) %>%
+  left_join(sample_info, join_by(experiment_strain_condition)) %>%
+  filter(condition == "WT", std.error_log_k < 1)
+## condition == "WT": MS96 WT + MS1039 DMSO control
+```
+
+```{r check}
+colnames(df_TE)
+colnames(df_ONT)
+colnames(df_hl)
+df_TE %>% dplyr::select(starts_with("TPMsc")) %>% summary()
+```
+
+```{r filter_join}
+## translation_efficiency.csv:
+## TE_WT_PP -- mean of Arava 2003, Park 2011 HP, Park 2011 LP (polysome profiling, mean-normalised)
+## TE_WT_RS -- mean of Gerashchenko 2012, Sen et al. (ribo-seq, mean-normalised)
+## TE_rRNAdep_MandP/P_small/large_YM -- Swaffer lab size-separated polysome profiling
+## TPMsc_input/MandP/P_small/large_YM -- TPM values used for filtering only
+## TE_polyA columns excluded -- near-zero correlation with rRNAdep; input fraction unclear
+## gene_fraction&tail_length.csv:
+## MS69_small/large_mrl100_mean_tail_length -- mean poly(A) tail length, WT strain MS69, Nanopore
+
+df_TE_filtered <- df_TE %>%
+  filter(TPMsc_input_small_YM > 1,
+         TPMsc_input_large_YM > 1,
+         TPMsc_MandP_small_YM > 1,
+         TPMsc_MandP_large_YM > 1,
+         TPMsc_P_small_YM     > 1,
+         TPMsc_P_large_YM     > 1)
+
+df_TE_ONT          <- left_join(df_TE,          df_ONT, join_by(gene_id))
+df_TE_ONT_filtered <- left_join(df_TE_filtered, df_ONT, join_by(gene_id))
+```
+
+```{r halflife}
+## output_tables/df_fit_output_c1.txt -- Script 2 output, asymptotic exponential decay fits
+## estimate_half_life -- per gene per condition, filtered std.error_log_k < 1
+## averaged across WT replicates (MS96 + MS1039 DMSO) and pivoted to hl_small / hl_large
+
+df_hl_wide <- df_hl %>%
+  group_by(gene_id, size) %>%
+  summarise(mean_half_life = mean(estimate_half_life, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(id_cols = gene_id,
+              names_from  = size,
+              values_from = mean_half_life,
+              names_glue  = "hl_{size}")
+
+df_combined_hl <- df_hl_wide %>%
+  left_join(df_TE,          join_by(gene_id)) %>%
+  left_join(df_ONT,         join_by(gene_id))
+
+df_combined_hl_filtered <- df_hl_wide %>%
+  left_join(df_TE_filtered, join_by(gene_id)) %>%
+  left_join(df_ONT,         join_by(gene_id))
+
+nrow(df_combined_hl)
+```
+
+## Section 1 -- PP vs RS bulk WT TE
+## translation_efficiency.csv: TE_WT_PP vs TE_WT_RS
+
+```{r s1}
+p1 <- scatter_cor(df_TE,
+                  "TE_WT_PP", "TE_WT_RS",
+                  "TE PP bulk WT (log2)",
+                  "TE RS bulk WT (log2)",
+                  "Polysome profiling vs ribo-seq TE -- bulk WT")
+p1
+save_single(p1, "../figures/TE_PP_vs_RS_WT.png")
+```
+
+## Section 2 -- Size-separated TE: small vs large cells
+## translation_efficiency.csv: TE_rRNAdep_MandP_small/large_YM, TE_rRNAdep_P_small/large_YM
+
+```{r s2}
+p2 <- scatter_cor_pair(df_TE_filtered,
+                       "TE_rRNAdep_MandP_small_YM", "TE_rRNAdep_MandP_large_YM",
+                       "TE_rRNAdep_P_small_YM",     "TE_rRNAdep_P_large_YM",
+                       "TE small (log2)", "TE large (log2)",
+                       "TE MandP: small vs large cells",
+                       "TE P only: small vs large cells")
+p2
+save_pair(p2, "../figures/TE_small_vs_large_filtered.png")
+```
+
+## Section 3 -- Method comparison: literature bulk TE vs size-separated TE
+## translation_efficiency.csv: TE_WT_PP, TE_WT_RS vs TE_rRNAdep_MandP/P_small_YM
+## PP (polysome profiling) vs size-separated -- same technique, different labs
+## RS (ribo-seq) vs size-separated -- different techniques, near-zero expected
+## MandP vs P only -- effect of monosome inclusion on TE rankings
+
+```{r s3}
+p3a <- scatter_cor(df_TE_filtered,
+                   "TE_WT_PP", "TE_rRNAdep_MandP_small_YM",
+                   "TE PP bulk WT (log2)", "TE MandP small (log2)",
+                   "Bulk WT PP vs size-separated MandP (small)")
+
+p3b <- scatter_cor(df_TE_filtered,
+                   "TE_WT_PP", "TE_rRNAdep_P_small_YM",
+                   "TE PP bulk WT (log2)", "TE P only small (log2)",
+                   "Bulk WT PP vs size-separated P only (small)")
+
+p3c <- scatter_cor(df_TE_filtered,
+                   "TE_WT_RS", "TE_rRNAdep_MandP_small_YM",
+                   "TE RS bulk WT (log2)", "TE MandP small (log2)",
+                   "Bulk WT RS vs size-separated MandP (small)")
+
+p3d <- scatter_cor(df_TE_filtered,
+                   "TE_WT_RS", "TE_rRNAdep_P_small_YM",
+                   "TE RS bulk WT (log2)", "TE P only small (log2)",
+                   "Bulk WT RS vs size-separated P only (small)")
+
+p3ef <- scatter_cor_pair(df_TE_filtered,
+                         "TE_rRNAdep_MandP_small_YM", "TE_rRNAdep_P_small_YM",
+                         "TE_rRNAdep_MandP_large_YM", "TE_rRNAdep_P_large_YM",
+                         "TE MandP (log2)", "TE P only (log2)",
+                         "MandP vs P only -- small cells",
+                         "MandP vs P only -- large cells")
+
+(p3a + p3b) / (p3c + p3d) / p3ef
+save_pair((p3a + p3b) / (p3c + p3d) / p3ef,
+          "../figures/TE_bulk_vs_sizesep_filtered.png",
+          width = 10, height = 15)
+```
+
+## Section 4 -- Bulk TE vs poly(A) tail length
+## translation_efficiency.csv: TE_WT_PP, TE_WT_RS -- from literature
+## gene_fraction&tail_length.csv: MS69_small/large_mrl100_mean_tail_length
+
+```{r s4}
+p4 <- scatter_cor_pair(df_TE_ONT,
+                       "TE_WT_PP", "MS69_small_mrl100_mean_tail_length",
+                       "TE_WT_PP", "MS69_large_mrl100_mean_tail_length",
+                       "TE PP bulk WT (log2)", "Mean poly(A) tail length (log2)",
+                       "TE PP bulk WT vs poly(A) tail -- small cells",
+                       "TE PP bulk WT vs poly(A) tail -- large cells")
+p4
+save_pair(p4, "../figures/TE_PP_vs_polyA_tail_small_large.png")
+
+p5 <- scatter_cor_pair(df_TE_ONT,
+                       "TE_WT_RS", "MS69_small_mrl100_mean_tail_length",
+                       "TE_WT_RS", "MS69_large_mrl100_mean_tail_length",
+                       "TE RS bulk WT (log2)", "Mean poly(A) tail length (log2)",
+                       "TE RS bulk WT vs poly(A) tail -- small cells",
+                       "TE RS bulk WT vs poly(A) tail -- large cells")
+p5
+save_pair(p5, "../figures/TE_RS_vs_polyA_tail_small_large.png")
+```
+
+## Section 5 -- poly(A) tail length: small vs large cells
+## gene_fraction&tail_length.csv: MS69_small/large_mrl100_mean_tail_length
+
+```{r s5}
+p6 <- scatter_cor(df_TE_ONT,
+                  "MS69_small_mrl100_mean_tail_length",
+                  "MS69_large_mrl100_mean_tail_length",
+                  "Mean poly(A) tail length small (log2)",
+                  "Mean poly(A) tail length large (log2)",
+                  "poly(A) tail length: small vs large cells")
+p6
+save_single(p6, "../figures/polyA_tail_small_vs_large.png")
+```
+
+## Section 6 -- Size-separated TE vs poly(A) tail length
+## translation_efficiency.csv: TE_rRNAdep_MandP/P_small/large_YM
+## gene_fraction&tail_length.csv: MS69_small/large_mrl100_mean_tail_length
+## Conditions matched: small TE vs small tail, large TE vs large tail
+
+```{r s6}
+p7 <- scatter_cor_pair(df_TE_ONT_filtered,
+                       "TE_rRNAdep_MandP_small_YM", "MS69_small_mrl100_mean_tail_length",
+                       "TE_rRNAdep_MandP_large_YM", "MS69_large_mrl100_mean_tail_length",
+                       "TE MandP (log2)", "Mean poly(A) tail length (log2)",
+                       "TE MandP small vs poly(A) tail -- small cells",
+                       "TE MandP large vs poly(A) tail -- large cells")
+p7
+save_pair(p7, "../figures/TE_MandP_vs_polyA_small_large_filtered.png")
+
+p8 <- scatter_cor_pair(df_TE_ONT_filtered,
+                       "TE_rRNAdep_P_small_YM", "MS69_small_mrl100_mean_tail_length",
+                       "TE_rRNAdep_P_large_YM", "MS69_large_mrl100_mean_tail_length",
+                       "TE P only (log2)", "Mean poly(A) tail length (log2)",
+                       "TE P only small vs poly(A) tail -- small cells",
+                       "TE P only large vs poly(A) tail -- large cells")
+p8
+save_pair(p8, "../figures/TE_P_vs_polyA_small_large_filtered.png")
+```
+
+## Section 7 -- Half-life vs bulk TE
+## output_tables/df_fit_output_c1.txt: hl_small, hl_large (averaged across MS96 + MS1039 DMSO)
+## translation_efficiency.csv: TE_WT_PP, TE_WT_RS
+
+```{r s7}
+p9 <- scatter_cor_pair(df_combined_hl,
+                       "TE_WT_PP", "hl_small",
+                       "TE_WT_PP", "hl_large",
+                       "TE PP bulk WT (log2)", "Half-life (log2)",
+                       "TE PP bulk WT vs half-life -- small cells",
+                       "TE PP bulk WT vs half-life -- large cells")
+p9
+save_pair(p9, "../figures/TE_PP_vs_half_life_small_large.png")
+
+p10 <- scatter_cor_pair(df_combined_hl,
+                        "TE_WT_RS", "hl_small",
+                        "TE_WT_RS", "hl_large",
+                        "TE RS bulk WT (log2)", "Half-life (log2)",
+                        "TE RS bulk WT vs half-life -- small cells",
+                        "TE RS bulk WT vs half-life -- large cells")
+p10
+save_pair(p10, "../figures/TE_RS_vs_half_life_small_large.png")
+```
+
+## Section 8 -- Half-life vs size-separated TE
+## output_tables/df_fit_output_c1.txt: hl_small, hl_large
+## translation_efficiency.csv: TE_rRNAdep_MandP/P_small/large_YM
+## Conditions matched: small TE vs small half-life, large TE vs large half-life
+
+```{r s8}
+p11 <- scatter_cor_pair(df_combined_hl_filtered,
+                        "TE_rRNAdep_MandP_small_YM", "hl_small",
+                        "TE_rRNAdep_MandP_large_YM", "hl_large",
+                        "TE MandP (log2)", "Half-life (log2)",
+                        "TE MandP small vs half-life -- small cells",
+                        "TE MandP large vs half-life -- large cells")
+p11
+save_pair(p11, "../figures/TE_MandP_vs_half_life_small_large.png")
+
+p12 <- scatter_cor_pair(df_combined_hl_filtered,
+                        "TE_rRNAdep_P_small_YM", "hl_small",
+                        "TE_rRNAdep_P_large_YM", "hl_large",
+                        "TE P only (log2)", "Half-life (log2)",
+                        "TE P only small vs half-life -- small cells",
+                        "TE P only large vs half-life -- large cells")
+p12
+save_pair(p12, "../figures/TE_P_vs_half_life_small_large.png")
+```
+
+## Section 9 -- Half-life vs poly(A) tail length
+## output_tables/df_fit_output_c1.txt: hl_small, hl_large
+## gene_fraction&tail_length.csv: MS69_small/large_mrl100_mean_tail_length
+## Conditions matched: small tail vs small half-life, large tail vs large half-life
+
+```{r s9}
+p13 <- scatter_cor_pair(df_combined_hl,
+                        "MS69_small_mrl100_mean_tail_length", "hl_small",
+                        "MS69_large_mrl100_mean_tail_length", "hl_large",
+                        "Mean poly(A) tail length (log2)", "Half-life (log2)",
+                        "poly(A) tail length vs half-life -- small cells",
+                        "poly(A) tail length vs half-life -- large cells")
+p13
+save_pair(p13, "../figures/polyA_tail_vs_half_life_small_large.png")
+```
+
+## Section 10 -- mRNA half-life: small vs large cells (core result)
+## output_tables/df_fit_output_c1.txt: hl_small, hl_large
+
+```{r s10}
+p14 <- scatter_cor(df_combined_hl,
+                   "hl_small", "hl_large",
+                   "Half-life small cells (log2)",
+                   "Half-life large cells (log2)",
+                   "mRNA half-life: small vs large cells -- WT")
+p14
+save_single(p14, "../figures/half_life_small_vs_large.png")
+```
