@@ -11,3 +11,6 @@ tables/GSE196937_tc_data.csv
 scripts/.RData*
 tables/PCA_genes_annotatated_AC.txt
 tables/df_sc_final.txt
+tables/
+output_tables/
+scripts/.RData*
