@@ -1,0 +1,300 @@
+---
+title: "TF Enrichment - GSEA (PC1/PC2)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# ---------------------------------------------------------
+# TF enrichment via GSEA (cross-check against script 05 mitch)
+# Key difference from script 05:
+# - Uses full ranked PC1/PC2 gene list (no discrete cutoff)
+# - Gene sets from Mahendrawada et al. 2025 Tables A/C/E
+# - fgsea package rather than mitch
+# - Produces NES-based output directly comparable to
+#   script 03 (GO GSEA) for cross-method consistency
+# ---------------------------------------------------------
+
+project_dir <- file.path(path.expand("~"), "Downloads", "AC_combined_analysis", "Adriana_analysis")
+tables_dir  <- file.path(project_dir, "tables")
+figures_dir <- file.path(project_dir, "figures")
+output_dir  <- file.path(project_dir, "output_tables")
+
+dir.create(figures_dir, showWarnings = FALSE)
+dir.create(output_dir, showWarnings = FALSE)
+```
+
+```{r libraries}
+library(tidyverse)
+library(readxl)
+library(fgsea)
+
+select <- dplyr::select
+
+# install fgsea if needed (Bioconductor)
+if (!requireNamespace("fgsea", quietly = TRUE)) {
+  BiocManager::install("fgsea")
+}
+```
+
+```{r load-pca}
+# ---------------------------------------------------------
+# PC1/PC2 gene scores - ranked lists for GSEA input
+# Same approach as script 03 (GO GSEA)
+# ---------------------------------------------------------
+pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
+                      show_col_types = FALSE)
+
+make_ranked_list <- function(df, pc_col) {
+  df %>%
+    select(gene_id, all_of(pc_col)) %>%
+    arrange(desc(.data[[pc_col]])) %>%
+    deframe()
+}
+
+ranked_pc1 <- make_ranked_list(pca_genes, "PC1")
+ranked_pc2 <- make_ranked_list(pca_genes, "PC2")
+
+cat("PC1 ranked list:", length(ranked_pc1), "genes\n")
+cat("PC2 ranked list:", length(ranked_pc2), "genes\n")
+```
+
+```{r build-tf-genesets}
+# ---------------------------------------------------------
+# TF gene sets from Mahendrawada et al. 2025 Supp Table 3
+# Three collections, as per scripts 05 and 07:
+#   Table A: binding (TF binds gene = 1)
+#   Table C: activated (log2FC < 0) / repressed (log2FC > 0)
+#            on TF depletion
+#   Table E: direct targets (bound + regulated)
+# ---------------------------------------------------------
+supp_path <- file.path(tables_dir, "Supp Table 3.xlsx")
+table_a   <- read_excel(supp_path, sheet = "Table-S3a")
+table_c   <- read_excel(supp_path, sheet = "Table-S3c")
+table_e   <- read_excel(supp_path, sheet = "Table-S3e")
+
+# Table A: binding gene sets
+tf_cols_a     <- colnames(table_a)[-1]
+genesets_tf_a <- map(tf_cols_a, ~table_a %>%
+                       filter(.data[[.x]] == 1) %>%
+                       pull(gene_id)) %>%
+  set_names(paste0(tf_cols_a, "_bound")) %>%
+  keep(~length(.x) >= 5)
+
+# Table C: activated and repressed gene sets
+tf_cols_c    <- setdiff(colnames(table_c), c("gene_id", "Kmeans_clusters"))
+table_c_long <- table_c %>%
+  select(gene_id, all_of(tf_cols_c)) %>%
+  pivot_longer(-gene_id, names_to = "TF", values_to = "log2FC") %>%
+  filter(!is.na(log2FC))
+
+genesets_c_act <- table_c_long %>%
+  filter(log2FC < 0) %>%
+  group_by(TF) %>%
+  summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+  filter(map_int(genes, length) >= 5) %>%
+  deframe() %>%
+  set_names(paste0(names(.), "_activated"))
+
+genesets_c_rep <- table_c_long %>%
+  filter(log2FC > 0) %>%
+  group_by(TF) %>%
+  summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+  filter(map_int(genes, length) >= 5) %>%
+  deframe() %>%
+  set_names(paste0(names(.), "_repressed"))
+
+genesets_tf_c <- c(genesets_c_act, genesets_c_rep)
+
+# Table E: direct targets
+tf_cols_e    <- colnames(table_e)[-1]
+table_e_long <- table_e %>%
+  pivot_longer(-gene_id, names_to = "TF", values_to = "log2FC") %>%
+  filter(!is.na(log2FC))
+
+genesets_e_act <- table_e_long %>%
+  filter(log2FC < 0) %>%
+  group_by(TF) %>%
+  summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+  filter(map_int(genes, length) >= 5) %>%
+  deframe() %>%
+  set_names(paste0(names(.), "_direct_activated"))
+
+genesets_e_rep <- table_e_long %>%
+  filter(log2FC > 0) %>%
+  group_by(TF) %>%
+  summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+  filter(map_int(genes, length) >= 5) %>%
+  deframe() %>%
+  set_names(paste0(names(.), "_direct_repressed"))
+
+genesets_tf_e <- c(genesets_e_act, genesets_e_rep)
+
+cat("TF gene sets - Table A:", length(genesets_tf_a),
+    "| Table C:", length(genesets_tf_c),
+    "| Table E:", length(genesets_tf_e), "\n")
+```
+
+```{r check-overlap}
+# ---------------------------------------------------------
+# Sanity check: gene ID overlap between PCA and TF tables
+# ---------------------------------------------------------
+pca_ids <- names(ranked_pc1)
+cat("Genes in PCA:", length(pca_ids), "\n")
+cat("PCA genes in Table A targets:", length(intersect(pca_ids, unlist(genesets_tf_a))), "\n")
+cat("PCA genes in Table C targets:", length(intersect(pca_ids, unlist(genesets_tf_c))), "\n")
+cat("PCA genes in Table E targets:", length(intersect(pca_ids, unlist(genesets_tf_e))), "\n")
+```
+
+```{r run-gsea-function}
+# ---------------------------------------------------------
+# fgsea wrapper - runs GSEA for one ranked list and one
+# collection of gene sets, returns tidy results table.
+# minSize/maxSize filter gene sets by size, matching
+# the minGSSize used in scripts 03 and 05.
+# nPermSimple = 1000 is standard; seed for reproducibility.
+# ---------------------------------------------------------
+run_fgsea <- function(ranked_list, genesets, label,
+                      min_size = 5, max_size = 500,
+                      n_perm = 1000) {
+  set.seed(42)
+  cat("Running GSEA:", label, "\n")
+
+  result <- fgsea(
+    pathways  = genesets,
+    stats     = ranked_list,
+    minSize   = min_size,
+    maxSize   = max_size,
+    nPermSimple = n_perm
+  ) %>%
+    as_tibble() %>%
+    arrange(padj)
+
+  n_sig <- sum(result$padj < 0.05, na.rm = TRUE)
+  cat(" ", nrow(result), "sets tested |", n_sig,
+      "significant (FDR < 0.05)\n")
+  result
+}
+```
+
+```{r run-all}
+# Run GSEA for PC1 and PC2 across all three TF table collections
+gsea_tf_a_pc1 <- run_fgsea(ranked_pc1, genesets_tf_a, "PC1 - Table A")
+gsea_tf_a_pc2 <- run_fgsea(ranked_pc2, genesets_tf_a, "PC2 - Table A")
+
+gsea_tf_c_pc1 <- run_fgsea(ranked_pc1, genesets_tf_c, "PC1 - Table C")
+gsea_tf_c_pc2 <- run_fgsea(ranked_pc2, genesets_tf_c, "PC2 - Table C")
+
+gsea_tf_e_pc1 <- run_fgsea(ranked_pc1, genesets_tf_e, "PC1 - Table E")
+gsea_tf_e_pc2 <- run_fgsea(ranked_pc2, genesets_tf_e, "PC2 - Table E")
+```
+
+```{r plot-function}
+# ---------------------------------------------------------
+# NES dot plot: top 20 significant TF sets by absolute NES,
+# coloured by direction - matching script 03 GO GSEA format
+# for direct cross-method comparison
+# ---------------------------------------------------------
+plot_tf_gsea <- function(result, title, n_top = 20) {
+  sig <- result %>% filter(padj < 0.05)
+
+  if (nrow(sig) == 0) {
+    cat("No significant results for:", title, "\n")
+    return(NULL)
+  }
+
+  df_top <- sig %>%
+    arrange(desc(abs(NES))) %>%
+    slice_head(n = n_top) %>%
+    mutate(
+      label = if_else(nchar(pathway) > 45,
+                      str_trunc(pathway, 45, ellipsis = "..."),
+                      pathway),
+      label = fct_reorder(label, NES),
+      direction = if_else(NES > 0,
+                          "Positive NES\n(high PC score)",
+                          "Negative NES\n(low PC score)")
+    )
+
+  ggplot(df_top, aes(x = NES, y = label,
+                     size = size, color = direction)) +
+    geom_point(alpha = 0.8) +
+    geom_vline(xintercept = 0, linetype = "dashed",
+               color = "grey50") +
+    scale_color_manual(values = c(
+      "Positive NES\n(high PC score)" = "#d6604d",
+      "Negative NES\n(low PC score)"  = "#4393c3"
+    )) +
+    labs(
+      title = title,
+      x = "Normalised Enrichment Score (NES)",
+      y = NULL,
+      size  = "Gene set size",
+      color = "Direction"
+    ) +
+    theme_bw() +
+    theme(
+      axis.text.y     = element_text(size = 8),
+      legend.position = "right"
+    )
+}
+```
+
+```{r plots-table-a, fig.width=10, fig.height=9}
+plot_tf_gsea(gsea_tf_a_pc1, "TF enrichment GSEA - Table A binding, PC1")
+plot_tf_gsea(gsea_tf_a_pc2, "TF enrichment GSEA - Table A binding, PC2")
+```
+
+```{r plots-table-c, fig.width=10, fig.height=9}
+plot_tf_gsea(gsea_tf_c_pc1, "TF enrichment GSEA - Table C act/rep, PC1")
+plot_tf_gsea(gsea_tf_c_pc2, "TF enrichment GSEA - Table C act/rep, PC2")
+```
+
+```{r plots-table-e, fig.width=10, fig.height=9}
+plot_tf_gsea(gsea_tf_e_pc1, "TF enrichment GSEA - Table E direct targets, PC1")
+plot_tf_gsea(gsea_tf_e_pc2, "TF enrichment GSEA - Table E direct targets, PC2")
+```
+
+```{r save-outputs}
+# ---------------------------------------------------------
+# Save results tables (leadingEdge column is a list -
+# convert to semicolon-separated string for TSV export)
+# ---------------------------------------------------------
+flatten_leading_edge <- function(df) {
+  df %>% mutate(leadingEdge = map_chr(leadingEdge, paste, collapse = ";"))
+}
+
+write_tsv(flatten_leading_edge(gsea_tf_a_pc1),
+          file.path(output_dir, "tf_gsea_tableA_pc1.txt"))
+write_tsv(flatten_leading_edge(gsea_tf_a_pc2),
+          file.path(output_dir, "tf_gsea_tableA_pc2.txt"))
+write_tsv(flatten_leading_edge(gsea_tf_c_pc1),
+          file.path(output_dir, "tf_gsea_tableC_pc1.txt"))
+write_tsv(flatten_leading_edge(gsea_tf_c_pc2),
+          file.path(output_dir, "tf_gsea_tableC_pc2.txt"))
+write_tsv(flatten_leading_edge(gsea_tf_e_pc1),
+          file.path(output_dir, "tf_gsea_tableE_pc1.txt"))
+write_tsv(flatten_leading_edge(gsea_tf_e_pc2),
+          file.path(output_dir, "tf_gsea_tableE_pc2.txt"))
+
+# Save figures
+plot_pairs <- list(
+  list(gsea_tf_a_pc1, "tf_gsea_tableA_pc1.png", "Table A binding, PC1"),
+  list(gsea_tf_a_pc2, "tf_gsea_tableA_pc2.png", "Table A binding, PC2"),
+  list(gsea_tf_c_pc1, "tf_gsea_tableC_pc1.png", "Table C act/rep, PC1"),
+  list(gsea_tf_c_pc2, "tf_gsea_tableC_pc2.png", "Table C act/rep, PC2"),
+  list(gsea_tf_e_pc1, "tf_gsea_tableE_pc1.png", "Table E direct, PC1"),
+  list(gsea_tf_e_pc2, "tf_gsea_tableE_pc2.png", "Table E direct, PC2")
+)
+
+for (pp in plot_pairs) {
+  p <- plot_tf_gsea(pp[[1]], paste("TF enrichment GSEA -", pp[[3]]))
+  if (!is.null(p)) {
+    ggsave(file.path(figures_dir, pp[[2]]),
+           plot = p, width = 10, height = 9)
+  }
+}
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```

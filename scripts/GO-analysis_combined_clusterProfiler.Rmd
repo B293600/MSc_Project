@@ -110,7 +110,7 @@ PC2_pos <- PCA_genes_filtered %>%
   pull(gene_id)
 
 ego_PC2_pos <- enrichGO(
-  gene          = PC1_pos,
+  gene          = PC2_pos,
   OrgDb         = org.Sc.sgd.db,
   keyType       = "ORF",      # IMPORTANT: depends on your gene IDs
   ont           = "ALL",      # BP + CC + MF
@@ -139,7 +139,7 @@ PC2_neg <- PCA_genes_filtered %>%
   pull(gene_id)
 
 ego_PC2_neg <- enrichGO(
-  gene          = PC1_pos,
+  gene          = PC2_neg,
   OrgDb         = org.Sc.sgd.db,
   keyType       = "ORF",      # IMPORTANT: depends on your gene IDs
   ont           = "ALL",      # BP + CC + MF

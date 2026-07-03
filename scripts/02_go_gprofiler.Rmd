@@ -18,19 +18,43 @@ dir.create(output_dir, showWarnings = FALSE)
 ```{r libraries}
 library(tidyverse)
 library(gprofiler2)
+library(patchwork)
 
-# gprofiler2 doesn't clash with dplyr::select, but pin it anyway
-# as a precaution if other annotation packages get loaded later
 select <- dplyr::select
 ```
 
+```{r establish-pc-directions}
+# ---------------------------------------------------------
+# Establish biological direction of PC1 and PC2 by correlating
+# sample-level PC scores with mean cell volume.
+#
+# PC1 vs cell volume: Spearman r = -0.216
+#   -> PC1 reflects TOR/PKA signalling state, not cell size.
+#   -> PC1_TOP    = active TOR/PKA signalling state
+#   -> PC1_BOTTOM = TOR/PKA-inhibited state
+#
+# PC2 vs cell volume: Spearman r = +0.795
+#   -> PC2 is the primary cell size axis.
+#   -> PC2_TOP    = large cells
+#   -> PC2_BOTTOM = small cells
+# ---------------------------------------------------------
+pca_samples <- read_tsv(file.path(tables_dir, "PCA_samples_AC.txt"),
+                        show_col_types = FALSE)
+
+pc_vol_cor <- pca_samples %>%
+  filter(!is.na(mean_cell_volume)) %>%
+  summarise(
+    cor_PC1_vol = cor(PC1, mean_cell_volume, method = "spearman"),
+    cor_PC2_vol = cor(PC2, mean_cell_volume, method = "spearman")
+  )
+
+cat("PC1 vs cell volume (Spearman r):", round(pc_vol_cor$cor_PC1_vol, 3), "\n")
+cat("PC2 vs cell volume (Spearman r):", round(pc_vol_cor$cor_PC2_vol, 3), "\n")
+```
+
 ```{r load-data}
-# ---------------------------------------------------------
-# PCA_genes_AC.txt: gene-level PC scores
-# Only PC1/PC2 carry meaningful biological signal (PC4+ is
-# noise-level flat variance, confirmed by diagnostic script)
-# ---------------------------------------------------------
-pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"), show_col_types = FALSE)
+pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
+                      show_col_types = FALSE)
 
 pca_genes_long <- pca_genes %>%
   select(gene_id, PC1, PC2) %>%
@@ -40,49 +64,45 @@ all_genes_universe <- pca_genes$gene_id
 ```
 
 ```{r filter-top-bottom-10pct}
-# ---------------------------------------------------------
-# Top/bottom 10% of PC1 and PC2 separately, matching
-# Adriana's original approach and script 01 (clusterProfiler)
-# so results are directly comparable across methods
-# ---------------------------------------------------------
 get_top_bottom_10pct <- function(df, pc_name) {
   df_pc <- df %>% filter(PC == pc_name)
   n <- nrow(df_pc)
   cutoff_n <- ceiling(n * 0.1)
-
   top    <- df_pc %>% slice_max(score, n = cutoff_n) %>% pull(gene_id)
   bottom <- df_pc %>% slice_min(score, n = cutoff_n) %>% pull(gene_id)
-
   list(top = top, bottom = bottom)
 }
 
 pc1_genes <- get_top_bottom_10pct(pca_genes_long, "PC1")
 pc2_genes <- get_top_bottom_10pct(pca_genes_long, "PC2")
 
-cat("PC1 top 10%:", length(pc1_genes$top), "genes | bottom 10%:", length(pc1_genes$bottom), "genes\n")
-cat("PC2 top 10%:", length(pc2_genes$top), "genes | bottom 10%:", length(pc2_genes$bottom), "genes\n")
+cat("PC1 top 10%:", length(pc1_genes$top),
+    "genes | bottom 10%:", length(pc1_genes$bottom), "genes\n")
+cat("PC2 top 10%:", length(pc2_genes$top),
+    "genes | bottom 10%:", length(pc2_genes$bottom), "genes\n")
 ```
 
 ```{r run-enrichment-function}
 # ---------------------------------------------------------
-# gProfiler wrapper
-# Key difference from clusterProfiler: gProfiler separates
-# results by BP (biological process), MF (molecular function),
-# and CC (cellular component) automatically via the 'sources'
-# argument. organism = "scerevisiae" uses gProfiler's built-in
-# S. cerevisiae annotation (no local OrgDb needed).
-# custom_bg sets the universe to our PCA gene list, matching
-# the universe used in script 01.
+# gProfiler wrapper.
+# correction_method = "g_SCS": accounts for GO term hierarchy
+#   (parent-child dependencies); more appropriate than BH for GO.
+# exclude_iea = TRUE: removes electronically inferred annotations,
+#   retaining only experimentally validated GO assignments.
+# custom_bg = PCA gene universe: avoids inflating significance
+#   from unobserved genes in a genome-wide background.
 # ---------------------------------------------------------
 run_gprofiler <- function(gene_list, universe, label) {
   result <- gost(
-    query        = gene_list,
-    organism     = "scerevisiae",
-    sources      = c("GO:BP", "GO:MF", "GO:CC"),
-    custom_bg    = universe,
-    correction_method = "fdr",
+    query             = gene_list,
+    organism          = "scerevisiae",
+    sources           = c("GO:BP", "GO:MF", "GO:CC"),
+    custom_bg         = universe,
+    correction_method = "g_SCS",
     user_threshold    = 0.05,
-    significant  = TRUE
+    exclude_iea       = TRUE,
+    significant       = TRUE,
+    multi_query       = FALSE
   )
 
   if (is.null(result)) {
@@ -108,97 +128,155 @@ gp_pc2_bottom <- run_gprofiler(pc2_genes$bottom, all_genes_universe, "PC2 bottom
 
 ```{r plot-function}
 # ---------------------------------------------------------
-# Top 20 terms per GO namespace (BP/MF/CC separately),
-# matching the BP/MF/CC split Adriana described in the meeting.
-# Long term names truncated/wrapped as per script 01 fix.
+# Single panel dot plot: top 10 terms per GO namespace.
+# Reduced from 20 to 10 terms per namespace for compactness.
+# Shorter label truncation to fit side-by-side layout.
 # ---------------------------------------------------------
-plot_gprofiler_top20 <- function(df, title) {
-  if (is.null(df) || nrow(df) == 0) {
-    cat("No enriched terms for:", title, "\n")
-    return(NULL)
-  }
+plot_gprofiler_panel <- function(df, panel_label, direction_label) {
+  if (is.null(df) || nrow(df) == 0) return(NULL)
 
-  df_top20 <- df %>%
+  df_top <- df %>%
     group_by(source) %>%
-    slice_min(p_value, n = 20) %>%
+    slice_min(p_value, n = 10) %>%
     ungroup() %>%
     mutate(
       Description_short = if_else(
-        nchar(term_name) > 60,
-        str_trunc(term_name, 60, ellipsis = "..."),
+        nchar(term_name) > 40,
+        str_trunc(term_name, 40, ellipsis = "..."),
         term_name
       ),
-      Description_short = str_wrap(Description_short, width = 40),
-      Description_short = fct_reorder(Description_short, -log10(p_value)),
+      Description_short = str_wrap(Description_short, width = 30),
+      Description_short = fct_reorder(Description_short,
+                                       -log10(p_value)),
       neg_log10_p = -log10(p_value),
-      source = factor(source, levels = c("GO:BP", "GO:MF", "GO:CC"))
+      source      = factor(source,
+                           levels = c("GO:BP", "GO:MF", "GO:CC"))
     )
 
-  ggplot(df_top20, aes(x = neg_log10_p, y = Description_short,
-                       size = intersection_size, color = source)) +
+  ggplot(df_top, aes(x = neg_log10_p, y = Description_short,
+                     size = intersection_size, color = source)) +
     geom_point(alpha = 0.8) +
     facet_wrap(~source, scales = "free_y", ncol = 1) +
-    scale_color_manual(values = c("GO:BP" = "#4393c3",
-                                   "GO:MF" = "#d6604d",
-                                   "GO:CC" = "#74c476")) +
+    scale_color_manual(values = c(
+      "GO:BP" = "#784283",
+      "GO:MF" = "#ffa8cb",
+      "GO:CC" = "#e5000c"
+    )) +
     labs(
-      title = title,
-      x = expression(-log[10]("p-value")),
-      y = NULL,
-      size = "Intersection\nsize",
-      color = "Namespace"
+      tag   = panel_label,
+      x     = expression(-log[10]("p-value")),
+      y     = direction_label,
+      size  = "Intersection\nsize",
+      color = "GO namespace"
     ) +
-    theme_bw() +
+    theme_bw(base_size = 9) +
     theme(
-      axis.text.y  = element_text(size = 7),
-      strip.text   = element_text(face = "bold"),
-      legend.position = "right"
+      axis.text.y     = element_text(size = 7),
+      axis.title.y    = element_text(size = 7, face = "italic",
+                                     color = "grey40"),
+      strip.text      = element_text(face = "bold", size = 8),
+      plot.tag        = element_text(face = "bold", size = 11),
+      legend.position = "right",
+      legend.text     = element_text(size = 7),
+      legend.title    = element_text(size = 7)
     )
 }
 ```
 
-```{r plot-pc1, fig.width=10, fig.height=14}
-plot_gprofiler_top20(gp_pc1_top,    "PC1 top 10% - GO enrichment (gProfiler)")
-plot_gprofiler_top20(gp_pc1_bottom, "PC1 bottom 10% - GO enrichment (gProfiler)")
+```{r figure-pc1, fig.width=14, fig.height=10}
+# ---------------------------------------------------------
+# Figure X: PC1 — Panel A (top 10%) | Panel B (bottom 10%)
+# Side by side for compactness
+# ---------------------------------------------------------
+p_a <- plot_gprofiler_panel(
+  gp_pc1_top, "A",
+  paste0("Top 10% PC1 (n = ", length(pc1_genes$top),
+         ") — active TOR/PKA signalling")
+)
+
+p_b <- plot_gprofiler_panel(
+  gp_pc1_bottom, "B",
+  paste0("Bottom 10% PC1 (n = ", length(pc1_genes$bottom),
+         ") — TOR/PKA-inhibited state")
+)
+
+fig_pc1 <- (p_a | p_b) +
+  plot_annotation(
+    title    = "GO enrichment of PC1 gene sets (gProfiler)",
+    subtitle = paste0(
+      "PC1 vs cell volume: Spearman r = ",
+      round(pc_vol_cor$cor_PC1_vol, 3),
+      "  |  PC1 reflects TOR/PKA signalling state, not cell size"
+    ),
+    theme = theme(
+      plot.title    = element_text(face = "bold", size = 10, hjust = 0),
+      plot.subtitle = element_text(size = 8, color = "grey40", hjust = 0)
+    )
+  ) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "right")
+
+print(fig_pc1)
 ```
 
-```{r plot-pc2, fig.width=10, fig.height=14}
-plot_gprofiler_top20(gp_pc2_top,    "PC2 top 10% - GO enrichment (gProfiler)")
-plot_gprofiler_top20(gp_pc2_bottom, "PC2 bottom 10% - GO enrichment (gProfiler)")
+```{r figure-pc2, fig.width=14, fig.height=10}
+# ---------------------------------------------------------
+# Figure X: PC2 — Panel A (top 10%) | Panel B (bottom 10%)
+# Side by side for compactness
+# ---------------------------------------------------------
+p_c <- plot_gprofiler_panel(
+  gp_pc2_top, "A",
+  paste0("Top 10% PC2 (n = ", length(pc2_genes$top),
+         ") — upregulated in large cells")
+)
+
+p_d <- plot_gprofiler_panel(
+  gp_pc2_bottom, "B",
+  paste0("Bottom 10% PC2 (n = ", length(pc2_genes$bottom),
+         ") — upregulated in small cells")
+)
+
+fig_pc2 <- (p_c | p_d) +
+  plot_annotation(
+    title    = "GO enrichment of PC2 gene sets (gProfiler)",
+    subtitle = paste0(
+      "PC2 vs cell volume: Spearman r = ",
+      round(pc_vol_cor$cor_PC2_vol, 3),
+      "  |  PC2 is the primary cell size axis"
+    ),
+    theme = theme(
+      plot.title    = element_text(face = "bold", size = 10, hjust = 0),
+      plot.subtitle = element_text(size = 8, color = "grey40", hjust = 0)
+    )
+  ) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "right")
+
+print(fig_pc2)
 ```
 
 ```{r save-outputs}
-# ---------------------------------------------------------
-# Save results tables and figures
-# NULL check guards against any PC with no significant terms
-# ---------------------------------------------------------
 save_if_not_null <- function(df, path) {
   if (!is.null(df)) write_tsv(df, path)
 }
 
-save_if_not_null(gp_pc1_top,    file.path(output_dir, "go_gprofiler_pc1_top10pct.txt"))
-save_if_not_null(gp_pc1_bottom, file.path(output_dir, "go_gprofiler_pc1_bottom10pct.txt"))
-save_if_not_null(gp_pc2_top,    file.path(output_dir, "go_gprofiler_pc2_top10pct.txt"))
-save_if_not_null(gp_pc2_bottom, file.path(output_dir, "go_gprofiler_pc2_bottom10pct.txt"))
+save_if_not_null(gp_pc1_top,
+                 file.path(output_dir, "go_gprofiler_pc1_top10pct.txt"))
+save_if_not_null(gp_pc1_bottom,
+                 file.path(output_dir, "go_gprofiler_pc1_bottom10pct.txt"))
+save_if_not_null(gp_pc2_top,
+                 file.path(output_dir, "go_gprofiler_pc2_top10pct.txt"))
+save_if_not_null(gp_pc2_bottom,
+                 file.path(output_dir, "go_gprofiler_pc2_bottom10pct.txt"))
 
-plot_list <- list(
-  pc1_top    = gp_pc1_top,
-  pc1_bottom = gp_pc1_bottom,
-  pc2_top    = gp_pc2_top,
-  pc2_bottom = gp_pc2_bottom
-)
+if (!is.null(fig_pc1)) {
+  ggsave(file.path(figures_dir, "figure_gprofiler_pc1.png"),
+         plot = fig_pc1, width = 14, height = 10)
+}
 
-for (pc_label in names(plot_list)) {
-  p <- plot_gprofiler_top20(
-    plot_list[[pc_label]],
-    paste(toupper(pc_label), "- GO enrichment (gProfiler)")
-  )
-  if (!is.null(p)) {
-    ggsave(
-      file.path(figures_dir, paste0("go_gprofiler_", pc_label, "10pct.png")),
-      plot = p, width = 10, height = 14
-    )
-  }
+if (!is.null(fig_pc2)) {
+  ggsave(file.path(figures_dir, "figure_gprofiler_pc2.png"),
+         plot = fig_pc2, width = 14, height = 10)
 }
 
 cat("Done - results saved to output_tables/ and figures/\n")
