@@ -19,116 +19,116 @@ dir.create(output_dir, showWarnings = FALSE)
 library(tidyverse)
 library(readxl)
 library(mitch)
+library(ggrepel)
 
 select <- dplyr::select
 ```
 
-```{r load-pca}
+```{r establish-pc-directions}
 # ---------------------------------------------------------
-# PC scores: PC1/PC2 only (PC4+ confirmed as noise)
+# PC1 vs cell volume: Spearman r = -0.216
+#   -> PC1 reflects TOR/PKA signalling state, not cell size
+#   -> s.PC1 positive = active TOR/PKA (ribosome biogenesis on)
+#   -> s.PC1 negative = TOR/PKA inhibited (stress response on)
+#
+# PC2 vs cell volume: Spearman r = +0.795
+#   -> PC2 is the primary cell size axis
+#   -> s.PC2 positive = genes upregulated in large cells
+#   -> s.PC2 negative = genes upregulated in small cells
+# ---------------------------------------------------------
+pca_samples <- read_tsv(file.path(tables_dir, "PCA_samples_AC.txt"),
+                        show_col_types = FALSE)
+
+pc_vol_cor <- pca_samples %>%
+  filter(!is.na(mean_cell_volume)) %>%
+  summarise(
+    cor_PC1_vol = cor(PC1, mean_cell_volume, method = "spearman"),
+    cor_PC2_vol = cor(PC2, mean_cell_volume, method = "spearman")
+  )
+
+cat("PC1 vs cell volume (Spearman r):", round(pc_vol_cor$cor_PC1_vol, 3), "\n")
+cat("PC2 vs cell volume (Spearman r):", round(pc_vol_cor$cor_PC2_vol, 3), "\n")
+```
+
+```{r load-data}
+# ---------------------------------------------------------
+# PCA gene scores - PC1 and PC2 only
 # ---------------------------------------------------------
 pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
                       show_col_types = FALSE)
 
-mitch_input <- pca_genes %>%
-  select(gene_id, PC1, PC2) %>%
-  column_to_rownames("gene_id")
-
-cat("PC input:", nrow(mitch_input), "genes x", ncol(mitch_input), "contrasts\n")
-```
-
-```{r load-supp-tables}
-# ---------------------------------------------------------
-# Mahendrawada et al. 2025 (Supp Table 3.xlsx)
-# Sheet S3a: binary TF binding matrix (0/1) - genes x 178 TFs
-# Sheet S3c: log2FC after TF depletion (significant genes only)
-#            + Kmeans_clusters column
-#            Sign convention (from Adriana's meeting notes):
-#            negative log2FC = gene repressed on TF depletion
-#                           -> TF normally ACTIVATES this gene
-#            positive log2FC = gene induced on TF depletion
-#                           -> TF normally REPRESSES this gene
-# Sheet S3e: integration of S3a + S3c (binding + FC), direct
-#            targets only (TF both binds AND regulates gene)
-# ---------------------------------------------------------
-supp_path <- file.path(tables_dir, "Supp Table 3.xlsx")
-
-table_a <- read_excel(supp_path, sheet = "Table-S3a")
-table_c <- read_excel(supp_path, sheet = "Table-S3c")
-table_e <- read_excel(supp_path, sheet = "Table-S3e")
+supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
+table_a   <- read_excel(supp_path, sheet = "Table-S3a")
+table_c   <- read_excel(supp_path, sheet = "Table-S3c")
+table_e   <- read_excel(supp_path, sheet = "Table-S3e")
 
 cat("Table A dimensions:", nrow(table_a), "genes x", ncol(table_a), "columns\n")
 cat("Table C dimensions:", nrow(table_c), "genes x", ncol(table_c), "columns\n")
 cat("Table E dimensions:", nrow(table_e), "genes x", ncol(table_e), "columns\n")
 ```
 
-```{r build-genesets-table-a}
+```{r filter-common-genes}
 # ---------------------------------------------------------
-# Table A gene sets: for each TF, collect genes where
-# binding = 1. Minimum 5 bound genes per TF (matching
-# Adriana's minGSSize = 5 from her original mitch analysis).
+# Filter PCA genes to those present in Table A (Adriana's
+# approach) - ensures gene universe is consistent across
+# all enrichment analyses in this script.
 # ---------------------------------------------------------
-tf_cols_a <- colnames(table_a)[-1]   # drop gene_id column
+common_genes <- intersect(pca_genes$gene_id, table_a$gene_id)
+cat("Genes in PCA:", nrow(pca_genes), "\n")
+cat("Genes in Table A:", nrow(table_a), "\n")
+cat("Common genes used for analysis:", length(common_genes), "\n")
 
-genesets_a <- map(tf_cols_a, function(tf) {
-  table_a %>%
-    filter(.data[[tf]] == 1) %>%
-    pull(gene_id)
-}) %>%
-  set_names(paste0(tf_cols_a, "_bound"))
+pca_mat <- pca_genes %>%
+  filter(gene_id %in% common_genes) %>%
+  select(gene_id, PC1, PC2) %>%
+  column_to_rownames("gene_id")
 
-# filter to TFs binding at least 5 genes
-genesets_a <- genesets_a[map_int(genesets_a, length) >= 5]
-cat("Table A: ", length(genesets_a), "TF binding gene sets (>= 5 genes)\n")
+table_a <- table_a %>% filter(gene_id %in% common_genes)
+table_c <- table_c %>% filter(gene_id %in% common_genes)
+table_e <- table_e %>% filter(gene_id %in% common_genes)
 ```
 
-```{r build-genesets-table-c}
+```{r build-genesets}
 # ---------------------------------------------------------
-# Table C gene sets: activated and repressed targets per TF.
-# Drop Kmeans_clusters column, then pivot to long format.
-# Activated targets: log2FC < 0 (gene down when TF depleted
-#                   -> TF normally keeps it up)
-# Repressed targets: log2FC > 0 (gene up when TF depleted
-#                   -> TF normally keeps it down)
+# Table A: binding gene sets (TF binds gene = 1)
 # ---------------------------------------------------------
-tf_cols_c <- colnames(table_c) %>%
-  setdiff(c("gene_id", "Kmeans_clusters"))
+tf_cols_a <- colnames(table_a)[-1]
 
+genesets_a <- map(tf_cols_a, ~table_a %>%
+                    filter(.data[[.x]] == 1) %>%
+                    pull(gene_id)) %>%
+  set_names(tf_cols_a) %>%
+  keep(~length(.x) >= 5)
+
+# ---------------------------------------------------------
+# Table C: activated (log2FC < 0) and repressed (log2FC > 0)
+# run as separate gene set lists so results can be plotted
+# and interpreted independently (Adriana's approach)
+# ---------------------------------------------------------
+tf_cols_c    <- setdiff(colnames(table_c), c("gene_id", "Kmeans_clusters"))
 table_c_long <- table_c %>%
   select(gene_id, all_of(tf_cols_c)) %>%
   pivot_longer(-gene_id, names_to = "TF", values_to = "log2FC") %>%
   filter(!is.na(log2FC))
 
-# activated gene sets (log2FC < 0)
 genesets_c_activated <- table_c_long %>%
   filter(log2FC < 0) %>%
   group_by(TF) %>%
   summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
   filter(map_int(genes, length) >= 5) %>%
-  deframe() %>%
-  set_names(paste0(names(.), "_activated"))
+  deframe()
 
-# repressed gene sets (log2FC > 0)
 genesets_c_repressed <- table_c_long %>%
   filter(log2FC > 0) %>%
   group_by(TF) %>%
   summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
   filter(map_int(genes, length) >= 5) %>%
-  deframe() %>%
-  set_names(paste0(names(.), "_repressed"))
+  deframe()
 
-genesets_c <- c(genesets_c_activated, genesets_c_repressed)
-cat("Table C:", length(genesets_c_activated), "activated gene sets |",
-    length(genesets_c_repressed), "repressed gene sets\n")
-```
-
-```{r build-genesets-table-e}
 # ---------------------------------------------------------
-# Table E: direct activation/repression (bound + regulated).
-# Same sign convention as Table C. Column 1 is gene_id.
+# Table E: direct activated and repressed (bound + regulated)
 # ---------------------------------------------------------
-tf_cols_e <- colnames(table_e)[-1]
-
+tf_cols_e    <- colnames(table_e)[-1]
 table_e_long <- table_e %>%
   pivot_longer(-gene_id, names_to = "TF", values_to = "log2FC") %>%
   filter(!is.na(log2FC))
@@ -138,200 +138,170 @@ genesets_e_activated <- table_e_long %>%
   group_by(TF) %>%
   summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
   filter(map_int(genes, length) >= 5) %>%
-  deframe() %>%
-  set_names(paste0(names(.), "_direct_activated"))
+  deframe()
 
 genesets_e_repressed <- table_e_long %>%
   filter(log2FC > 0) %>%
   group_by(TF) %>%
   summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
   filter(map_int(genes, length) >= 5) %>%
-  deframe() %>%
-  set_names(paste0(names(.), "_direct_repressed"))
+  deframe()
 
-genesets_e <- c(genesets_e_activated, genesets_e_repressed)
-cat("Table E:", length(genesets_e_activated), "direct activated gene sets |",
-    length(genesets_e_repressed), "direct repressed gene sets\n")
+cat("Table A binding sets:", length(genesets_a), "\n")
+cat("Table C activated:", length(genesets_c_activated),
+    "| repressed:", length(genesets_c_repressed), "\n")
+cat("Table E direct activated:", length(genesets_e_activated),
+    "| direct repressed:", length(genesets_e_repressed), "\n")
 ```
 
-```{r check-gene-overlap}
+```{r tor-pka-annotation}
 # ---------------------------------------------------------
-# Sanity check: confirm reasonable overlap between PCA genes
-# and TF target gene IDs before running enrichment
+# Manual annotation of TFs known to be regulated by TORC1/PKA
+# Used to label 2D scatter plots by pathway rather than
+# individual TF name, improving biological interpretability
+# (from Adriana's script)
 # ---------------------------------------------------------
-pca_gene_ids <- rownames(mitch_input)
-
-overlap_a <- length(intersect(pca_gene_ids, unlist(genesets_a)))
-overlap_c <- length(intersect(pca_gene_ids, unlist(genesets_c)))
-overlap_e <- length(intersect(pca_gene_ids, unlist(genesets_e)))
-
-cat("Genes in PCA:", length(pca_gene_ids), "\n")
-cat("PCA genes found in Table A targets:", overlap_a, "\n")
-cat("PCA genes found in Table C targets:", overlap_c, "\n")
-cat("PCA genes found in Table E targets:", overlap_e, "\n")
+tf_regulation <- tibble(
+  TF = c("IFH1", "FHL1", "SFP1", "MSN2", "MSN4", "GCN4",
+         "RAP1", "GLN3", "STB1", "MIG1", "MIG2", "ADR1"),
+  regulation = c("TORC1/PKA", "TORC1/PKA", "TORC1/PKA",
+                 "TORC1/PKA", "TORC1/PKA",
+                 "TORC1", "TORC1", "TORC1",
+                 "TORC1/PKA", "PKA", "PKA", "PKA")
+)
 ```
 
-```{r run-mitch-tf}
+```{r run-mitch}
 # ---------------------------------------------------------
-# Run mitch for all three table-derived gene set collections.
-# Priority = "effect" ranks by s.dist (effect size), matching
-# Adriana's original mitch TF enrichment approach.
+# Run mitch separately for each gene set collection.
+# Activated and repressed run as separate calls (Adriana's
+# approach) so results can be plotted and interpreted
+# independently.
+# priority = "effect" ranks by s.dist (effect size).
 # ---------------------------------------------------------
-run_mitch_tf <- function(genesets, label) {
+run_mitch <- function(genesets, label) {
   cat("Running mitch:", label, "\n")
   result <- mitch_calc(
-    x        = mitch_input,
+    x        = pca_mat,
     genesets = genesets,
     priority = "effect",
     cores    = 1
   )
-  sig <- result$enrichment_result %>%
-    filter(p.adjustMANOVA < 0.05) %>%
-    arrange(p.adjustMANOVA)
-  cat(label, "- significant TF sets:", nrow(sig), "\n")
-  sig
+  df <- result$enrichment_result %>%
+    rename(TF = set)
+  cat(" ", nrow(df), "sets tested |",
+      sum(df$p.adjustMANOVA < 0.05), "significant (FDR < 0.05)\n")
+  df
 }
 
-mitch_tf_a <- run_mitch_tf(genesets_a, "Table A (binding)")
-mitch_tf_c <- run_mitch_tf(genesets_c, "Table C (activation/repression)")
-mitch_tf_e <- run_mitch_tf(genesets_e, "Table E (direct targets)")
+df_a             <- run_mitch(genesets_a,             "Table A (binding)")
+df_c_activated   <- run_mitch(genesets_c_activated,   "Table C (activated)")
+df_c_repressed   <- run_mitch(genesets_c_repressed,   "Table C (repressed)")
+df_e_activated   <- run_mitch(genesets_e_activated,   "Table E (direct activated)")
+df_e_repressed   <- run_mitch(genesets_e_repressed,   "Table E (direct repressed)")
 ```
 
 ```{r plot-function}
 # ---------------------------------------------------------
-# 2D scatter of s.PC1 vs s.PC2 effect sizes - the key
-# output for TF enrichment, matching Adriana's original
-# PC1 vs PC2 TF enrichment scatter plot from the meeting.
-# Colour = significance; outliers labelled.
+# 2D scatter of s.PC1 vs s.PC2.
+# Labels the top N TFs by largest absolute PC1 or PC2
+# effect size (union of both, Adriana's approach).
+# Known TORC1/PKA-regulated TFs are labelled by pathway
+# name rather than individual TF name for interpretability.
+# All results plotted (not filtered to significant only)
+# to show full landscape; significance encoded by colour.
 # ---------------------------------------------------------
-plot_tf_2d <- function(df, title, n_label = 12) {
-  if (nrow(df) == 0) {
-    cat("No significant results for:", title, "\n")
-    return(NULL)
+plot_tf_2d <- function(df, title, n_label = 10,
+                       show_regulation = TRUE) {
+  # select labels: top n by |s.PC1| union top n by |s.PC2|
+  top_pc1 <- df %>%
+    arrange(desc(abs(s.PC1))) %>%
+    slice_head(n = n_label)
+
+  top_pc2 <- df %>%
+    arrange(desc(abs(s.PC2))) %>%
+    slice_head(n = n_label)
+
+  labels_df <- bind_rows(top_pc1, top_pc2) %>%
+    distinct(TF, .keep_all = TRUE)
+
+  if (show_regulation) {
+    labels_df <- labels_df %>%
+      left_join(tf_regulation, by = "TF") %>%
+      mutate(label = if_else(!is.na(regulation), regulation, TF))
+  } else {
+    labels_df <- labels_df %>% mutate(label = TF)
   }
 
-  if (!requireNamespace("ggrepel", quietly = TRUE)) install.packages("ggrepel")
-  library(ggrepel)
-
-  df_label <- df %>%
-    mutate(
-      dist = sqrt(s.PC1^2 + s.PC2^2),
-      quadrant = case_when(
-        s.PC1 >= 0 & s.PC2 >= 0 ~ "Q1",
-        s.PC1 <  0 & s.PC2 >= 0 ~ "Q2",
-        s.PC1 <  0 & s.PC2 <  0 ~ "Q3",
-        s.PC1 >= 0 & s.PC2 <  0 ~ "Q4"
-      )
-    ) %>%
-    group_by(quadrant) %>%
-    slice_max(dist, n = ceiling(n_label / 4)) %>%
-    ungroup() %>%
-    mutate(label = if_else(nchar(set) > 35,
-                           str_trunc(set, 35, ellipsis = "..."),
-                           set))
-
   ggplot(df, aes(x = s.PC1, y = s.PC2)) +
-    geom_point(aes(color = -log10(p.adjustMANOVA)), alpha = 0.7, size = 2) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
-    geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
-    ggrepel::geom_text_repel(
-      data = df_label,
-      aes(label = label),
-      size = 2.8, max.overlaps = 20
-    ) +
-    scale_color_gradient(low = "grey80", high = "#d6604d") +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "grey70") +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "grey70") +
+    geom_point(aes(size = setSize,
+                   color = -log10(p.adjustMANOVA)),
+               alpha = 0.8) +
+    geom_text_repel(data = labels_df,
+                    aes(label = label),
+                    size = 3, max.overlaps = 20) +
+    scale_color_viridis_c() +
+    scale_size_continuous(breaks = c(10, 25, 50, 100, 250)) +
     labs(
       title = title,
-      x = "Effect size PC1 (s.PC1)",
-      y = "Effect size PC2 (s.PC2)",
+      subtitle = paste0(
+        "PC1 vs cell volume: Spearman r = ",
+        round(pc_vol_cor$cor_PC1_vol, 3),
+        "  |  PC2 vs cell volume: Spearman r = ",
+        round(pc_vol_cor$cor_PC2_vol, 3)
+      ),
+      x     = "Effect size PC1 (s.PC1)",
+      y     = "Effect size PC2 (s.PC2)",
+      size  = "No. target genes per TF",
       color = expression(-log[10]("adj. p-value"))
     ) +
-    theme_bw()
-}
-
-# Single-PC dot plot for top TFs by effect size
-plot_tf_single <- function(df, pc_col, title, n_top = 20) {
-  if (nrow(df) == 0) return(NULL)
-  library(ggrepel)
-
-  df_top <- df %>%
-    arrange(desc(abs(.data[[pc_col]]))) %>%
-    slice_head(n = n_top) %>%
-    mutate(
-      label = if_else(nchar(set) > 45, str_trunc(set, 45, "..."), set),
-      label = fct_reorder(label, .data[[pc_col]]),
-      direction = if_else(.data[[pc_col]] > 0,
-                          "Positive (high PC score)",
-                          "Negative (low PC score)")
-    )
-
-  ggplot(df_top, aes(x = .data[[pc_col]], y = label,
-                     size = -log10(p.adjustMANOVA), color = direction)) +
-    geom_point(alpha = 0.8) +
-    geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
-    scale_color_manual(values = c(
-      "Positive (high PC score)" = "#d6604d",
-      "Negative (low PC score)"  = "#4393c3"
-    )) +
-    labs(
-      title = title,
-      x = paste0("Effect size (", pc_col, ")"),
-      y = NULL,
-      size  = expression(-log[10]("adj. p")),
-      color = "Direction"
-    ) +
     theme_bw() +
-    theme(axis.text.y = element_text(size = 8))
+    theme(plot.subtitle = element_text(size = 8, color = "grey40"))
 }
 ```
 
-```{r plots-table-a, fig.width=10, fig.height=9}
-plot_tf_2d(mitch_tf_a,     "TF enrichment - Table A binding (mitch 2D)")
-plot_tf_single(mitch_tf_a, "s.PC1", "TF enrichment - Table A, PC1 top 20")
-plot_tf_single(mitch_tf_a, "s.PC2", "TF enrichment - Table A, PC2 top 20")
+```{r plots-table-a, fig.width=9, fig.height=8}
+plot_tf_2d(df_a, "TF enrichment - Table A binding (mitch)")
 ```
 
-```{r plots-table-c, fig.width=10, fig.height=9}
-plot_tf_2d(mitch_tf_c,     "TF enrichment - Table C activation/repression (mitch 2D)")
-plot_tf_single(mitch_tf_c, "s.PC1", "TF enrichment - Table C, PC1 top 20")
-plot_tf_single(mitch_tf_c, "s.PC2", "TF enrichment - Table C, PC2 top 20")
+```{r plots-table-c, fig.width=9, fig.height=8}
+plot_tf_2d(df_c_activated, "TF enrichment - Table C activated (mitch)",
+           show_regulation = FALSE)
+plot_tf_2d(df_c_repressed, "TF enrichment - Table C repressed (mitch)",
+           show_regulation = FALSE)
 ```
 
-```{r plots-table-e, fig.width=10, fig.height=9}
-plot_tf_2d(mitch_tf_e,     "TF enrichment - Table E direct targets (mitch 2D)")
-plot_tf_single(mitch_tf_e, "s.PC1", "TF enrichment - Table E, PC1 top 20")
-plot_tf_single(mitch_tf_e, "s.PC2", "TF enrichment - Table E, PC2 top 20")
+```{r plots-table-e, fig.width=9, fig.height=8}
+plot_tf_2d(df_e_activated, "TF enrichment - Table E direct activated (mitch)",
+           show_regulation = FALSE)
+plot_tf_2d(df_e_repressed, "TF enrichment - Table E direct repressed (mitch)",
+           show_regulation = FALSE)
 ```
 
 ```{r save-outputs}
-write_tsv(mitch_tf_a, file.path(output_dir, "tf_mitch_tableA.txt"))
-write_tsv(mitch_tf_c, file.path(output_dir, "tf_mitch_tableC.txt"))
-write_tsv(mitch_tf_e, file.path(output_dir, "tf_mitch_tableE.txt"))
+write_tsv(df_a,           file.path(output_dir, "tf_mitch_tableA.txt"))
+write_tsv(df_c_activated, file.path(output_dir, "tf_mitch_tableC_activated.txt"))
+write_tsv(df_c_repressed, file.path(output_dir, "tf_mitch_tableC_repressed.txt"))
+write_tsv(df_e_activated, file.path(output_dir, "tf_mitch_tableE_activated.txt"))
+write_tsv(df_e_repressed, file.path(output_dir, "tf_mitch_tableE_repressed.txt"))
 
-save_plot <- function(p, fname, w = 10, h = 9) {
-  if (!is.null(p)) ggsave(file.path(figures_dir, fname), plot = p, width = w, height = h)
+plot_configs <- list(
+  list(df_a,           "tf_mitch_tableA_2d.png",          "Table A binding",          TRUE),
+  list(df_c_activated, "tf_mitch_tableC_activated_2d.png", "Table C activated",        FALSE),
+  list(df_c_repressed, "tf_mitch_tableC_repressed_2d.png", "Table C repressed",        FALSE),
+  list(df_e_activated, "tf_mitch_tableE_activated_2d.png", "Table E direct activated", FALSE),
+  list(df_e_repressed, "tf_mitch_tableE_repressed_2d.png", "Table E direct repressed", FALSE)
+)
+
+for (cfg in plot_configs) {
+  p <- plot_tf_2d(cfg[[1]],
+                  paste("TF enrichment -", cfg[[3]], "(mitch)"),
+                  show_regulation = cfg[[4]])
+  ggsave(file.path(figures_dir, cfg[[2]]),
+         plot = p, width = 9, height = 8)
 }
-
-save_plot(plot_tf_2d(mitch_tf_a, "TF enrichment - Table A (mitch 2D)"),
-          "tf_mitch_tableA_2d.png")
-save_plot(plot_tf_single(mitch_tf_a, "s.PC1", "TF enrichment - Table A, PC1"),
-          "tf_mitch_tableA_pc1.png")
-save_plot(plot_tf_single(mitch_tf_a, "s.PC2", "TF enrichment - Table A, PC2"),
-          "tf_mitch_tableA_pc2.png")
-
-save_plot(plot_tf_2d(mitch_tf_c, "TF enrichment - Table C (mitch 2D)"),
-          "tf_mitch_tableC_2d.png")
-save_plot(plot_tf_single(mitch_tf_c, "s.PC1", "TF enrichment - Table C, PC1"),
-          "tf_mitch_tableC_pc1.png")
-save_plot(plot_tf_single(mitch_tf_c, "s.PC2", "TF enrichment - Table C, PC2"),
-          "tf_mitch_tableC_pc2.png")
-
-save_plot(plot_tf_2d(mitch_tf_e, "TF enrichment - Table E (mitch 2D)"),
-          "tf_mitch_tableE_2d.png")
-save_plot(plot_tf_single(mitch_tf_e, "s.PC1", "TF enrichment - Table E, PC1"),
-          "tf_mitch_tableE_pc1.png")
-save_plot(plot_tf_single(mitch_tf_e, "s.PC2", "TF enrichment - Table E, PC2"),
-          "tf_mitch_tableE_pc2.png")
 
 cat("Done - results saved to output_tables/ and figures/\n")
 ```

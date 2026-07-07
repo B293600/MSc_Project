@@ -1,0 +1,217 @@
+---
+title: "GO Enrichment of TF Target Gene Sets (Table E)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+project_dir <- file.path(path.expand("~"), "Downloads", "AC_combined_analysis", "Adriana_analysis")
+tables_dir  <- file.path(project_dir, "tables")
+figures_dir <- file.path(project_dir, "figures")
+output_dir  <- file.path(project_dir, "output_tables")
+
+dir.create(figures_dir, showWarnings = FALSE)
+dir.create(output_dir, showWarnings = FALSE)
+```
+
+```{r libraries}
+library(tidyverse)
+library(readxl)
+library(clusterProfiler)
+library(org.Sc.sgd.db)
+
+select <- dplyr::select
+```
+
+```{r load-mitch-results}
+# ---------------------------------------------------------
+# Load mitch TF enrichment results from script 05.
+# Use Table E (direct targets: bound + regulated) as it is
+# the most stringent and biologically interpretable.
+# Activated and repressed run separately (script 05 design)
+# so load both and combine with a direction label.
+# ---------------------------------------------------------
+df_e_activated <- read_tsv(
+  file.path(output_dir, "tf_mitch_tableE_activated.txt"),
+  show_col_types = FALSE
+) %>% mutate(direction = "activated")
+
+df_e_repressed <- read_tsv(
+  file.path(output_dir, "tf_mitch_tableE_repressed.txt"),
+  show_col_types = FALSE
+) %>% mutate(direction = "repressed")
+
+df_e_all <- bind_rows(df_e_activated, df_e_repressed)
+
+cat("Table E activated sets:", nrow(df_e_activated), "\n")
+cat("Table E repressed sets:", nrow(df_e_repressed), "\n")
+```
+
+```{r select-top-tfs}
+# ---------------------------------------------------------
+# Select top 10 TFs to run GO enrichment on:
+# top 5 by positive s.PC1 (active TOR/PKA signalling axis)
+# top 5 by positive s.PC2 (large cell axis)
+# Union of both, deduplicated.
+# Using positive ends of each axis as these showed the
+# strongest and most interpretable signals in script 05.
+# ---------------------------------------------------------
+top_pc1 <- df_e_all %>%
+  arrange(desc(s.PC1)) %>%
+  slice_head(n = 5) %>%
+  pull(TF)
+
+top_pc2 <- df_e_all %>%
+  arrange(desc(s.PC2)) %>%
+  slice_head(n = 5) %>%
+  pull(TF)
+
+selected_tfs <- union(top_pc1, top_pc2)
+cat("Selected TFs for GO enrichment:\n")
+print(selected_tfs)
+```
+
+```{r load-table-e}
+# ---------------------------------------------------------
+# Load Table E to extract target gene lists per TF.
+# Table E = direct targets (TF both binds and regulates gene).
+# Sign convention: log2FC < 0 = activated, log2FC > 0 = repressed
+# on TF depletion.
+# Filter to common genes used in script 05.
+# ---------------------------------------------------------
+pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
+                      show_col_types = FALSE)
+table_a   <- read_excel(file.path(tables_dir, "Supp Table 3.xlsx"),
+                        sheet = "Table-S3a")
+table_e   <- read_excel(file.path(tables_dir, "Supp Table 3.xlsx"),
+                        sheet = "Table-S3e")
+
+common_genes <- intersect(pca_genes$gene_id, table_a$gene_id)
+table_e <- table_e %>% filter(gene_id %in% common_genes)
+
+# Build target gene lists per TF (activated + repressed combined)
+# for selected TFs only - all regulated targets regardless of direction
+table_e_long <- table_e %>%
+  pivot_longer(-gene_id, names_to = "TF", values_to = "log2FC") %>%
+  filter(!is.na(log2FC), TF %in% selected_tfs)
+
+tf_target_lists <- table_e_long %>%
+  group_by(TF) %>%
+  summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+  deframe()
+
+cat("Target gene counts per TF:\n")
+print(map_int(tf_target_lists, length))
+```
+
+```{r run-go-enrichment}
+# ---------------------------------------------------------
+# Run enrichGO for each selected TF's target gene list.
+# Background universe = all common PCA genes (consistent
+# with scripts 01 and 05).
+# Collect top 5 terms per TF for plotting.
+# ---------------------------------------------------------
+universe <- common_genes
+
+run_go_per_tf <- function(tf_name, gene_list, universe) {
+  tryCatch({
+    ego <- enrichGO(
+      gene          = gene_list,
+      universe      = universe,
+      OrgDb         = org.Sc.sgd.db,
+      keyType       = "ORF",
+      ont           = "BP",
+      pAdjustMethod = "BH",
+      pvalueCutoff  = 0.05,
+      qvalueCutoff  = 0.2
+    )
+    df <- as.data.frame(ego)
+    if (nrow(df) == 0) return(NULL)
+    df %>%
+      arrange(p.adjust) %>%
+      slice_head(n = 5) %>%
+      mutate(TF = tf_name)
+  }, error = function(e) {
+    cat("Error for TF", tf_name, ":", conditionMessage(e), "\n")
+    NULL
+  })
+}
+
+cat("Running GO enrichment for", length(tf_target_lists), "TFs...\n")
+
+go_results <- imap(tf_target_lists, ~run_go_per_tf(.y, .x, universe)) %>%
+  compact() %>%
+  bind_rows()
+
+cat("GO enrichment complete.\n")
+cat("TFs with significant GO terms:",
+    length(unique(go_results$TF)), "of", length(selected_tfs), "\n")
+```
+
+```{r plot, fig.width=14, fig.height=10}
+# ---------------------------------------------------------
+# Faceted dot plot: one facet per TF, top 5 GO terms (BP)
+# ordered by adjusted p-value within each facet.
+# Dot size = gene count, colour = significance.
+# TF order reflects PC1/PC2 axis membership.
+# ---------------------------------------------------------
+# Order TFs: PC1 axis first, then PC2 axis
+tf_order <- c(
+  intersect(top_pc1, unique(go_results$TF)),
+  setdiff(intersect(top_pc2, unique(go_results$TF)),
+          top_pc1)
+)
+
+go_plot_df <- go_results %>%
+  mutate(
+    Description_short = if_else(
+      nchar(Description) > 45,
+      str_trunc(Description, 45, ellipsis = "..."),
+      Description
+    ),
+    TF = factor(TF, levels = tf_order),
+    neg_log10_padj = -log10(p.adjust)
+  ) %>%
+  group_by(TF) %>%
+  mutate(Description_short = fct_reorder(
+    Description_short, neg_log10_padj)) %>%
+  ungroup()
+
+p <- ggplot(go_plot_df,
+            aes(x = neg_log10_padj, y = Description_short,
+                size = Count, color = neg_log10_padj)) +
+  geom_point(alpha = 0.8) +
+  facet_wrap(~TF, scales = "free_y", ncol = 3) +
+  scale_color_gradient(low = "#74c476", high = "#d6604d") +
+  labs(
+    title = "GO enrichment (BP) of direct TF target genes (Table E)",
+    subtitle = paste0(
+      "Top 5 significant GO terms per TF | ",
+      "TFs selected from mitch Table E enrichment (script 05) | ",
+      "Background: ", length(universe), " PCA genes"
+    ),
+    x     = expression(-log[10]("adjusted p-value")),
+    y     = NULL,
+    size  = "Gene count",
+    color = expression(-log[10]("adj. p"))
+  ) +
+  theme_bw(base_size = 9) +
+  theme(
+    axis.text.y  = element_text(size = 7),
+    strip.text   = element_text(face = "bold", size = 9),
+    plot.subtitle = element_text(size = 7, color = "grey40")
+  )
+
+print(p)
+```
+
+```{r save-outputs}
+write_tsv(go_results,
+          file.path(output_dir, "go_tf_targets_tableE.txt"))
+
+ggsave(file.path(figures_dir, "figure_go_tf_targets.png"),
+       plot = p, width = 14, height = 10)
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```

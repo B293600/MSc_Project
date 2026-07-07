@@ -199,7 +199,7 @@ cat("GO gene sets built:", length(go_genesets), "\n")
 # Tables A (binding), C (activation/repression), E (direct)
 # Same construction as script 05
 # ---------------------------------------------------------
-supp_path <- file.path(tables_dir, "Supp Table 3.xlsx")
+supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
 table_a   <- read_excel(supp_path, sheet = "Table-S3a")
 table_c   <- read_excel(supp_path, sheet = "Table-S3c")
 table_e   <- read_excel(supp_path, sheet = "Table-S3e")

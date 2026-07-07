@@ -38,6 +38,47 @@ if (!requireNamespace("fgsea", quietly = TRUE)) {
 }
 ```
 
+```{r establish-pc-directions}
+# ---------------------------------------------------------
+# Establish biological direction of PC1 and PC2 by correlating
+# sample-level PC scores with mean cell volume.
+#
+# PC1 vs cell volume: Spearman r = -0.216
+#   -> PC1 reflects TOR/PKA signalling state, not cell size
+#   -> Positive NES (high PC1) = active TOR/PKA signalling
+#   -> Negative NES (low PC1)  = TOR/PKA inhibited
+#
+# PC2 vs cell volume: Spearman r = +0.795
+#   -> PC2 is the primary cell size axis
+#   -> Positive NES (high PC2) = genes upregulated in large cells
+#   -> Negative NES (low PC2)  = genes upregulated in small cells
+# ---------------------------------------------------------
+pca_samples <- read_tsv(file.path(tables_dir, "PCA_samples_AC.txt"),
+                        show_col_types = FALSE)
+
+pc_vol_cor <- pca_samples %>%
+  filter(!is.na(mean_cell_volume)) %>%
+  summarise(
+    cor_PC1_vol = cor(PC1, mean_cell_volume, method = "spearman"),
+    cor_PC2_vol = cor(PC2, mean_cell_volume, method = "spearman")
+  )
+
+cat("PC1 vs cell volume (Spearman r):", round(pc_vol_cor$cor_PC1_vol, 3), "\n")
+cat("PC2 vs cell volume (Spearman r):", round(pc_vol_cor$cor_PC2_vol, 3), "\n")
+
+pc1_subtitle <- paste0(
+  "PC1 vs cell volume: Spearman r = ",
+  round(pc_vol_cor$cor_PC1_vol, 3),
+  "  |  PC1 reflects TOR/PKA signalling state, not cell size"
+)
+
+pc2_subtitle <- paste0(
+  "PC2 vs cell volume: Spearman r = ",
+  round(pc_vol_cor$cor_PC2_vol, 3),
+  "  |  PC2 is the primary cell size axis"
+)
+```
+
 ```{r load-pca}
 # ---------------------------------------------------------
 # PC1/PC2 gene scores - ranked lists for GSEA input
@@ -69,7 +110,7 @@ cat("PC2 ranked list:", length(ranked_pc2), "genes\n")
 #            on TF depletion
 #   Table E: direct targets (bound + regulated)
 # ---------------------------------------------------------
-supp_path <- file.path(tables_dir, "Supp Table 3.xlsx")
+supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
 table_a   <- read_excel(supp_path, sheet = "Table-S3a")
 table_c   <- read_excel(supp_path, sheet = "Table-S3c")
 table_e   <- read_excel(supp_path, sheet = "Table-S3e")
@@ -196,7 +237,7 @@ gsea_tf_e_pc2 <- run_fgsea(ranked_pc2, genesets_tf_e, "PC2 - Table E")
 # coloured by direction - matching script 03 GO GSEA format
 # for direct cross-method comparison
 # ---------------------------------------------------------
-plot_tf_gsea <- function(result, title, n_top = 20) {
+plot_tf_gsea <- function(result, title, subtitle = NULL, n_top = 20) {
   sig <- result %>% filter(padj < 0.05)
 
   if (nrow(sig) == 0) {
@@ -227,7 +268,8 @@ plot_tf_gsea <- function(result, title, n_top = 20) {
       "Negative NES\n(low PC score)"  = "#4393c3"
     )) +
     labs(
-      title = title,
+      title    = title,
+      subtitle = subtitle,
       x = "Normalised Enrichment Score (NES)",
       y = NULL,
       size  = "Gene set size",
@@ -236,24 +278,31 @@ plot_tf_gsea <- function(result, title, n_top = 20) {
     theme_bw() +
     theme(
       axis.text.y     = element_text(size = 8),
-      legend.position = "right"
+      legend.position = "right",
+      plot.subtitle   = element_text(size = 8, color = "grey40")
     )
 }
 ```
 
 ```{r plots-table-a, fig.width=10, fig.height=9}
-plot_tf_gsea(gsea_tf_a_pc1, "TF enrichment GSEA - Table A binding, PC1")
-plot_tf_gsea(gsea_tf_a_pc2, "TF enrichment GSEA - Table A binding, PC2")
+plot_tf_gsea(gsea_tf_a_pc1, "TF enrichment GSEA - Table A binding, PC1",
+             subtitle = pc1_subtitle)
+plot_tf_gsea(gsea_tf_a_pc2, "TF enrichment GSEA - Table A binding, PC2",
+             subtitle = pc2_subtitle)
 ```
 
 ```{r plots-table-c, fig.width=10, fig.height=9}
-plot_tf_gsea(gsea_tf_c_pc1, "TF enrichment GSEA - Table C act/rep, PC1")
-plot_tf_gsea(gsea_tf_c_pc2, "TF enrichment GSEA - Table C act/rep, PC2")
+plot_tf_gsea(gsea_tf_c_pc1, "TF enrichment GSEA - Table C act/rep, PC1",
+             subtitle = pc1_subtitle)
+plot_tf_gsea(gsea_tf_c_pc2, "TF enrichment GSEA - Table C act/rep, PC2",
+             subtitle = pc2_subtitle)
 ```
 
 ```{r plots-table-e, fig.width=10, fig.height=9}
-plot_tf_gsea(gsea_tf_e_pc1, "TF enrichment GSEA - Table E direct targets, PC1")
-plot_tf_gsea(gsea_tf_e_pc2, "TF enrichment GSEA - Table E direct targets, PC2")
+plot_tf_gsea(gsea_tf_e_pc1, "TF enrichment GSEA - Table E direct targets, PC1",
+             subtitle = pc1_subtitle)
+plot_tf_gsea(gsea_tf_e_pc2, "TF enrichment GSEA - Table E direct targets, PC2",
+             subtitle = pc2_subtitle)
 ```
 
 ```{r save-outputs}
@@ -280,16 +329,18 @@ write_tsv(flatten_leading_edge(gsea_tf_e_pc2),
 
 # Save figures
 plot_pairs <- list(
-  list(gsea_tf_a_pc1, "tf_gsea_tableA_pc1.png", "Table A binding, PC1"),
-  list(gsea_tf_a_pc2, "tf_gsea_tableA_pc2.png", "Table A binding, PC2"),
-  list(gsea_tf_c_pc1, "tf_gsea_tableC_pc1.png", "Table C act/rep, PC1"),
-  list(gsea_tf_c_pc2, "tf_gsea_tableC_pc2.png", "Table C act/rep, PC2"),
-  list(gsea_tf_e_pc1, "tf_gsea_tableE_pc1.png", "Table E direct, PC1"),
-  list(gsea_tf_e_pc2, "tf_gsea_tableE_pc2.png", "Table E direct, PC2")
+  list(gsea_tf_a_pc1, "tf_gsea_tableA_pc1.png", "Table A binding, PC1",    pc1_subtitle),
+  list(gsea_tf_a_pc2, "tf_gsea_tableA_pc2.png", "Table A binding, PC2",    pc2_subtitle),
+  list(gsea_tf_c_pc1, "tf_gsea_tableC_pc1.png", "Table C act/rep, PC1",    pc1_subtitle),
+  list(gsea_tf_c_pc2, "tf_gsea_tableC_pc2.png", "Table C act/rep, PC2",    pc2_subtitle),
+  list(gsea_tf_e_pc1, "tf_gsea_tableE_pc1.png", "Table E direct, PC1",     pc1_subtitle),
+  list(gsea_tf_e_pc2, "tf_gsea_tableE_pc2.png", "Table E direct, PC2",     pc2_subtitle)
 )
 
 for (pp in plot_pairs) {
-  p <- plot_tf_gsea(pp[[1]], paste("TF enrichment GSEA -", pp[[3]]))
+  p <- plot_tf_gsea(pp[[1]],
+                    paste("TF enrichment GSEA -", pp[[3]]),
+                    subtitle = pp[[4]])
   if (!is.null(p)) {
     ggsave(file.path(figures_dir, pp[[2]]),
            plot = p, width = 10, height = 9)
