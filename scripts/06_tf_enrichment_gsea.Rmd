@@ -6,23 +6,20 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# ---------------------------------------------------------
-# TF enrichment via GSEA (cross-check against script 05 mitch)
-# Key difference from script 05:
-# - Uses full ranked PC1/PC2 gene list (no discrete cutoff)
-# - Gene sets from Mahendrawada et al. 2025 Tables A/C/E
-# - fgsea package rather than mitch
-# - Produces NES-based output directly comparable to
-#   script 03 (GO GSEA) for cross-method consistency
-# ---------------------------------------------------------
+# TF enrichment via GSEA, cross-checking script 05 (mitch). Key
+# differences: uses the full ranked PC1/PC2 gene list rather than a
+# discrete cutoff, gene sets from Mahendrawada et al. 2025 Tables A/C/E,
+# fgsea rather than mitch, and produces NES output directly comparable
+# to script 03 (GO GSEA) for cross-method consistency.
 
-project_dir <- file.path(path.expand("~"), "Downloads", "AC_combined_analysis", "Adriana_analysis")
-tables_dir  <- file.path(project_dir, "tables")
-figures_dir <- file.path(project_dir, "figures")
-output_dir  <- file.path(project_dir, "output_tables")
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
 
-dir.create(figures_dir, showWarnings = FALSE)
-dir.create(output_dir, showWarnings = FALSE)
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
 ```
 
 ```{r libraries}
@@ -36,23 +33,18 @@ select <- dplyr::select
 if (!requireNamespace("fgsea", quietly = TRUE)) {
   BiocManager::install("fgsea")
 }
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
 ```
 
 ```{r establish-pc-directions}
-# ---------------------------------------------------------
-# Establish biological direction of PC1 and PC2 by correlating
-# sample-level PC scores with mean cell volume.
-#
-# PC1 vs cell volume: Spearman r = -0.216
-#   -> PC1 reflects TOR/PKA signalling state, not cell size
-#   -> Positive NES (high PC1) = active TOR/PKA signalling
-#   -> Negative NES (low PC1)  = TOR/PKA inhibited
-#
-# PC2 vs cell volume: Spearman r = +0.795
-#   -> PC2 is the primary cell size axis
-#   -> Positive NES (high PC2) = genes upregulated in large cells
-#   -> Negative NES (low PC2)  = genes upregulated in small cells
-# ---------------------------------------------------------
+# Establish biological direction of PC1/PC2 by correlating sample-level
+# PC scores with mean cell volume. PC1 vs volume: Spearman r = -0.216,
+# so PC1 reflects TOR/PKA signalling state rather than cell size
+# (positive NES = active signalling, negative = inhibited). PC2 vs
+# volume: Spearman r = +0.795, so PC2 is the primary cell size axis
+# (positive NES = upregulated in large cells, negative = small cells).
 pca_samples <- read_tsv(file.path(tables_dir, "PCA_samples_AC.txt"),
                         show_col_types = FALSE)
 
@@ -80,10 +72,8 @@ pc2_subtitle <- paste0(
 ```
 
 ```{r load-pca}
-# ---------------------------------------------------------
-# PC1/PC2 gene scores - ranked lists for GSEA input
-# Same approach as script 03 (GO GSEA)
-# ---------------------------------------------------------
+# PC1/PC2 gene scores as ranked lists for GSEA input, same approach as
+# script 03 (GO GSEA)
 pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
                       show_col_types = FALSE)
 
@@ -102,14 +92,10 @@ cat("PC2 ranked list:", length(ranked_pc2), "genes\n")
 ```
 
 ```{r build-tf-genesets}
-# ---------------------------------------------------------
-# TF gene sets from Mahendrawada et al. 2025 Supp Table 3
-# Three collections, as per scripts 05 and 07:
-#   Table A: binding (TF binds gene = 1)
-#   Table C: activated (log2FC < 0) / repressed (log2FC > 0)
-#            on TF depletion
-#   Table E: direct targets (bound + regulated)
-# ---------------------------------------------------------
+# TF gene sets from Mahendrawada et al. 2025 Supp Table 3, as per
+# scripts 05 and 07: Table A is binding (TF binds gene = 1), Table C is
+# activated (log2FC < 0) / repressed (log2FC > 0) on TF depletion, and
+# Table E is direct targets (bound + regulated).
 supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
 table_a   <- read_excel(supp_path, sheet = "Table-S3a")
 table_c   <- read_excel(supp_path, sheet = "Table-S3c")
@@ -178,9 +164,7 @@ cat("TF gene sets - Table A:", length(genesets_tf_a),
 ```
 
 ```{r check-overlap}
-# ---------------------------------------------------------
 # Sanity check: gene ID overlap between PCA and TF tables
-# ---------------------------------------------------------
 pca_ids <- names(ranked_pc1)
 cat("Genes in PCA:", length(pca_ids), "\n")
 cat("PCA genes in Table A targets:", length(intersect(pca_ids, unlist(genesets_tf_a))), "\n")
@@ -189,13 +173,10 @@ cat("PCA genes in Table E targets:", length(intersect(pca_ids, unlist(genesets_t
 ```
 
 ```{r run-gsea-function}
-# ---------------------------------------------------------
-# fgsea wrapper - runs GSEA for one ranked list and one
-# collection of gene sets, returns tidy results table.
-# minSize/maxSize filter gene sets by size, matching
-# the minGSSize used in scripts 03 and 05.
-# nPermSimple = 1000 is standard; seed for reproducibility.
-# ---------------------------------------------------------
+# fgsea wrapper - runs GSEA for one ranked list and one collection of
+# gene sets, returns a tidy results table. minSize/maxSize filter gene
+# sets by size, matching the minGSSize used in scripts 03 and 05.
+# nPermSimple = 1000 is standard; seed set for reproducibility.
 run_fgsea <- function(ranked_list, genesets, label,
                       min_size = 5, max_size = 500,
                       n_perm = 1000) {
@@ -232,11 +213,9 @@ gsea_tf_e_pc2 <- run_fgsea(ranked_pc2, genesets_tf_e, "PC2 - Table E")
 ```
 
 ```{r plot-function}
-# ---------------------------------------------------------
-# NES dot plot: top 20 significant TF sets by absolute NES,
-# coloured by direction - matching script 03 GO GSEA format
-# for direct cross-method comparison
-# ---------------------------------------------------------
+# NES dot plot: top 20 significant TF sets by absolute NES, coloured by
+# direction - matching script 03 GO GSEA format for direct cross-method
+# comparison.
 plot_tf_gsea <- function(result, title, subtitle = NULL, n_top = 20) {
   sig <- result %>% filter(padj < 0.05)
 
@@ -249,9 +228,7 @@ plot_tf_gsea <- function(result, title, subtitle = NULL, n_top = 20) {
     arrange(desc(abs(NES))) %>%
     slice_head(n = n_top) %>%
     mutate(
-      label = if_else(nchar(pathway) > 45,
-                      str_trunc(pathway, 45, ellipsis = "..."),
-                      pathway),
+      label = truncate_label(pathway, width = 45),
       label = fct_reorder(label, NES),
       direction = if_else(NES > 0,
                           "Positive NES\n(high PC score)",
@@ -262,10 +239,10 @@ plot_tf_gsea <- function(result, title, subtitle = NULL, n_top = 20) {
                      size = size, color = direction)) +
     geom_point(alpha = 0.8) +
     geom_vline(xintercept = 0, linetype = "dashed",
-               color = "grey50") +
+               color = project_colours["grey"]) +
     scale_color_manual(values = c(
-      "Positive NES\n(high PC score)" = "#d6604d",
-      "Negative NES\n(low PC score)"  = "#4393c3"
+      "Positive NES\n(high PC score)" = project_colours["red"],
+      "Negative NES\n(low PC score)"  = project_colours["blue"]
     )) +
     labs(
       title    = title,
@@ -306,10 +283,8 @@ plot_tf_gsea(gsea_tf_e_pc2, "TF enrichment GSEA - Table E direct targets, PC2",
 ```
 
 ```{r save-outputs}
-# ---------------------------------------------------------
-# Save results tables (leadingEdge column is a list -
-# convert to semicolon-separated string for TSV export)
-# ---------------------------------------------------------
+# Save results tables (leadingEdge is a list column - convert to a
+# semicolon-separated string for TSV export)
 flatten_leading_edge <- function(df) {
   df %>% mutate(leadingEdge = map_chr(leadingEdge, paste, collapse = ";"))
 }

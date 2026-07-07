@@ -1,0 +1,156 @@
+---
+title: "GO Enrichment - clusterProfiler (PC1/PC2)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
+
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
+```
+
+```{r libraries}
+library(tidyverse)
+library(clusterProfiler)
+library(org.Sc.sgd.db)   # S. cerevisiae annotation
+
+# org.Sc.sgd.db loads AnnotationDbi, which masks dplyr::select() -
+# pin select() back to the dplyr version explicitly to avoid
+# "unable to find an inherited method" errors on tibbles
+select <- dplyr::select
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
+```
+
+```{r load-data}
+# PCA_genes_AC.txt holds gene-level PC scores (gene_id, PC1...PC93).
+# PC1-PC3 are confirmed the only biologically meaningful axes; PC1/PC2
+# match the stress-response pattern Adriana described (analogous to the
+# WT vs Torin/PhIAA-perturbed size-dependent trend). PC4 onward is noise.
+pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"), show_col_types = FALSE)
+
+pca_genes_long <- pca_genes %>%
+  select(gene_id, PC1, PC2) %>%
+  pivot_longer(c(PC1, PC2), names_to = "PC", values_to = "score")
+```
+
+```{r filter-top-bottom-10pct}
+# Take top/bottom 10% of PC1 and PC2 separately, per Adriana's original
+# approach (known limitation: a hard 10% cutoff can split genes with
+# near-identical scores - GSEA in script 03 addresses this instead)
+get_top_bottom_10pct <- function(df, pc_name) {
+  df_pc <- df %>% filter(PC == pc_name)
+  n <- nrow(df_pc)
+  cutoff_n <- ceiling(n * 0.1)
+
+  top <- df_pc %>% slice_max(score, n = cutoff_n) %>% pull(gene_id)
+  bottom <- df_pc %>% slice_min(score, n = cutoff_n) %>% pull(gene_id)
+
+  list(top = top, bottom = bottom)
+}
+
+pc1_genes <- get_top_bottom_10pct(pca_genes_long, "PC1")
+pc2_genes <- get_top_bottom_10pct(pca_genes_long, "PC2")
+
+cat("PC1 top 10%:", length(pc1_genes$top), "genes | bottom 10%:", length(pc1_genes$bottom), "genes\n")
+cat("PC2 top 10%:", length(pc2_genes$top), "genes | bottom 10%:", length(pc2_genes$bottom), "genes\n")
+```
+
+```{r run-enrichment-function}
+# Wrapper for enrichGO, reused across PC1/PC2 and top/bottom
+run_go_enrichment <- function(gene_list, universe, label) {
+  ego <- enrichGO(
+    gene          = gene_list,
+    universe      = universe,
+    OrgDb         = org.Sc.sgd.db,
+    keyType       = "ORF",
+    ont           = "ALL",
+    pAdjustMethod = "BH",
+    pvalueCutoff  = 0.05,
+    qvalueCutoff  = 0.2
+  )
+  cat(label, "-", nrow(as.data.frame(ego)), "enriched terms\n")
+  ego
+}
+
+all_genes_universe <- pca_genes$gene_id
+```
+
+```{r run-pc1}
+ego_pc1_top    <- run_go_enrichment(pc1_genes$top,    all_genes_universe, "PC1 top 10%")
+ego_pc1_bottom <- run_go_enrichment(pc1_genes$bottom, all_genes_universe, "PC1 bottom 10%")
+```
+
+```{r run-pc2}
+ego_pc2_top    <- run_go_enrichment(pc2_genes$top,    all_genes_universe, "PC2 top 10%")
+ego_pc2_bottom <- run_go_enrichment(pc2_genes$bottom, all_genes_universe, "PC2 bottom 10%")
+```
+
+```{r plot-function}
+# Plot top 20 terms by p-value, per Adriana's original plotting approach.
+# Long GO term names (e.g. some rRNA processing terms) can push the whole
+# plot off-canvas - truncate + wrap to avoid this
+plot_top20_terms <- function(ego, title) {
+  df <- as.data.frame(ego)
+  if (nrow(df) == 0) {
+    cat("No enriched terms for:", title, "\n")
+    return(NULL)
+  }
+
+  df_top20 <- df %>%
+    arrange(p.adjust) %>%
+    slice_head(n = 20) %>%
+    mutate(
+      Description_short = truncate_wrap_description(Description),
+      Description_short = fct_reorder(Description_short, -log10(p.adjust)),
+      neg_log10_padj = -log10(p.adjust)
+    )
+
+  ggplot(df_top20, aes(x = neg_log10_padj, y = Description_short, size = Count)) +
+    geom_point(color = project_colours["blue"]) +
+    labs(
+      title = title,
+      x = expression(-log[10]("adjusted p-value")),
+      y = NULL
+    ) +
+    theme_bw() +
+    theme(axis.text.y = element_text(size = 8))
+}
+```
+
+```{r plot-pc1, fig.width=9, fig.height=8}
+plot_top20_terms(ego_pc1_top,    "PC1 top 10% - GO enrichment (clusterProfiler)")
+plot_top20_terms(ego_pc1_bottom, "PC1 bottom 10% - GO enrichment (clusterProfiler)")
+```
+
+```{r plot-pc2, fig.width=9, fig.height=8}
+plot_top20_terms(ego_pc2_top,    "PC2 top 10% - GO enrichment (clusterProfiler)")
+plot_top20_terms(ego_pc2_bottom, "PC2 bottom 10% - GO enrichment (clusterProfiler)")
+```
+
+```{r save-outputs}
+# Save results tables and figures
+write_tsv(as.data.frame(ego_pc1_top),    file.path(output_dir, "go_clusterprofiler_pc1_top10pct.txt"))
+write_tsv(as.data.frame(ego_pc1_bottom), file.path(output_dir, "go_clusterprofiler_pc1_bottom10pct.txt"))
+write_tsv(as.data.frame(ego_pc2_top),    file.path(output_dir, "go_clusterprofiler_pc2_top10pct.txt"))
+write_tsv(as.data.frame(ego_pc2_bottom), file.path(output_dir, "go_clusterprofiler_pc2_bottom10pct.txt"))
+
+for (pc_label in c("pc1_top", "pc1_bottom", "pc2_top", "pc2_bottom")) {
+  ego_obj <- get(paste0("ego_", pc_label))
+  p <- plot_top20_terms(ego_obj, paste(toupper(pc_label), "- GO enrichment"))
+  if (!is.null(p)) {
+    ggsave(file.path(figures_dir, paste0("go_clusterprofiler_", pc_label, "10pct.png")),
+           plot = p, width = 10, height = 9)
+  }
+}
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```

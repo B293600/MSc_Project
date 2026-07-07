@@ -6,28 +6,23 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# ---------------------------------------------------------
-# Implementation of the 2D annotation enrichment method
-# described in Cox & Mann (2012) BMC Bioinformatics.
-# doi: 10.1186/1471-2105-13-S16-S12
-#
-# Method summary:
-# For each annotation term (GO term or TF target gene set),
-# tests whether member genes show a significantly different
-# joint distribution in PC1 x PC2 space compared to all
-# other genes. Uses MANOVA on per-dimension ranked data
-# (non-parametric generalisation of the Wilcoxon test to
-# 2D). Effect size reported as (s.PC1, s.PC2) score pair,
-# each bounded [-1, 1]. FDR controlled by Benjamini-Hochberg.
-# ---------------------------------------------------------
+# Implementation of the 2D annotation enrichment method from Cox & Mann
+# 2012, BMC Bioinformatics (doi: 10.1186/1471-2105-13-S16-S12). For each
+# annotation term (GO term or TF target gene set), tests whether member
+# genes show a significantly different joint distribution in PC1 x PC2
+# space compared to all other genes, using MANOVA on per-dimension
+# ranked data (a non-parametric generalisation of the Wilcoxon test to
+# 2D). Effect size is an (s.PC1, s.PC2) score pair, each bounded [-1, 1].
+# FDR controlled by Benjamini-Hochberg.
 
-project_dir <- file.path(path.expand("~"), "Downloads", "AC_combined_analysis", "Adriana_analysis")
-tables_dir  <- file.path(project_dir, "tables")
-figures_dir <- file.path(project_dir, "figures")
-output_dir  <- file.path(project_dir, "output_tables")
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
 
-dir.create(figures_dir, showWarnings = FALSE)
-dir.create(output_dir, showWarnings = FALSE)
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
 ```
 
 ```{r libraries}
@@ -38,21 +33,21 @@ library(AnnotationDbi)
 library(GO.db)
 
 select <- dplyr::select
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
 ```
 
 ```{r load-pca}
-# ---------------------------------------------------------
-# PC1/PC2 gene scores — only meaningful axes (PC4+ is noise)
-# ---------------------------------------------------------
+# PC1/PC2 gene scores, the only meaningful axes (PC4+ is noise)
 pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
                       show_col_types = FALSE)
 
 all_genes <- pca_genes$gene_id
 n_genes   <- length(all_genes)
 
-# Rank each PC dimension separately across all genes,
-# as per Cox & Mann: "the data is replaced by ranks in
-# each dimension separately"
+# Rank each PC dimension separately across all genes, per Cox & Mann:
+# "the data is replaced by ranks in each dimension separately"
 pca_ranked <- pca_genes %>%
   select(gene_id, PC1, PC2) %>%
   mutate(
@@ -66,17 +61,12 @@ cat("PC2 rank range:", range(pca_ranked$rank_PC2), "\n")
 ```
 
 ```{r cox-mann-function}
-# ---------------------------------------------------------
-# Core 2D annotation enrichment function
-# Implements Cox & Mann 2012 exactly:
-# 1. Split genes into group 1 (annotation term members)
-#    and group 2 (all remaining genes)
-# 2. Apply MANOVA to the pre-ranked PC1/PC2 values
-# 3. Extract p-value from MANOVA Pillai test statistic
-# 4. Calculate s-scores:
-#    s = 2 * (mean_rank_group1 - mean_rank_group2) / n
-#    bounded [-1, 1], positive = enriched at high PC score
-# ---------------------------------------------------------
+# Core 2D annotation enrichment function, implementing Cox & Mann 2012:
+# split genes into group 1 (annotation term members) and group 2 (all
+# remaining genes), apply MANOVA to the pre-ranked PC1/PC2 values,
+# extract a p-value from the MANOVA Pillai test statistic, and calculate
+# s-scores as s = 2 * (mean_rank_group1 - mean_rank_group2) / n, bounded
+# [-1, 1] with positive meaning enriched at high PC score.
 run_2d_enrichment_single <- function(gene_set, ranked_df, min_size = 5) {
   # filter gene set to genes present in PCA data
   members <- intersect(gene_set, ranked_df$gene_id)
@@ -108,8 +98,7 @@ run_2d_enrichment_single <- function(gene_set, ranked_df, min_size = 5) {
 
   p_value <- fit$stats["factor(group)", "Pr(>F)"]
 
-  # s-scores: 2*(mean_rank_g1 - mean_rank_g2) / n_total
-  # as defined in Cox & Mann eq. for s
+  # s-scores: 2*(mean_rank_g1 - mean_rank_g2) / n_total, per Cox & Mann
   n_total <- nrow(ranked_df)
   s_pc1 <- 2 * (mean(df_g1$rank_PC1) - mean(df_g2$rank_PC1)) / n_total
   s_pc2 <- 2 * (mean(df_g1$rank_PC2) - mean(df_g2$rank_PC2)) / n_total
@@ -152,10 +141,8 @@ run_2d_enrichment <- function(genesets, ranked_df, min_size = 5, label = "") {
 ```
 
 ```{r build-go-genesets}
-# ---------------------------------------------------------
-# Build GO gene sets from org.Sc.sgd.db + GO.db
-# (same approach as script 04 to keep annotation consistent)
-# ---------------------------------------------------------
+# Build GO gene sets from org.Sc.sgd.db + GO.db, same approach as
+# script 04 to keep annotation consistent
 cat("Building GO gene sets from org.Sc.sgd.db...\n")
 
 build_go_genesets <- function(ontology) {
@@ -194,11 +181,8 @@ cat("GO gene sets built:", length(go_genesets), "\n")
 ```
 
 ```{r build-tf-genesets}
-# ---------------------------------------------------------
-# TF gene sets from Mahendrawada et al. 2025
-# Tables A (binding), C (activation/repression), E (direct)
-# Same construction as script 05
-# ---------------------------------------------------------
+# TF gene sets from Mahendrawada et al. 2025, Tables A (binding), C
+# (activation/repression), E (direct) - same construction as script 05
 supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
 table_a   <- read_excel(supp_path, sheet = "Table-S3a")
 table_c   <- read_excel(supp_path, sheet = "Table-S3c")
@@ -251,9 +235,7 @@ cat("TF gene sets - Table A:", length(genesets_tf_a),
 ```
 
 ```{r run-enrichment}
-# ---------------------------------------------------------
 # Run 2D enrichment across GO and TF gene sets
-# ---------------------------------------------------------
 results_go <- run_2d_enrichment(go_genesets,    pca_ranked, label = "GO terms")
 results_tf_a <- run_2d_enrichment(genesets_tf_a, pca_ranked, label = "TF binding (Table A)")
 results_tf_c <- run_2d_enrichment(genesets_tf_c, pca_ranked, label = "TF act/rep (Table C)")
@@ -261,11 +243,8 @@ results_tf_e <- run_2d_enrichment(genesets_tf_e, pca_ranked, label = "TF direct 
 ```
 
 ```{r plot-function}
-# ---------------------------------------------------------
-# 2D scatter plot of (s.PC1, s.PC2) for significant terms,
-# matching Cox & Mann Figure 4 layout.
-# Colour = significance; quadrant labels added.
-# ---------------------------------------------------------
+# 2D scatter plot of (s.PC1, s.PC2) for significant terms, matching Cox
+# & Mann Figure 4 layout. Colour = significance; quadrant labels added.
 if (!requireNamespace("ggrepel", quietly = TRUE)) install.packages("ggrepel")
 library(ggrepel)
 
@@ -292,19 +271,18 @@ plot_2d_enrichment <- function(results, title, fdr_cutoff = 0.05,
     group_by(quadrant) %>%
     slice_max(dist, n = ceiling(n_label / 4)) %>%
     ungroup() %>%
-    mutate(label = if_else(nchar(set) > 40,
-                           str_trunc(set, 40, ellipsis = "..."), set))
+    mutate(label = truncate_label(set, width = 40))
 
   ggplot(sig, aes(x = s.PC1, y = s.PC2)) +
     geom_point(aes(color = -log10(p.adjust)), alpha = 0.7, size = 2) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
-    geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+    geom_hline(yintercept = 0, linetype = "dashed", color = project_colours["grey"]) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours["grey"]) +
     ggrepel::geom_text_repel(
       data = df_label,
       aes(label = label),
       size = 2.5, max.overlaps = 20
     ) +
-    scale_color_gradient(low = "grey80", high = "#d6604d") +
+    scale_color_gradient(low = project_colours["white"], high = project_colours["red"]) +
     annotate("text", x = Inf,  y = Inf,  label = "high PC1\nhigh PC2",
              hjust = 1.1, vjust = 1.5, size = 2.8, color = "grey40") +
     annotate("text", x = -Inf, y = Inf,  label = "low PC1\nhigh PC2",

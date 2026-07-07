@@ -1,38 +1,30 @@
-# ============================================================
-# 00_add_dot6_tod6.R
-# Adds Dot6 and Tod6 gene sets to Supp Table 3 (Mahendrawada
-# et al. format) using:
-#   Table A (binding): YEASTRACT documented associations
-#                      (simultaneous binding + expression evidence)
-#   Table C (regulated): Huber et al. 2011 EMBO J mRNA-seq
-#                        (sch9-as dot6 tod6 vs sch9-as FC)
-#   Table E (direct):   Intersection of YEASTRACT targets and
-#                       Huber 2011 regulated genes
+# Adds Dot6 and Tod6 gene sets to Supp Table 3 (Mahendrawada et al. format).
+# Table A (binding) uses YEASTRACT documented associations (simultaneous
+# binding + expression evidence). Table C (regulated) uses Huber et al. 2011
+# EMBO J mRNA-seq (sch9-as dot6 tod6 vs sch9-as FC). Table E (direct) is the
+# intersection of YEASTRACT targets and Huber 2011 regulated genes.
 #
-# Source files:
-#   YEASTRACT: exported gene lists for Dot6p and Tod6p
-#   Huber 2011: Supplementary File F1 (emboj2011221s2.xls)
-# ============================================================
+# Source files: YEASTRACT exported gene lists for Dot6p and Tod6p, and the
+# Huber 2011 supplementary file (emboj2011221s2.xls).
+#
+# Assumes this script sits in Adriana_analysis/scripts/, with data/ and
+# tables/ as sibling folders. Edit the paths below if your layout differs.
 
 library(tidyverse)
 library(readxl)
 library(writexl)
+library(rstudioapi)
 
 select <- dplyr::select
 
-# ---------------------------------------------------------
-# Paths — update huber_path to wherever you saved the file
-# ---------------------------------------------------------
-huber_path  <- "~/Downloads/emboj2011221s2.xls"
-supp_path   <- "~/Downloads/AC_combined_analysis/Adriana_analysis/tables/Supp Table 3.xlsx"
-output_path <- "~/Downloads/AC_combined_analysis/Adriana_analysis/tables/Supp Table 3 updated.xlsx"
+# Set working directory to this script's location for relative paths
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
-# ---------------------------------------------------------
-# YEASTRACT gene lists (ORF IDs extracted from download)
-# Documented associations: simultaneous binding + expression
-# evidence — equivalent to Table E stringency in Mahendrawada
-# but used here as Table A since no separate ChIP data exists
-# ---------------------------------------------------------
+huber_path  <- "../data/emboj2011221s2.xls"
+supp_path   <- "../tables/Supp Table 3.xlsx"
+output_path <- "../tables/Supp Table 3 updated.xlsx"
+
+# YEASTRACT documented target genes (systematic ORF IDs)
 dot6_yeastract <- c(
   "YBR093C","YBR129C","YBR135W","YBR157C","YBR166C","YBR244W",
   "YBR265W","YCL027W","YCL025C","YDL227C","YDL117W","YDL012C",
@@ -87,13 +79,7 @@ cat("Dot6 YEASTRACT targets:", length(dot6_yeastract), "\n")
 cat("Tod6 YEASTRACT targets:", length(tod6_yeastract), "\n")
 cat("Shared:", length(intersect(dot6_yeastract, tod6_yeastract)), "\n")
 
-# ---------------------------------------------------------
-# Load Huber 2011 Fold sheet for Table C (regulated genes)
-# sch9-as dot6 tod6 column = FC of dot6Δ tod6Δ double mutant
-# vs sch9-as upon Sch9 inhibition with 1NM-PP1
-# Negative FC = gene less repressed in dot6 tod6 = normally
-# repressed by Dot6/Tod6 (matches Table C sign convention)
-# ---------------------------------------------------------
+# Load Huber 2011 fold-change data (double mutant vs sch9-as)
 cat("\nLoading Huber 2011 data...\n")
 huber <- readxl::read_xls(huber_path, sheet = "Fold") %>%
   rename(gene_id = ORF) %>%
@@ -101,9 +87,7 @@ huber <- readxl::read_xls(huber_path, sheet = "Fold") %>%
 
 cat("Huber genes with FC data:", nrow(huber), "\n")
 
-# ---------------------------------------------------------
-# Load existing Mahendrawada Supp Table 3 sheets
-# ---------------------------------------------------------
+# Load existing Supp Table 3 sheets to update
 cat("Loading Supp Table 3...\n")
 table_a <- read_excel(supp_path, sheet = "Table-S3a")
 table_c <- read_excel(supp_path, sheet = "Table-S3c")
@@ -113,10 +97,7 @@ cat("Table A:", nrow(table_a), "genes\n")
 cat("Table C:", nrow(table_c), "genes\n")
 cat("Table E:", nrow(table_e), "genes\n")
 
-# ---------------------------------------------------------
-# Table A: binary binding columns from YEASTRACT
-# 1 = documented target, 0 = not a documented target
-# ---------------------------------------------------------
+# Table A: flag documented Dot6/Tod6 targets as binary columns
 table_a_updated <- table_a %>%
   mutate(
     Dot6 = as.integer(gene_id %in% dot6_yeastract),
@@ -127,12 +108,11 @@ cat("\nTable A additions:\n")
 cat("  Dot6 targets in Table A:", sum(table_a_updated$Dot6), "\n")
 cat("  Tod6 targets in Table A:", sum(table_a_updated$Tod6), "\n")
 
-# ---------------------------------------------------------
-# Table C: log2FC from Huber 2011
-# Separate columns for Dot6 and Tod6 would require separate
-# single-mutant data which isn't available; use the double
-# mutant FC as a combined Dot6_Tod6 regulatory signal
-# ---------------------------------------------------------
+# Table C: add combined Dot6_Tod6 fold-change column from Huber 2011
+# NOTE FOR ADRIANA: this is a double-mutant (dot6Δ tod6Δ) signal
+# standing in for two separate single-TF columns, since individual
+# dot6Δ / tod6Δ FC data wasn't available in Huber 2011 — bear this
+# in mind if attributing effects to Dot6 or Tod6 individually.
 huber_fc <- huber %>%
   select(gene_id, Dot6_Tod6 = `sch9-as dot6 tod6`)
 
@@ -146,26 +126,19 @@ cat("  Repressed by Dot6/Tod6 (FC < 0):",
 cat("  Activated by Dot6/Tod6 (FC > 0):",
     sum(table_c_updated$Dot6_Tod6 > 0, na.rm = TRUE), "\n")
 
-# ---------------------------------------------------------
-# Table E: direct targets = YEASTRACT bound + Huber regulated
-# Use FC values from Huber, but only for genes that are also
-# in the YEASTRACT target lists for each TF
-# NA for genes not in YEASTRACT target list
-# ---------------------------------------------------------
+# Table E: keep Dot6_Tod6 FC only for genes also bound per YEASTRACT
 yeastract_union <- union(dot6_yeastract, tod6_yeastract)
 
 table_e_updated <- table_e %>%
   left_join(huber_fc, by = "gene_id") %>%
   mutate(Dot6_Tod6 = if_else(gene_id %in% yeastract_union,
-                              Dot6_Tod6, NA_real_))
+                             Dot6_Tod6, NA_real_))
 
 cat("\nTable E additions:\n")
 cat("  Direct Dot6_Tod6 targets (YEASTRACT + Huber FC):",
     sum(!is.na(table_e_updated$Dot6_Tod6)), "\n")
 
-# ---------------------------------------------------------
-# Save updated Supp Table 3
-# ---------------------------------------------------------
+# Write updated sheets to a new Supp Table 3 file
 cat("\nSaving updated Supp Table 3 to:\n", output_path, "\n")
 write_xlsx(
   list(
