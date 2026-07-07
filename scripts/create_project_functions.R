@@ -12,10 +12,10 @@ setup_project_paths <- function(project_dir = "..") {
   tables_dir  <- file.path(project_dir, "tables")
   figures_dir <- file.path(project_dir, "figures")
   output_dir  <- file.path(project_dir, "output_tables")
-
+  
   dir.create(figures_dir, showWarnings = FALSE)
   dir.create(output_dir, showWarnings = FALSE)
-
+  
   list(
     project_dir = project_dir,
     tables_dir  = tables_dir,
@@ -36,4 +36,15 @@ truncate_wrap_description <- function(description, trunc_width = 60, wrap_width 
   str_wrap(short, width = wrap_width)
 }
 
-save(setup_project_paths, truncate_wrap_description, file = "project_functions.rda")
+# Truncates a label to width characters with an ellipsis, without
+# wrapping - used for single-line labels (e.g. ggrepel points on 2D
+# scatter plots) where truncate_wrap_description's wrapping isn't wanted.
+truncate_label <- function(label, width = 40) {
+  if_else(
+    nchar(label) > width,
+    str_trunc(label, width, ellipsis = "..."),
+    label
+  )
+}
+
+save(setup_project_paths, truncate_wrap_description, truncate_label, file = "project_functions.rda")

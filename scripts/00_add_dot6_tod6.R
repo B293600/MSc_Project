@@ -1,3 +1,4 @@
+# 00_add_dot6_tod6.R
 # Adds Dot6 and Tod6 gene sets to Supp Table 3 (Mahendrawada et al. format).
 # Table A (binding) uses YEASTRACT documented associations (simultaneous
 # binding + expression evidence). Table C (regulated) uses Huber et al. 2011
@@ -7,8 +8,9 @@
 # Source files: YEASTRACT exported gene lists for Dot6p and Tod6p, and the
 # Huber 2011 supplementary file (emboj2011221s2.xls).
 #
-# Assumes this script sits in Adriana_analysis/scripts/, with data/ and
-# tables/ as sibling folders. Edit the paths below if your layout differs.
+# Assumes this script sits in Adriana_analysis/scripts/, with tables/
+# and figures/ as sibling folders (data/ was assumed but doesn't exist -
+# emboj2011221s2.xls actually lives in tables/, updated below).
 
 library(tidyverse)
 library(readxl)
@@ -20,7 +22,7 @@ select <- dplyr::select
 # Set working directory to this script's location for relative paths
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
-huber_path  <- "../data/emboj2011221s2.xls"
+huber_path  <- "../tables/emboj2011221s2.xls"
 supp_path   <- "../tables/Supp Table 3.xlsx"
 output_path <- "../tables/Supp Table 3 updated.xlsx"
 
