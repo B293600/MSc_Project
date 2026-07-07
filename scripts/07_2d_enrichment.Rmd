@@ -275,14 +275,14 @@ plot_2d_enrichment <- function(results, title, fdr_cutoff = 0.05,
 
   ggplot(sig, aes(x = s.PC1, y = s.PC2)) +
     geom_point(aes(color = -log10(p.adjust)), alpha = 0.7, size = 2) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = project_colours["grey"]) +
-    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours["grey"]) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
     ggrepel::geom_text_repel(
       data = df_label,
       aes(label = label),
       size = 2.5, max.overlaps = 20
     ) +
-    scale_color_gradient(low = project_colours["white"], high = project_colours["red"]) +
+    scale_color_gradient(low = project_colours[["white"]], high = project_colours[["red"]]) +
     annotate("text", x = Inf,  y = Inf,  label = "high PC1\nhigh PC2",
              hjust = 1.1, vjust = 1.5, size = 2.8, color = "grey40") +
     annotate("text", x = -Inf, y = Inf,  label = "low PC1\nhigh PC2",

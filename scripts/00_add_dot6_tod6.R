@@ -18,6 +18,7 @@ library(writexl)
 library(rstudioapi)
 
 select <- dplyr::select
+rename <- dplyr::rename
 
 # Set working directory to this script's location for relative paths
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))

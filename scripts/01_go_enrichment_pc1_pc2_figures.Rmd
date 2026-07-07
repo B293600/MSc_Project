@@ -113,7 +113,7 @@ plot_single_panel <- function(ego, panel_label, direction_label) {
 
   ggplot(df_top20, aes(x = neg_log10_padj, y = Description_short,
                        size = Count)) +
-    geom_point(color = project_colours["blue"]) +
+    geom_point(color = project_colours[["blue"]]) +
     labs(
       tag  = panel_label,
       x    = expression(-log[10]("adjusted p-value")),

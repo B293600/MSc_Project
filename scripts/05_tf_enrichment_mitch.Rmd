@@ -212,14 +212,14 @@ plot_tf_2d <- function(df, title, n_label = 12) {
 
   ggplot(df, aes(x = s.PC1, y = s.PC2)) +
     geom_point(aes(color = -log10(p.adjustMANOVA)), alpha = 0.7, size = 2) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = project_colours["grey"]) +
-    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours["grey"]) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
     ggrepel::geom_text_repel(
       data = df_label,
       aes(label = label),
       size = 2.8, max.overlaps = 20
     ) +
-    scale_color_gradient(low = project_colours["white"], high = project_colours["red"]) +
+    scale_color_gradient(low = project_colours[["white"]], high = project_colours[["red"]]) +
     labs(
       title = title,
       x = "Effect size PC1 (s.PC1)",
@@ -248,10 +248,10 @@ plot_tf_single <- function(df, pc_col, title, n_top = 20) {
   ggplot(df_top, aes(x = .data[[pc_col]], y = label,
                      size = -log10(p.adjustMANOVA), color = direction)) +
     geom_point(alpha = 0.8) +
-    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours["grey"]) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
     scale_color_manual(values = c(
-      "Positive (high PC score)" = project_colours["red"],
-      "Negative (low PC score)"  = project_colours["blue"]
+      "Positive (high PC score)" = project_colours[["red"]],
+      "Negative (low PC score)"  = project_colours[["blue"]]
     )) +
     labs(
       title = title,

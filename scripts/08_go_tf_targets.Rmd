@@ -170,7 +170,7 @@ p <- ggplot(go_plot_df,
                 size = Count, color = neg_log10_padj)) +
   geom_point(alpha = 0.8) +
   facet_wrap(~TF, scales = "free_y", ncol = 3) +
-  scale_color_gradient(low = project_colours["white"], high = project_colours["red"]) +
+  scale_color_gradient(low = project_colours[["white"]], high = project_colours[["red"]]) +
   labs(
     title = "GO enrichment (BP) of direct TF target genes (Table E)",
     subtitle = paste0(

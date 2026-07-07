@@ -147,11 +147,11 @@ plot_gsea_panel <- function(gsea_result, sign, panel_label,
   ggplot(df_sign, aes(x = NES, y = Description_short,
                       size = setSize, color = ONTOLOGY)) +
     geom_point(alpha = 0.8) +
-    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours["grey"]) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
     scale_color_manual(values = c(
-      "BP" = project_colours["blue"],
-      "MF" = project_colours["red"],
-      "CC" = project_colours["purple"]
+      "BP" = project_colours[["blue"]],
+      "MF" = project_colours[["red"]],
+      "CC" = project_colours[["purple"]]
     )) +
     labs(
       tag   = panel_label,

@@ -2,8 +2,19 @@
 # Generates project_functions.rda: reusable functions shared across
 # the enrichment scripts, so they're defined once and loaded rather
 # than repeated inline. Run once to (re)generate the .rda.
+#
+# Saves project_functions.rda into Adriana_analysis/ (the project
+# root), regardless of where this script is run from, so every other
+# script can find it via project_dir <- "..".
 
 library(tidyverse)
+library(rstudioapi)
+
+# Set working directory to this script's location, then go up one
+# level to the project root (Adriana_analysis/), since this script
+# is expected to live in Adriana_analysis/scripts/
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+setwd("..")
 
 # Sets up the standard tables/figures/output_tables folder structure
 # relative to project_dir, creating figures/ and output_tables/ if

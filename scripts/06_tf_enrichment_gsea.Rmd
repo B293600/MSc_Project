@@ -239,10 +239,10 @@ plot_tf_gsea <- function(result, title, subtitle = NULL, n_top = 20) {
                      size = size, color = direction)) +
     geom_point(alpha = 0.8) +
     geom_vline(xintercept = 0, linetype = "dashed",
-               color = project_colours["grey"]) +
+               color = project_colours[["grey"]]) +
     scale_color_manual(values = c(
-      "Positive NES\n(high PC score)" = project_colours["red"],
-      "Negative NES\n(low PC score)"  = project_colours["blue"]
+      "Positive NES\n(high PC score)" = project_colours[["red"]],
+      "Negative NES\n(low PC score)"  = project_colours[["blue"]]
     )) +
     labs(
       title    = title,
