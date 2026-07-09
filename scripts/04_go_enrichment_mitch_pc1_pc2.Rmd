@@ -216,7 +216,7 @@ plot_mitch_2d <- function(df, title, n_label = 10) {
       aes(label = label),
       size = 2.5, max.overlaps = 20
     ) +
-    scale_color_gradient(low = project_colours[["white"]], high = project_colours[["red"]]) +
+    scale_color_gradient(low = project_colours[["grey"]], high = project_colours[["red"]]) +
     labs(
       title = title,
       x = "Effect size PC1 (s.PC1)",

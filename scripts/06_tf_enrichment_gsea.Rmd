@@ -176,9 +176,13 @@ cat("PCA genes in Table E targets:", length(intersect(pca_ids, unlist(genesets_t
 # fgsea wrapper - runs GSEA for one ranked list and one collection of
 # gene sets, returns a tidy results table. minSize/maxSize filter gene
 # sets by size, matching the minGSSize used in scripts 03 and 05.
+# max_size raised to 3500 (from the clusterProfiler-matching default of
+# 500) so that large double-mutant gene sets such as Dot6_Tod6
+# (~1600-3000 genes, since it reflects two TFs deleted together rather
+# than one) aren't silently excluded before testing.
 # nPermSimple = 1000 is standard; seed set for reproducibility.
 run_fgsea <- function(ranked_list, genesets, label,
-                      min_size = 5, max_size = 500,
+                      min_size = 5, max_size = 3500,
                       n_perm = 1000) {
   set.seed(42)
   cat("Running GSEA:", label, "\n")

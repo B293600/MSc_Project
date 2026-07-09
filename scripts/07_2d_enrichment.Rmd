@@ -282,7 +282,7 @@ plot_2d_enrichment <- function(results, title, fdr_cutoff = 0.05,
       aes(label = label),
       size = 2.5, max.overlaps = 20
     ) +
-    scale_color_gradient(low = project_colours[["white"]], high = project_colours[["red"]]) +
+    scale_color_gradient(low = project_colours[["grey"]], high = project_colours[["red"]]) +
     annotate("text", x = Inf,  y = Inf,  label = "high PC1\nhigh PC2",
              hjust = 1.1, vjust = 1.5, size = 2.8, color = "grey40") +
     annotate("text", x = -Inf, y = Inf,  label = "low PC1\nhigh PC2",
