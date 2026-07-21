@@ -39,18 +39,18 @@ cat("PC input:", nrow(mitch_input), "genes x", ncol(mitch_input), "contrasts\n")
 ```
 
 ```{r load-genesets}
-# Stress signaling gene sets built by 00b_add_stress_signaling_genesets.R:
-# GCN2 targets/regulators, SNF1 targets, RTG targets, Gis1 targets, and a
-# literature-curated Tod6/Dot6 set (independent of the YEASTRACT-based set
-# used in scripts 00/06/07). Presence/absence gene sets only - no
-# activated/repressed direction, since the source data has no log2FC.
+# Stress signaling gene sets built by 00b_add_stress_signaling_genesets.R.
+# Restricted to GCN2, SNF1, and Gis1 targets (as requested) - presence/
+# absence gene sets only, no activated/repressed direction, since the
+# source data has no log2FC.
 load(file.path(tables_dir, "stress_signaling_genesets.rda"))
 
-# GCN2_regulators has only 4 genes, below the pipeline's usual minimum of 5 -
-# excluded from testing here rather than passed to mitch with too few genes
-# to give a meaningful effect size.
+# Restricted to GCN2, SNF1, and Gis1 targets only (as requested) - the other
+# gene sets built by 00b (GCN2 regulators, RTG, Tod6/Dot6 literature) remain
+# available in stress_signaling_genesets.rda if needed later, but aren't
+# tested here.
 genesets_stress <- stress_signaling_genesets[
-  map_int(stress_signaling_genesets, length) >= 5
+  c("GCN2_targets", "SNF1_targets", "Gis1_targets")
 ]
 
 cat("Stress signaling gene sets tested:\n")
@@ -67,6 +67,16 @@ overlap <- length(intersect(pca_gene_ids, unlist(genesets_stress)))
 
 cat("Genes in PCA:", length(pca_gene_ids), "\n")
 cat("PCA genes found in stress signaling gene sets:", overlap, "\n")
+
+# Per-set overlap - mitch silently drops any set with too few genes actually
+# present in the PCA data, even if the set itself looked large enough before
+# checking overlap. Checking here so a drop is visible before running mitch,
+# not discovered only by a missing row in the results afterwards.
+cat("\nPer-geneset overlap with PCA data:\n")
+for (nm in names(genesets_stress)) {
+  n_overlap <- length(intersect(pca_gene_ids, genesets_stress[[nm]]))
+  cat(" ", nm, ":", n_overlap, "of", length(genesets_stress[[nm]]), "genes overlap\n")
+}
 ```
 
 ```{r run-mitch}
@@ -80,6 +90,7 @@ mitch_stress <- mitch_calc(
   x        = mitch_input,
   genesets = genesets_stress,
   priority = "effect",
+  minsetsize = 5,
   cores    = 1
 )
 
