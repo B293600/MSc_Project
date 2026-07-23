@@ -47,7 +47,14 @@ cat("PC input:", nrow(mitch_input), "genes x", ncol(mitch_input), "contrasts\n")
 # the TF normally activates it; positive log2FC = gene induced on
 # depletion, so the TF normally represses it. S3e integrates S3a + S3c
 # for direct targets only (TF both binds and regulates the gene).
-supp_path <- file.path(tables_dir, "Supp Table 3.xlsx")
+#
+# Reads "Supp Table 3 updated.xlsx" (output of 00_add_dot6_tod6.R,
+# which appends Dot6/Tod6 gene sets), matching the file used by scripts
+# 07 (TF GSEA) and 09 (2D annotation enrichment). Previously this script
+# read the un-updated "Supp Table 3.xlsx", so Table E gene set counts
+# were not guaranteed to match those in the other two scripts - fixed
+# here so all three draw from the same source.
+supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
 
 table_a <- read_excel(supp_path, sheet = "Table-S3a")
 table_c <- read_excel(supp_path, sheet = "Table-S3c")
@@ -143,6 +150,23 @@ cat("Table E:", length(genesets_e_activated), "direct activated gene sets |",
     length(genesets_e_repressed), "direct repressed gene sets\n")
 ```
 
+```{r check-dot6-tod6-table-e}
+# Diagnostic: confirm whether Dot6_Tod6 clears Table E's >= 5 gene
+# threshold, and if so, how many genes it has non-NA log2FC for. Table
+# E is the intersection of Table A (binding) and Table C (regulation),
+# so Dot6_Tod6 - added to Tables A and C by 00_add_dot6_tod6.R - is not
+# guaranteed to carry through to Table E; this makes the outcome
+# explicit rather than inferred from its absence in the plots.
+dot6_tod6_e_activated <- sum(map_int(genesets_e_activated, length) >= 5 &
+                              str_detect(names(genesets_e_activated), "Dot6_Tod6"))
+cat("Dot6_Tod6 direct activated set present in Table E:",
+    "Dot6_Tod6_direct_activated" %in% names(genesets_e), "\n")
+if ("Dot6_Tod6" %in% colnames(table_e)) {
+  n_overlap_e <- table_e %>% filter(!is.na(Dot6_Tod6)) %>% nrow()
+  cat("Genes with non-NA Dot6_Tod6 log2FC in Table E:", n_overlap_e, "\n")
+}
+```
+
 ```{r check-gene-overlap}
 # Sanity check: confirm reasonable overlap between PCA genes and TF
 # target gene IDs before running enrichment
@@ -162,6 +186,13 @@ cat("PCA genes found in Table E targets:", overlap_e, "\n")
 # Run mitch for all three table-derived gene set collections.
 # priority = "effect" ranks by s.dist (effect size), matching Adriana's
 # original mitch TF enrichment approach.
+#
+# Returns both the full (unfiltered) and significant (p.adjustMANOVA 
+# 0.05) results as a list, so a gene set that doesn't clear the FDR
+# threshold - such as Dot6_Tod6 in Table E, if that's what's
+# happening - can still be inspected without a second mitch_calc()
+# call. "sig" is what downstream save/plot steps use, matching the
+# previous behaviour of this script.
 run_mitch_tf <- function(genesets, label) {
   cat("Running mitch:", label, "\n")
   result <- mitch_calc(
@@ -170,16 +201,78 @@ run_mitch_tf <- function(genesets, label) {
     priority = "effect",
     cores    = 1
   )
-  sig <- result$enrichment_result %>%
-    filter(p.adjustMANOVA < 0.05) %>%
+  full <- result$enrichment_result %>%
     arrange(p.adjustMANOVA)
-  cat(label, "- significant TF sets:", nrow(sig), "\n")
-  sig
+  sig <- full %>%
+    filter(p.adjustMANOVA < 0.05)
+  cat(label, "- significant TF sets:", nrow(sig), "of", nrow(full), "tested\n")
+  list(full = full, sig = sig)
 }
 
-mitch_tf_a <- run_mitch_tf(genesets_a, "Table A (binding)")
-mitch_tf_c <- run_mitch_tf(genesets_c, "Table C (activation/repression)")
-mitch_tf_e <- run_mitch_tf(genesets_e, "Table E (direct targets)")
+mitch_tf_a_res <- run_mitch_tf(genesets_a, "Table A (binding)")
+mitch_tf_c_res <- run_mitch_tf(genesets_c, "Table C (activation/repression)")
+mitch_tf_e_res <- run_mitch_tf(genesets_e, "Table E (direct targets)")
+
+# Unpack the significant-only tables under their previous names, so
+# every downstream chunk (plots, save-outputs) is unchanged.
+mitch_tf_a <- mitch_tf_a_res$sig
+mitch_tf_c <- mitch_tf_c_res$sig
+mitch_tf_e <- mitch_tf_e_res$sig
+
+# Total tested (not just significant) is the figure quoted in the
+# Results text alongside script 09's Cox & Mann output - checking here
+# that the two agree now both scripts read the same source file.
+cat("\nTable E gene sets tested (mitch):", length(genesets_e), "\n")
+cat("Compare against script 09's '2D annotation enrichment - TF direct",
+    "targets / Table E' tested count before finalising the Results text.\n")
+```
+
+```{r check-dot6-tod6-mitch-result}
+# Follow-up to the earlier Dot6_Tod6 diagnostic: 98 genes had non-NA
+# Dot6_Tod6 log2FC in Table E, comfortably above the >= 5 gene set
+# threshold, so the gene set should have been tested by mitch_calc()
+# above. Its absence from the plotted top-20/labelled-outlier figures
+# is therefore expected to be either (a) not significant at FDR < 0.05,
+# or (b) significant but not among the top 20 by effect size. Pulling
+# its row directly from the full (unfiltered) result distinguishes
+# between the two, using the "full" table returned by run_mitch_tf()
+# rather than a second mitch_calc() call.
+dot6_tod6_tf_e <- mitch_tf_e_res$full %>%
+  filter(str_detect(set, "Dot6_Tod6"))
+
+if (nrow(dot6_tod6_tf_e) == 0) {
+  cat("No Dot6_Tod6 gene set found in Table E mitch results ",
+      "(did not clear the >= 5 gene threshold during gene set ",
+      "construction, despite 98 genes with non-NA log2FC - check ",
+      "genesets_e names directly if this is unexpected)\n", sep = "")
+} else {
+  cat("Dot6_Tod6 gene set(s) found in Table E mitch results:\n")
+  print(dot6_tod6_tf_e %>% select(set, s.PC1, s.PC2, p.adjustMANOVA))
+
+  not_significant <- dot6_tod6_tf_e %>% filter(p.adjustMANOVA >= 0.05)
+  if (nrow(not_significant) > 0) {
+    cat("\n->", nrow(not_significant), "Dot6_Tod6 set(s) did NOT reach",
+        "FDR < 0.05 - excluded from mitch_tf_e (the significant-only",
+        "table) and therefore from the plots.\n")
+  }
+
+  significant_not_top20 <- dot6_tod6_tf_e %>%
+    filter(p.adjustMANOVA < 0.05) %>%
+    filter(!set %in% (mitch_tf_e %>%
+                       arrange(desc(abs(s.PC1))) %>%
+                       slice_head(n = 20) %>%
+                       pull(set)) &
+           !set %in% (mitch_tf_e %>%
+                       arrange(desc(abs(s.PC2))) %>%
+                       slice_head(n = 20) %>%
+                       pull(set)))
+  if (nrow(significant_not_top20) > 0) {
+    cat("\n->", nrow(significant_not_top20), "Dot6_Tod6 set(s) reached",
+        "significance but fell outside the top 20 by |effect size| on",
+        "both PC1 and PC2 - present in mitch_tf_e but not in the",
+        "single-PC dot plots (plot_tf_single(), n_top = 20).\n")
+  }
+}
 ```
 
 ```{r plot-function}
