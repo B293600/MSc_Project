@@ -1,0 +1,335 @@
+---
+title: "RNAPII Occupancy vs PC1/PC2 (Promoter Saturation Analysis)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
+
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
+```
+
+```{r libraries}
+library(tidyverse)
+
+select <- dplyr::select
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
+```
+
+# Background
+
+Rpb1 (RNA Pol II) ChIP occupancy data provided by Matthew (210601_gene
+annotation_RPB_occupancy.txt), covering 6 independent experiments (A, B, C,
+EFG, H, J - corresponding to different figures of a published paper).
+Per Matthew's guidance (Slack, [date]):
+- All 6 experiments should be treated as equivalent/interchangeable for this
+  purpose - run the main analysis on the average across all 6, then produce
+  a grid summarising each individual experiment's correlation separately.
+- Correlate occupancy against PC1 and PC2 gene loadings (not cell volume
+  directly), so the TOR/PKA-signalling effect (PC1) can be separated from
+  the cell-size effect (PC2).
+- Correlate both the log2 of occupancy AND the simple rank of occupancy
+  against PC1/PC2.
+
+```{r load-occupancy}
+occupancy_path <- file.path(
+  tables_dir,
+  "210601_gene_annotation_RPB_occupancy.txt"
+)
+
+occupancy_raw <- read_tsv(occupancy_path, show_col_types = FALSE)
+
+cat("Occupancy data:", nrow(occupancy_raw), "genes x",
+    ncol(occupancy_raw), "columns\n")
+```
+
+```{r select-occupancy-columns}
+# The 6 experiments (letters as used in Matthew's file, corresponding to
+# different figures of the published paper). RPKM_mean_<X> = occupancy,
+# rank<X> = pre-computed within-experiment percentile rank (0-1).
+occupancy_conditions <- c("A", "B", "C", "EFG", "H", "J")
+
+rpkm_cols <- paste0("RPKM_mean_", occupancy_conditions)
+rank_cols <- paste0("rank", occupancy_conditions)
+
+occupancy <- occupancy_raw %>%
+  select(systematic_name, gene_name, all_of(rpkm_cols), all_of(rank_cols)) %>%
+  rename(gene_id = systematic_name)
+
+cat("Missing values per experiment (RPKM):\n")
+print(colSums(is.na(occupancy[rpkm_cols])))
+```
+
+```{r compute-average-and-transforms}
+# Average occupancy across all 6 experiments, treated as replicates per
+# Matthew's instruction. na.rm = TRUE so a gene missing in one experiment
+# is averaged over the remaining experiments rather than dropped entirely;
+# n_experiments_present tracks how many contributed, for filtering low-
+# coverage genes below.
+occupancy <- occupancy %>%
+  rowwise() %>%
+  mutate(
+    n_experiments_present = sum(!is.na(c_across(all_of(rpkm_cols)))),
+    mean_occupancy         = mean(c_across(all_of(rpkm_cols)), na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+cat("Genes by number of experiments present (of 6):\n")
+print(table(occupancy$n_experiments_present))
+
+# Require at least 4 of 6 experiments present for a gene to be included in
+# the averaged analysis - arbitrary but conservative threshold; adjust if
+# Matthew has a preference. Genes failing this can still appear in the
+# per-experiment grid below where they do have data.
+min_experiments <- 4
+
+occupancy_filtered <- occupancy %>%
+  filter(n_experiments_present >= min_experiments)
+
+cat("\nGenes retained for averaged analysis (>=", min_experiments,
+    "of 6 experiments):", nrow(occupancy_filtered), "of", nrow(occupancy), "\n")
+
+# Two occupancy metrics to correlate against PC1/PC2, per Matthew's
+# instruction: log2(occupancy) and rank(occupancy).
+#
+# INTERPRETIVE CHOICE (flagged for Matthew if this reading is wrong): rank
+# here is computed fresh on the averaged RPKM value (rank_mean_occupancy),
+# rather than averaging the pre-existing per-experiment rank columns
+# (rankA...rankJ) that are already in the file. Both are defensible; this
+# was chosen for consistency with how the log2 metric is derived (from the
+# same averaged RPKM value), so both metrics describe the same "average
+# occupancy" quantity, just transformed two different ways. The
+# alternative (mean of provided per-experiment ranks) is computed below
+# for comparison and reported alongside.
+occupancy_filtered <- occupancy_filtered %>%
+  mutate(
+    log2_mean_occupancy = log2(mean_occupancy + 1),
+    rank_mean_occupancy = rank(mean_occupancy, ties.method = "average"),
+    mean_of_provided_ranks = rowMeans(select(., all_of(rank_cols)), na.rm = TRUE)
+  )
+
+cat("\nCorrelation between rank(mean occupancy) and mean of provided",
+    "per-experiment ranks (sanity check - should be very high if the two",
+    "approaches are broadly equivalent):\n")
+cat("  Spearman r =",
+    round(cor(occupancy_filtered$rank_mean_occupancy,
+              occupancy_filtered$mean_of_provided_ranks,
+              method = "spearman", use = "complete.obs"), 3), "\n")
+```
+
+```{r load-pc-loadings}
+# PC1/PC2 gene loadings from the joint 93-sample PCA.
+pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
+                      show_col_types = FALSE)
+
+pc_loadings <- pca_genes %>%
+  select(gene_id, PC1, PC2)
+
+cat("PC1/PC2 loadings available for", nrow(pc_loadings), "genes\n")
+```
+
+```{r join-occupancy-pc}
+occ_pc <- occupancy_filtered %>%
+  inner_join(pc_loadings, by = "gene_id")
+
+cat("Genes with both occupancy (>=", min_experiments,
+    "experiments) and PC1/PC2 loading:", nrow(occ_pc), "\n")
+```
+
+# Averaged occupancy vs PC1/PC2
+
+```{r correlate-average}
+# Pearson on log2(occupancy) (linearised magnitude), and Pearson on
+# rank(occupancy) (equivalent to Spearman between occupancy and PC1/PC2,
+# since ranking one side of a Pearson correlation and correlating against
+# the raw values on the other side is the standard definition of Spearman
+# when both variables are monotonically related).
+run_correlation <- function(x, y, method = "pearson") {
+  ct <- cor.test(x, y, method = method)
+  tibble(r = unname(ct$estimate), p_value = ct$p.value)
+}
+
+avg_results <- bind_rows(
+  run_correlation(occ_pc$log2_mean_occupancy, occ_pc$PC1) %>%
+    mutate(metric = "log2_occupancy", pc = "PC1"),
+  run_correlation(occ_pc$log2_mean_occupancy, occ_pc$PC2) %>%
+    mutate(metric = "log2_occupancy", pc = "PC2"),
+  run_correlation(occ_pc$rank_mean_occupancy, occ_pc$PC1) %>%
+    mutate(metric = "rank_occupancy", pc = "PC1"),
+  run_correlation(occ_pc$rank_mean_occupancy, occ_pc$PC2) %>%
+    mutate(metric = "rank_occupancy", pc = "PC2")
+) %>%
+  select(pc, metric, r, p_value) %>%
+  mutate(experiment = "Average", n_genes = nrow(occ_pc))
+
+cat("Averaged occupancy - correlation with PC1/PC2:\n")
+print(avg_results)
+```
+
+```{r plot-average-scatter, fig.width=11, fig.height=5}
+# Scatter of log2(occupancy) vs PC1 and PC2, with binned mean overlay
+# matching the visual convention used elsewhere in the dissertation
+# (e.g. Figure 2). Useful for visually spotting saturation - genes where
+# occupancy plateaus rather than continuing to rise with PC1/PC2.
+plot_occupancy_scatter <- function(df, pc_col, pc_label, r_val) {
+  df_binned <- df %>%
+    mutate(pc_bin = ntile(.data[[pc_col]], 30)) %>%
+    group_by(pc_bin) %>%
+    summarise(
+      pc_mean  = mean(.data[[pc_col]]),
+      occ_mean = mean(log2_mean_occupancy),
+      .groups = "drop"
+    )
+
+  ggplot(df, aes(x = .data[[pc_col]], y = log2_mean_occupancy)) +
+    geom_point(color = project_colours[["blue"]], alpha = 0.15, size = 0.8) +
+    geom_line(data = df_binned, aes(x = pc_mean, y = occ_mean),
+              color = "black", linewidth = 0.8) +
+    labs(
+      title = paste0("RNAPII occupancy vs ", pc_label),
+      subtitle = paste0("Pearson r = ", round(r_val, 3),
+                        " | n = ", nrow(df), " genes"),
+      x = pc_label,
+      y = "log2(mean RNAPII occupancy + 1)"
+    ) +
+    theme_bw()
+}
+
+r_pc1 <- avg_results %>% filter(metric == "log2_occupancy", pc == "PC1") %>% pull(r)
+r_pc2 <- avg_results %>% filter(metric == "log2_occupancy", pc == "PC2") %>% pull(r)
+
+p_pc1 <- plot_occupancy_scatter(occ_pc, "PC1", "PC1 gene loading", r_pc1)
+p_pc2 <- plot_occupancy_scatter(occ_pc, "PC2", "PC2 gene loading", r_pc2)
+
+fig_occupancy_avg <- p_pc1 + p_pc2
+
+print(fig_occupancy_avg)
+```
+
+# Per-experiment grid: does the relationship hold across all 6 experiments?
+
+```{r correlate-per-experiment}
+# Same two correlations (log2, rank), repeated independently for each of
+# the 6 experiments, using that experiment's own RPKM/rank columns
+# (not the averaged occupancy) and requiring only that this experiment's
+# value is non-missing for a given gene - so per-experiment n differs
+# slightly from the averaged analysis above.
+run_per_experiment <- function(cond) {
+  rpkm_col <- paste0("RPKM_mean_", cond)
+  rank_col <- paste0("rank", cond)
+
+  df <- occupancy %>%
+    select(gene_id, all_of(rpkm_col), all_of(rank_col)) %>%
+    rename(rpkm = all_of(rpkm_col), provided_rank = all_of(rank_col)) %>%
+    filter(!is.na(rpkm)) %>%
+    mutate(log2_occ = log2(rpkm + 1)) %>%
+    inner_join(pc_loadings, by = "gene_id")
+
+  bind_rows(
+    run_correlation(df$log2_occ, df$PC1) %>% mutate(metric = "log2_occupancy", pc = "PC1"),
+    run_correlation(df$log2_occ, df$PC2) %>% mutate(metric = "log2_occupancy", pc = "PC2"),
+    run_correlation(df$provided_rank, df$PC1) %>% mutate(metric = "rank_occupancy", pc = "PC1"),
+    run_correlation(df$provided_rank, df$PC2) %>% mutate(metric = "rank_occupancy", pc = "PC2")
+  ) %>%
+    mutate(experiment = cond, n_genes = nrow(df))
+}
+
+per_experiment_results <- map_dfr(occupancy_conditions, run_per_experiment)
+
+grid_results <- bind_rows(avg_results, per_experiment_results) %>%
+  mutate(
+    experiment = factor(experiment,
+                        levels = c("Average", occupancy_conditions)),
+    p_adjust = p.adjust(p_value, method = "BH")
+  ) %>%
+  arrange(pc, metric, experiment)
+
+cat("Full correlation grid (Average + 6 individual experiments):\n")
+print(grid_results, n = Inf)
+```
+
+```{r plot-grid-heatmap, fig.width=9, fig.height=5}
+# Grid heatmap: rows = experiment (Average + A-J), columns = PC x metric
+# combination, fill = correlation coefficient. This is the "grid that
+# summarises each of the separate correlations" Matthew asked for -
+# lets you see at a glance whether the PC1/PC2 relationship is
+# consistent across all 6 experiments or driven by a subset.
+grid_results_plot <- grid_results %>%
+  mutate(
+    panel = paste0(pc, " (", metric, ")"),
+    sig_label = if_else(p_adjust < 0.05, "*", "")
+  )
+
+p_grid <- ggplot(grid_results_plot,
+                 aes(x = panel, y = experiment, fill = r)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(round(r, 2), sig_label)), size = 3.5) +
+  scale_fill_gradient2(
+    low = project_colours[["blue"]], mid = "white",
+    high = project_colours[["red"]], midpoint = 0
+  ) +
+  labs(
+    title = "RNAPII occupancy vs PC1/PC2: correlation across experiments",
+    subtitle = str_wrap(
+      "Cell values: correlation coefficient (* = FDR < 0.05) | Average row uses occupancy averaged across all 6 experiments; other rows use each experiment individually",
+      width = 75
+    ),
+    x = NULL,
+    y = "Experiment",
+    fill = "r"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x  = element_text(angle = 30, hjust = 1),
+    plot.subtitle = element_text(size = 9)
+  )
+
+print(p_grid)
+```
+
+```{r identify-saturating-genes}
+# Candidate "saturating" genes: high PC1 or PC2 loading (i.e. strongly
+# part of the transcriptional programme) but low occupancy rank relative
+# to that - genes where transcriptional signal is high but RNAPII
+# occupancy has not kept pace. Defined here as genes in the top quartile
+# of |PC1| or |PC2| but bottom half of occupancy rank, using the averaged
+# occupancy metric. This is an exploratory first pass, not a formal
+# statistical test - intended as a starting gene list to inspect, not a
+# final result.
+saturation_candidates <- occ_pc %>%
+  mutate(
+    pc1_quartile = ntile(abs(PC1), 4),
+    pc2_quartile = ntile(abs(PC2), 4),
+    occupancy_half = ntile(rank_mean_occupancy, 2)
+  ) %>%
+  filter((pc1_quartile == 4 | pc2_quartile == 4) & occupancy_half == 1) %>%
+  select(gene_id, gene_name, PC1, PC2, mean_occupancy,
+         log2_mean_occupancy, rank_mean_occupancy) %>%
+  arrange(desc(pmax(abs((.)$PC1), abs((.)$PC2))))
+
+cat("Candidate saturating genes (top quartile |PC1| or |PC2|, bottom half",
+    "occupancy rank):", nrow(saturation_candidates), "\n")
+print(saturation_candidates, n = 30)
+```
+
+```{r save-outputs}
+write_tsv(occ_pc, file.path(output_dir, "rnapii_occupancy_pc_joined.txt"))
+write_tsv(grid_results, file.path(output_dir, "rnapii_occupancy_pc_correlation_grid.txt"))
+write_tsv(saturation_candidates, file.path(output_dir, "rnapii_occupancy_saturation_candidates.txt"))
+
+ggsave(file.path(figures_dir, "figure_rnapii_occupancy_vs_pc_scatter.png"),
+       plot = fig_occupancy_avg, width = 11, height = 5, dpi = 300)
+ggsave(file.path(figures_dir, "figure_rnapii_occupancy_pc_grid.png"),
+       plot = p_grid, width = 9, height = 5, dpi = 300)
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```

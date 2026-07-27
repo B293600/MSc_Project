@@ -1,0 +1,306 @@
+---
+title: "RNAPII Occupancy Saturation vs TF Direct Targets"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
+
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
+```
+
+```{r libraries}
+library(tidyverse)
+library(readxl)
+
+select <- dplyr::select
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
+```
+
+# Background
+
+Follow-up to the RNAPII occupancy vs PC1/PC2 analysis (script 11). The
+binned-mean trend of log2(occupancy) vs PC1 rises steadily up to roughly
+PC1 ~ 7, then turns over and declines for the highest-PC1 genes - the
+visual signature of promoter saturation (occupancy failing to keep pace
+with transcriptional demand at the very top of the PC1 axis). This script:
+
+1. Defines the plateau/decline region explicitly from the binned-mean data
+   (rather than the coarser quartile-based definition used in script 11),
+2. Tests whether genes in that region are enriched among the direct
+   targets of the TFs already identified as PC1/PC2 hits (CBF1, IFH1,
+   SFP1, ERT1, RTG1, RTG3), to check whether saturation is happening
+   specifically to the genes those TFs regulate.
+
+```{r load-occupancy-pc}
+occ_pc <- read_tsv(file.path(output_dir, "rnapii_occupancy_pc_joined.txt"),
+                   show_col_types = FALSE)
+
+cat("Genes with occupancy + PC1/PC2:", nrow(occ_pc), "\n")
+```
+
+```{r identify-plateau-region}
+# Recreate the same 30-bin binned mean used in script 11's scatter plot,
+# to identify exactly where the trend turns over rather than eyeballing
+# it from the figure.
+n_bins <- 30
+
+pc1_binned <- occ_pc %>%
+  mutate(pc1_bin = ntile(PC1, n_bins)) %>%
+  group_by(pc1_bin) %>%
+  summarise(
+    pc1_mean  = mean(PC1),
+    occ_mean  = mean(log2_mean_occupancy),
+    n_genes   = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(pc1_bin)
+
+cat("Binned mean occupancy across PC1 (bin 30 = highest PC1):\n")
+print(pc1_binned, n = Inf)
+
+# Peak bin = where occ_mean is maximised; plateau region defined as all
+# bins from the peak onward (inclusive), since occupancy stops rising
+# (and starts falling) there despite PC1 continuing to increase.
+peak_bin <- pc1_binned$pc1_bin[which.max(pc1_binned$occ_mean)]
+plateau_pc1_threshold <- pc1_binned %>%
+  filter(pc1_bin == peak_bin) %>%
+  pull(pc1_mean)
+
+cat("\nPeak bin:", peak_bin, "of", n_bins,
+    "| occupancy peaks at PC1 ~", round(plateau_pc1_threshold, 2), "\n")
+cat("Bins", peak_bin, "to", n_bins, "(PC1 >=", round(plateau_pc1_threshold, 2),
+    ") define the plateau/decline region.\n")
+```
+
+```{r define-saturation-candidates-refined}
+# Refined saturation candidate definition: genes at or beyond the peak
+# PC1 bin (i.e. in the plateau/decline region), regardless of their
+# occupancy rank - unlike script 11's quartile-based definition, this
+# uses the actual empirical turnover point rather than an arbitrary
+# quartile split, and doesn't require low occupancy rank (the genes of
+# interest here are precisely those with high PC1 but occupancy that
+# hasn't risen to match - some may still have moderate/high absolute
+# occupancy, just not as high as the PC1 trend up to that point implies).
+saturation_candidates_refined <- occ_pc %>%
+  filter(PC1 >= plateau_pc1_threshold) %>%
+  arrange(desc(PC1)) %>%
+  select(gene_id, gene_name, PC1, PC2, mean_occupancy,
+         log2_mean_occupancy, rank_mean_occupancy)
+
+cat("Genes in the PC1 plateau/decline region (PC1 >=",
+    round(plateau_pc1_threshold, 2), "):",
+    nrow(saturation_candidates_refined), "\n")
+print(saturation_candidates_refined, n = 30)
+```
+
+```{r rebuild-tf-genesets}
+# Rebuild Table E direct-target gene sets exactly as in script 05,
+# restricted to the headline TFs: CBF1, IFH1, SFP1 (PC1-positive) and
+# ERT1, RTG1, RTG3 (PC2-positive).
+supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
+table_e   <- read_excel(supp_path, sheet = "Table-S3e")
+
+tf_cols_e    <- colnames(table_e)[-1]
+table_e_long <- table_e %>%
+  pivot_longer(-gene_id, names_to = "TF", values_to = "log2FC") %>%
+  filter(!is.na(log2FC))
+
+genesets_e_activated <- table_e_long %>%
+  filter(log2FC < 0) %>%
+  group_by(TF) %>%
+  summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+  filter(map_int(genes, length) >= 5) %>%
+  deframe() %>%
+  set_names(paste0(names(.), "_direct_activated"))
+
+genesets_e_repressed <- table_e_long %>%
+  filter(log2FC > 0) %>%
+  group_by(TF) %>%
+  summarise(genes = list(unique(gene_id)), .groups = "drop") %>%
+  filter(map_int(genes, length) >= 5) %>%
+  deframe() %>%
+  set_names(paste0(names(.), "_direct_repressed"))
+
+genesets_e <- c(genesets_e_activated, genesets_e_repressed)
+
+target_tf_sets <- c("CBF1_direct_activated", "IFH1_direct_activated",
+                    "SFP1_direct_activated", "ERT1_direct_repressed",
+                    "RTG1_direct_activated", "RTG3_direct_activated")
+
+available_tf_sets <- intersect(target_tf_sets, names(genesets_e))
+cat("Target TF gene sets available:", length(available_tf_sets),
+    "of", length(target_tf_sets), "\n")
+```
+
+```{r hypergeometric-overlap-test}
+# Hypergeometric test for overlap between the saturation candidate genes
+# and each TF's direct target genes, restricted to the common gene
+# universe (all genes with both occupancy and PC1/PC2 data) so the
+# background matches what the saturation candidates were drawn from.
+universe <- occ_pc$gene_id
+n_universe <- length(universe)
+
+run_overlap_test <- function(candidate_genes, tf_name, tf_genes, universe) {
+  cand_u <- intersect(candidate_genes, universe)
+  tf_u   <- intersect(tf_genes, universe)
+  overlap_genes <- intersect(cand_u, tf_u)
+  k <- length(overlap_genes)
+  a <- length(cand_u)
+  b <- length(tf_u)
+  n <- length(universe)
+
+  p_value <- phyper(k - 1, a, n - a, b, lower.tail = FALSE)
+  expected <- (a * b) / n
+
+  tibble(
+    tf_set           = tf_name,
+    candidate_set_size = a,
+    tf_set_size      = b,
+    overlap          = k,
+    overlap_genes    = list(overlap_genes),
+    expected_overlap = round(expected, 2),
+    fold_enrichment  = if_else(expected > 0, round(k / expected, 2), NA_real_),
+    p_value          = p_value
+  )
+}
+
+saturation_tf_overlap <- map_dfr(available_tf_sets, function(tf_name) {
+  run_overlap_test(
+    saturation_candidates_refined$gene_id, tf_name,
+    genesets_e[[tf_name]], universe
+  )
+})
+
+saturation_tf_overlap <- saturation_tf_overlap %>%
+  mutate(p_adjust = p.adjust(p_value, method = "BH")) %>%
+  arrange(p_adjust)
+
+cat("Saturation candidates x TF direct-target overlap:\n")
+print(saturation_tf_overlap %>% select(-overlap_genes), n = Inf)
+```
+
+```{r plot-overlap-bar, fig.width=8, fig.height=5}
+# Bar chart of fold enrichment per TF, since this is a 1D comparison
+# (one candidate gene set vs 6 TF sets) rather than the 2D grid used for
+# the GO-TF overlap in an earlier script.
+overlap_plot_df <- saturation_tf_overlap %>%
+  mutate(
+    sig_label = if_else(p_adjust < 0.05, "*", ""),
+    tf_set = fct_reorder(tf_set, fold_enrichment)
+  )
+
+p_saturation_tf <- ggplot(overlap_plot_df,
+                          aes(x = fold_enrichment, y = tf_set)) +
+  geom_col(fill = project_colours[["red"]], alpha = 0.8) +
+  geom_text(aes(label = paste0(overlap, sig_label)),
+            hjust = -0.2, size = 3.5) +
+  labs(
+    title = "Overlap between PC1-plateau saturation candidates and TF direct targets",
+    subtitle = paste0(
+      nrow(saturation_candidates_refined), " candidate genes (PC1 >= ",
+      round(plateau_pc1_threshold, 2), ") | * = FDR < 0.05 | bar label = overlap count"
+    ),
+    x = "Fold enrichment over expected by chance",
+    y = "TF direct-target gene set"
+  ) +
+  theme_bw() +
+  xlim(0, max(overlap_plot_df$fold_enrichment, na.rm = TRUE) * 1.3)
+
+print(p_saturation_tf)
+```
+
+```{r print-significant-overlap-genes}
+# Named gene lists for any significant overlaps, using gene_name already
+# present in occ_pc (carried through from the occupancy file's own
+# gene_name column).
+gene_id_to_name <- occ_pc %>% select(gene_id, gene_name) %>% distinct()
+
+sig_overlaps <- saturation_tf_overlap %>% filter(p_adjust < 0.05)
+
+if (nrow(sig_overlaps) > 0) {
+  cat("Significant saturation-candidate x TF overlaps:\n\n")
+  for (i in seq_len(nrow(sig_overlaps))) {
+    genes_named <- tibble(gene_id = sig_overlaps$overlap_genes[[i]]) %>%
+      left_join(gene_id_to_name, by = "gene_id")
+
+    cat(sig_overlaps$tf_set[i], "(", sig_overlaps$overlap[i], "genes ):\n")
+    print(genes_named, n = Inf)
+    cat("\n")
+  }
+} else {
+  cat("No significant overlaps at FDR < 0.05.\n")
+}
+```
+
+```{r highlight-plateau-genes-on-scatter, fig.width=8, fig.height=6}
+# Re-draw the PC1 occupancy scatter, highlighting saturation candidate
+# genes and colouring them by whether they are a direct target of any of
+# the 6 headline TFs - visual check of whether the TF-regulated genes
+# cluster specifically in the plateau region.
+occ_pc_annotated <- occ_pc %>%
+  mutate(
+    is_saturation_candidate = gene_id %in% saturation_candidates_refined$gene_id,
+    is_tf_target = gene_id %in% unlist(genesets_e[available_tf_sets])
+  )
+
+pc1_binned_plot <- pc1_binned  # reuse from earlier chunk
+
+p_highlight <- ggplot(occ_pc_annotated, aes(x = PC1, y = log2_mean_occupancy)) +
+  geom_point(data = filter(occ_pc_annotated, !is_saturation_candidate),
+             color = "grey80", alpha = 0.3, size = 0.6) +
+  geom_point(data = filter(occ_pc_annotated, is_saturation_candidate & !is_tf_target),
+             color = project_colours[["blue"]], alpha = 0.6, size = 1.2) +
+  geom_point(data = filter(occ_pc_annotated, is_saturation_candidate & is_tf_target),
+             color = project_colours[["red"]], alpha = 0.8, size = 1.6) +
+  geom_line(data = pc1_binned_plot, aes(x = pc1_mean, y = occ_mean),
+            color = "black", linewidth = 0.8) +
+  geom_vline(xintercept = plateau_pc1_threshold, linetype = "dashed",
+             color = project_colours[["grey"]]) +
+  labs(
+    title = "RNAPII occupancy vs PC1: saturation candidates and TF direct targets",
+    subtitle = paste0(
+      "Grey = all genes | Blue = plateau-region genes (PC1 >= ",
+      round(plateau_pc1_threshold, 2), ") | Red = plateau-region genes that are ",
+      "also a direct target of CBF1/IFH1/SFP1/ERT1/RTG1/RTG3"
+    ),
+    x = "PC1 gene loading",
+    y = "log2(mean RNAPII occupancy + 1)"
+  ) +
+  theme_bw() +
+  theme(plot.subtitle = element_text(size = 8))
+
+print(p_highlight)
+```
+
+```{r save-outputs}
+write_tsv(saturation_candidates_refined,
+          file.path(output_dir, "rnapii_saturation_candidates_refined.txt"))
+write_tsv(saturation_tf_overlap %>% select(-overlap_genes),
+          file.path(output_dir, "rnapii_saturation_tf_overlap.txt"))
+
+overlap_genes_long <- saturation_tf_overlap %>%
+  select(tf_set, overlap_genes) %>%
+  unnest(overlap_genes) %>%
+  rename(gene_id = overlap_genes) %>%
+  left_join(gene_id_to_name, by = "gene_id")
+
+write_tsv(overlap_genes_long,
+          file.path(output_dir, "rnapii_saturation_tf_overlap_genes.txt"))
+
+ggsave(file.path(figures_dir, "figure_rnapii_saturation_tf_overlap.png"),
+       plot = p_saturation_tf, width = 8, height = 5, dpi = 300)
+ggsave(file.path(figures_dir, "figure_rnapii_saturation_scatter_highlighted.png"),
+       plot = p_highlight, width = 8, height = 6, dpi = 300)
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```

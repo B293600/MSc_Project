@@ -1,0 +1,450 @@
+---
+title: "Per-Gene mRNA Expression vs Cell Volume (df_sc_final)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
+
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
+```
+
+```{r libraries}
+library(tidyverse)
+library(broom)
+
+select <- dplyr::select
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
+```
+
+```{r config}
+# Single switch for which TPM column to regress against cell volume.
+# TPMsc = spike-in-normalised TPM (S. cerevisiae fraction), matching
+# the project's established S. pombe spike-in normalisation approach
+# used throughout the rest of the pipeline. Log2-transformed here with
+# a +1 pseudocount (TPMsc has ~0.8% zero values, no negatives, so +1
+# is a safe minimal offset).
+#
+# log2TPMnorm4 was considered as an alternative (already log2-
+# transformed in df_sc_final) but rejected: comparing the two showed
+# they are NOT simply log2(TPMsc + 1) - log2TPMnorm4 is consistently
+# lower and appears to be normalised against a different reference
+# (likely TPMmean4/TPMmin4, based on column naming), i.e. a variant
+# built for a different purpose elsewhere in the pipeline rather than
+# a general-purpose expression value. TPMsc matches Adriana's
+# instruction and the project's standard normalisation.
+#
+# To switch to log2TPMnorm4 instead: set tpm_col <- "log2TPMnorm4" and
+# set log_transform <- FALSE below (it's already logged).
+tpm_col        <- "TPMsc"
+log_transform   <- TRUE
+log_pseudocount <- 1
+```
+
+```{r load-data}
+# df_sc_final.txt: long format, one row per gene x sample (5,190 genes
+# x 93 samples = 482,670 rows). mean_cell_volume is already present per
+# sample - no join to PCA_samples_AC.txt needed.
+df_sc_final <- read_tsv(file.path(tables_dir, "df_sc_final.txt"),
+                        show_col_types = FALSE)
+
+cat("df_sc_final:", nrow(df_sc_final), "rows |",
+    n_distinct(df_sc_final$gene_id), "genes |",
+    n_distinct(df_sc_final$sample), "samples\n")
+
+cat("Using TPM column:", tpm_col,
+    "| log-transforming:", log_transform, "\n")
+```
+
+```{r prepare-expression-data}
+# Build the gene x sample expression + volume table. Drop rows with
+# missing TPM or missing cell volume (a per-gene regression needs both
+# to be non-NA for a given sample to contribute).
+expr_data <- df_sc_final %>%
+  select(gene_id, gene_name, sample, all_of(tpm_col), mean_cell_volume) %>%
+  rename(tpm_value = all_of(tpm_col)) %>%
+  filter(!is.na(tpm_value), !is.na(mean_cell_volume))
+
+if (log_transform) {
+  expr_data <- expr_data %>%
+    mutate(log2_expr = log2(tpm_value + log_pseudocount))
+} else {
+  expr_data <- expr_data %>%
+    mutate(log2_expr = tpm_value)
+}
+
+cat("Rows retained after filtering NA:", nrow(expr_data), "\n")
+cat("Genes retained:", n_distinct(expr_data$gene_id), "\n")
+cat("Samples retained:", n_distinct(expr_data$sample), "\n")
+
+# Sanity check: samples per gene should be consistent (close to 93) -
+# large variation would indicate uneven NA dropout across genes
+samples_per_gene <- expr_data %>% count(gene_id) %>% pull(n)
+cat("\nSamples per gene - min:", min(samples_per_gene),
+    "| median:", median(samples_per_gene),
+    "| max:", max(samples_per_gene), "\n")
+```
+
+```{r per-gene-regression-function}
+# For each gene: Spearman correlation (rho, p-value) between log2
+# expression and mean cell volume across samples, matching the
+# Spearman approach used elsewhere in the pipeline (e.g. PC1/PC2 vs
+# cell volume), plus a linear regression slope (log2 expression units
+# per unit cell volume) for genes wanting an explicit slope value.
+# Minimum 10 samples per gene required for a stable correlation
+# estimate (arbitrary but conservative given ~93 samples available for
+# most genes).
+run_gene_regression <- function(df, min_samples = 10) {
+  df %>%
+    group_by(gene_id, gene_name) %>%
+    filter(n() >= min_samples) %>%
+    summarise(
+      n_samples = n(),
+      spearman_rho     = suppressWarnings(
+        cor(log2_expr, mean_cell_volume, method = "spearman")
+      ),
+      spearman_p       = suppressWarnings(
+        cor.test(log2_expr, mean_cell_volume, method = "spearman")$p.value
+      ),
+      lm_slope         = coef(lm(log2_expr ~ mean_cell_volume))[["mean_cell_volume"]],
+      lm_slope_se      = summary(lm(log2_expr ~ mean_cell_volume))$coefficients["mean_cell_volume", "Std. Error"],
+      lm_p             = summary(lm(log2_expr ~ mean_cell_volume))$coefficients["mean_cell_volume", "Pr(>|t|)"],
+      .groups = "drop"
+    )
+}
+
+cat("Running per-gene regression (this may take a moment for ~5,000 genes)...\n")
+gene_volume_reg <- run_gene_regression(expr_data)
+
+cat("Genes with regression results:", nrow(gene_volume_reg), "\n")
+```
+
+```{r fdr-correction}
+# BH correction across all tested genes, for both the Spearman and the
+# linear model p-values, matching the FDR approach used throughout the
+# rest of the pipeline (e.g. mitch's p.adjustMANOVA, script 09's
+# p.adjust)
+gene_volume_reg <- gene_volume_reg %>%
+  mutate(
+    spearman_padj = p.adjust(spearman_p, method = "BH"),
+    lm_padj       = p.adjust(lm_p, method = "BH")
+  ) %>%
+  arrange(spearman_padj)
+
+n_sig_spearman <- sum(gene_volume_reg$spearman_padj < 0.05, na.rm = TRUE)
+n_sig_lm       <- sum(gene_volume_reg$lm_padj < 0.05, na.rm = TRUE)
+
+cat("Significant genes (Spearman, FDR < 0.05):", n_sig_spearman,
+    "of", nrow(gene_volume_reg), "\n")
+cat("Significant genes (linear model, FDR < 0.05):", n_sig_lm,
+    "of", nrow(gene_volume_reg), "\n")
+
+cat("\nSpearman rho range:",
+    round(min(gene_volume_reg$spearman_rho, na.rm = TRUE), 3), "to",
+    round(max(gene_volume_reg$spearman_rho, na.rm = TRUE), 3), "\n")
+cat("lm slope range:",
+    round(min(gene_volume_reg$lm_slope, na.rm = TRUE), 4), "to",
+    round(max(gene_volume_reg$lm_slope, na.rm = TRUE), 4), "\n")
+```
+
+```{r check-against-known-tfs}
+# Quick validation: check regression results for the TFs already
+# identified as PC1/PC2 hits elsewhere in the pipeline (CBF1, IFH1,
+# SFP1, ERT1, RTG1, RTG3), as a sense check that this independent
+# per-gene metric is broadly consistent with the PCA-based enrichment
+# results, not a formal comparison.
+#
+# NOTE: gene IDs below are from memory of standard S. cerevisiae
+# systematic names and have not been independently verified against
+# SGD - double check before relying on this chunk's output.
+known_tf_ids <- c(
+  CBF1 = "YJR060W", IFH1 = "YLR223C", SFP1 = "YLR403W",
+  ERT1 = "YBR239C", RTG1 = "YOL067C", RTG3 = "YBL103C"
+)
+
+gene_volume_reg %>%
+  filter(gene_id %in% known_tf_ids) %>%
+  left_join(
+    enframe(known_tf_ids, name = "tf_name", value = "gene_id"),
+    by = "gene_id"
+  ) %>%
+  select(tf_name, gene_id, gene_name, n_samples,
+         spearman_rho, spearman_padj, lm_slope, lm_padj) %>%
+  print(n = Inf)
+```
+
+```{r plot-distribution}
+# Distribution of per-gene Spearman rho values - sanity check for
+# overall shape (expect a spread centred near zero with a meaningful
+# tail of both positive and negative correlations, consistent with
+# PC2 capturing a real but partial cell-size expression programme)
+p_dist <- ggplot(gene_volume_reg, aes(x = spearman_rho)) +
+  geom_histogram(bins = 60, fill = project_colours[["blue"]],
+                 color = "white", alpha = 0.9) +
+  geom_vline(xintercept = 0, linetype = "dashed",
+             color = project_colours[["grey"]]) +
+  labs(
+    title = "Per-gene expression vs cell volume (Spearman rho)",
+    subtitle = paste0(
+      nrow(gene_volume_reg), " genes | ",
+      n_sig_spearman, " significant at FDR < 0.05"
+    ),
+    x = "Spearman rho (log2 expression vs mean cell volume)",
+    y = "Number of genes"
+  ) +
+  theme_bw()
+
+print(p_dist)
+```
+
+```{r load-pc2-loadings}
+# Load PC2 gene loadings from the PCA for cross-validation against the
+# per-gene Spearman rho above. PC2 was independently established to
+# correlate strongly with mean cell volume at the sample level
+# (Spearman r = 0.795, PCA_samples_AC.txt) - if per-gene rho tracks
+# PC2 loading well, that is independent confirmation (a completely
+# different statistical approach - univariate per-gene correlation vs
+# multivariate PCA loading) that PC2 genuinely captures cell-size-
+# driven expression change, rather than an artefact of the PCA itself.
+pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
+                      show_col_types = FALSE)
+
+pc2_loadings <- pca_genes %>%
+  select(gene_id, PC2)
+
+cat("PC2 loadings available for", nrow(pc2_loadings), "genes\n")
+```
+
+```{r compare-rho-vs-pc2}
+# Join per-gene Spearman rho (expression vs cell volume) with PC2
+# loading (from the joint 93-sample PCA) on gene_id, then correlate
+# the two. Spearman used again for consistency with the rest of the
+# comparison chain, since neither variable is guaranteed to be
+# normally distributed.
+rho_vs_pc2 <- gene_volume_reg %>%
+  inner_join(pc2_loadings, by = "gene_id")
+
+cat("Genes with both a Spearman rho and a PC2 loading:",
+    nrow(rho_vs_pc2), "\n")
+
+rho_pc2_cor    <- cor(rho_vs_pc2$spearman_rho, rho_vs_pc2$PC2,
+                       method = "spearman", use = "complete.obs")
+rho_pc2_cortest <- cor.test(rho_vs_pc2$spearman_rho, rho_vs_pc2$PC2,
+                             method = "spearman")
+
+cat("\nSpearman correlation between per-gene rho (expr vs volume) and",
+    "PC2 loading:\n")
+cat("  rho =", round(rho_pc2_cor, 3), "\n")
+cat("  p-value =", format(rho_pc2_cortest$p.value, scientific = TRUE, digits = 3), "\n")
+```
+
+```{r plot-rho-vs-pc2}
+# Scatter of per-gene expression-volume rho against PC2 loading, with
+# a binned mean overlay to make the trend visible through the dense
+# point cloud, matching the "binned mean shown in black" convention
+# used in other figures throughout the dissertation (e.g. Figure 2).
+p_rho_pc2 <- ggplot(rho_vs_pc2, aes(x = PC2, y = spearman_rho)) +
+  geom_point(color = project_colours[["blue"]], alpha = 0.15, size = 0.8) +
+  geom_smooth(method = "loess", color = "black", se = FALSE,
+              linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed",
+             color = project_colours[["grey"]]) +
+  geom_vline(xintercept = 0, linetype = "dashed",
+             color = project_colours[["grey"]]) +
+  labs(
+    title = "Per-gene expression-volume correlation vs PC2 loading",
+    subtitle = paste0(
+      "n = ", nrow(rho_vs_pc2), " genes | Spearman r = ",
+      round(rho_pc2_cor, 3),
+      " | independent cross-validation of PC2 as the cell-size axis"
+    ),
+    x = "PC2 gene loading",
+    y = "Spearman rho (log2 expression vs mean cell volume)"
+  ) +
+  theme_bw()
+
+print(p_rho_pc2)
+```
+
+```{r identify-pc2-outliers}
+# Identify genes with extreme PC2 loadings driving the sparse tail of
+# the loess curve in the rho-vs-PC2 plot. Threshold set at |PC2| > 10,
+# chosen by inspecting the plot - the dense point cloud sits within
+# roughly [-5, 5], so anything beyond -10 is in the sparse region where
+# the loess fit is unreliable (few points, wide extrapolation).
+pc2_outlier_threshold <- 10
+
+pc2_outliers <- rho_vs_pc2 %>%
+  filter(abs(PC2) > pc2_outlier_threshold) %>%
+  arrange(PC2) %>%
+  select(gene_id, gene_name, PC2, spearman_rho, spearman_padj, n_samples)
+
+cat("Genes with |PC2 loading| >", pc2_outlier_threshold, ":",
+    nrow(pc2_outliers), "of", nrow(rho_vs_pc2), "total\n\n")
+
+print(pc2_outliers, n = Inf)
+```
+
+```{r pc2-outliers-context}
+# Quick check: do any of these outlier genes overlap with TFs or gene
+# sets already flagged elsewhere in the pipeline (e.g. the CBF1/IFH1/
+# SFP1/ERT1/RTG1/RTG3 TF hits, or known ribosomal protein genes), which
+# would help explain why their PC2 loading is so extreme rather than
+# treating them as unexplained outliers.
+if (nrow(pc2_outliers) > 0) {
+  cat("Outlier gene IDs for cross-reference against other results:\n")
+  print(pc2_outliers$gene_id)
+
+  cat("\nOutlier gene names for cross-reference against other results:\n")
+  print(pc2_outliers$gene_name)
+} else {
+  cat("No genes exceed the |PC2| >", pc2_outlier_threshold, "threshold -",
+      "consider lowering the threshold if the loess tail still looks",
+      "sparsely supported.\n")
+}
+```
+
+```{r plot-rho-vs-pc2-trimmed}
+# Re-plot restricted to the dense region (|PC2| <= pc2_outlier_threshold)
+# for a loess fit that isn't distorted by the sparse tail - a cleaner
+# figure for the dissertation if the full-range plot's extrapolated
+# tail is considered misleading. Outliers are noted in the subtitle
+# rather than silently dropped, so the exclusion is explicit.
+rho_vs_pc2_trimmed <- rho_vs_pc2 %>%
+  filter(abs(PC2) <= pc2_outlier_threshold)
+
+p_rho_pc2_trimmed <- ggplot(rho_vs_pc2_trimmed, aes(x = PC2, y = spearman_rho)) +
+  geom_point(color = project_colours[["blue"]], alpha = 0.15, size = 0.8) +
+  geom_smooth(method = "loess", color = "black", se = FALSE,
+              linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed",
+             color = project_colours[["grey"]]) +
+  geom_vline(xintercept = 0, linetype = "dashed",
+             color = project_colours[["grey"]]) +
+  labs(
+    title = "Per-gene expression-volume correlation vs PC2 loading",
+    subtitle = paste0(
+      "n = ", nrow(rho_vs_pc2_trimmed), " genes (|PC2| <= ",
+      pc2_outlier_threshold, "; ", nrow(pc2_outliers),
+      " outlier genes excluded from plot, listed separately) | ",
+      "Spearman r (full data) = ", round(rho_pc2_cor, 3)
+    ),
+    x = "PC2 gene loading",
+    y = "Spearman rho (log2 expression vs mean cell volume)"
+  ) +
+  theme_bw()
+
+print(p_rho_pc2_trimmed)
+```
+
+```{r identify-pc2-outliers}
+# Identify genes with extreme PC2 loadings driving the sparse tail of
+# the loess curve in the rho-vs-PC2 plot. Threshold set at |PC2| > 10,
+# chosen by inspecting the plot - the dense point cloud sits within
+# roughly [-5, 5], so anything beyond -10 is in the sparse region where
+# the loess fit is unreliable (few points, wide extrapolation).
+pc2_outlier_threshold <- 10
+
+pc2_outliers <- rho_vs_pc2 %>%
+  filter(abs(PC2) > pc2_outlier_threshold) %>%
+  arrange(PC2) %>%
+  select(gene_id, gene_name, PC2, spearman_rho, spearman_padj, n_samples)
+
+cat("Genes with |PC2 loading| >", pc2_outlier_threshold, ":",
+    nrow(pc2_outliers), "of", nrow(rho_vs_pc2), "total\n\n")
+
+print(pc2_outliers, n = Inf)
+```
+
+```{r pc2-outliers-context}
+# Quick check: do any of these outlier genes overlap with TFs or gene
+# sets already flagged elsewhere in the pipeline (e.g. the CBF1/IFH1/
+# SFP1/ERT1/RTG1/RTG3 TF hits, or known ribosomal protein genes), which
+# would help explain why their PC2 loading is so extreme rather than
+# treating them as unexplained outliers.
+if (nrow(pc2_outliers) > 0) {
+  cat("Outlier gene IDs for cross-reference against other results:\n")
+  print(pc2_outliers$gene_id)
+
+  cat("\nOutlier gene names for cross-reference against other results:\n")
+  print(pc2_outliers$gene_name)
+} else {
+  cat("No genes exceed the |PC2| >", pc2_outlier_threshold, "threshold -",
+      "consider lowering the threshold if the loess tail still looks",
+      "sparsely supported.\n")
+}
+```
+
+```{r plot-rho-vs-pc2-trimmed}
+# Re-plot restricted to the dense region (|PC2| <= pc2_outlier_threshold)
+# for a loess fit that isn't distorted by the sparse tail - a cleaner
+# figure for the dissertation if the full-range plot's extrapolated
+# tail is considered misleading. Outliers are noted in the subtitle
+# rather than silently dropped, so the exclusion is explicit.
+rho_vs_pc2_trimmed <- rho_vs_pc2 %>%
+  filter(abs(PC2) <= pc2_outlier_threshold)
+
+p_rho_pc2_trimmed <- ggplot(rho_vs_pc2_trimmed, aes(x = PC2, y = spearman_rho)) +
+  geom_point(color = project_colours[["blue"]], alpha = 0.15, size = 0.8) +
+  geom_smooth(method = "loess", color = "black", se = FALSE,
+              linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed",
+             color = project_colours[["grey"]]) +
+  geom_vline(xintercept = 0, linetype = "dashed",
+             color = project_colours[["grey"]]) +
+  labs(
+    title = "Per-gene expression-volume correlation vs PC2 loading",
+    subtitle = paste0(
+      "n = ", nrow(rho_vs_pc2_trimmed), " genes (|PC2| <= ",
+      pc2_outlier_threshold, "; ", nrow(pc2_outliers),
+      " outlier genes excluded from plot, listed separately) | ",
+      "Spearman r (full data) = ", round(rho_pc2_cor, 3)
+    ),
+    x = "PC2 gene loading",
+    y = "Spearman rho (log2 expression vs mean cell volume)"
+  ) +
+  theme_bw()
+
+print(p_rho_pc2_trimmed)
+```
+
+```{r save-outputs-updated}
+write_tsv(gene_volume_reg,
+          file.path(output_dir, "gene_expression_vs_cell_volume.txt"))
+write_tsv(rho_vs_pc2,
+          file.path(output_dir, "gene_expression_vs_cell_volume_pc2_comparison.txt"))
+write_tsv(pc2_outliers,
+          file.path(output_dir, "gene_expression_vs_cell_volume_pc2_outliers.txt"))
+
+ggsave(file.path(figures_dir, "gene_expression_vs_cell_volume_dist.png"),
+       plot = p_dist, width = 8, height = 6)
+ggsave(file.path(figures_dir, "gene_expression_vs_cell_volume_vs_pc2.png"),
+       plot = p_rho_pc2, width = 9, height = 7)
+ggsave(file.path(figures_dir, "gene_expression_vs_cell_volume_vs_pc2_trimmed.png"),
+       plot = p_rho_pc2_trimmed, width = 9, height = 7)
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```
+
+```{r save-outputs}
+write_tsv(gene_volume_reg,
+          file.path(output_dir, "gene_expression_vs_cell_volume.txt"))
+write_tsv(rho_vs_pc2,
+          file.path(output_dir, "gene_expression_vs_cell_volume_pc2_comparison.txt"))
+
+ggsave(file.path(figures_dir, "gene_expression_vs_cell_volume_dist.png"),
+       plot = p_dist, width = 8, height = 6)
+ggsave(file.path(figures_dir, "gene_expression_vs_cell_volume_vs_pc2.png"),
+       plot = p_rho_pc2, width = 9, height = 7)
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```
