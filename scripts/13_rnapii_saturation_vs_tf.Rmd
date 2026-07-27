@@ -142,6 +142,92 @@ cat("Target TF gene sets available:", length(available_tf_sets),
     "of", length(target_tf_sets), "\n")
 ```
 
+```{r robustness-check-peak-excluding-tf-targets}
+# Robustness check: is the PC1 plateau/turnover point itself being
+# pulled leftward by the IFH1/CBF1/SFP1 target genes, since these are
+# already known (from earlier enrichment work) to sit at the extreme
+# high end of PC1? If so, the "saturation" signal could partly reflect
+# these specific genes dominating the tail of the distribution rather
+# than a broader, independent occupancy ceiling. Recomputes the same
+# 30-bin binned mean and peak-finding logic as identify-plateau-region
+# above, but on the subset of genes that are NOT a direct target of any
+# of the 6 headline TFs (CBF1, IFH1, SFP1, ERT1, RTG1, RTG3).
+all_tf_target_genes <- unique(unlist(genesets_e[available_tf_sets]))
+
+occ_pc_no_tf <- occ_pc %>%
+  filter(!gene_id %in% all_tf_target_genes)
+
+cat("Genes remaining after excluding all 6 TFs' direct targets:",
+    nrow(occ_pc_no_tf), "of", nrow(occ_pc), "\n\n")
+
+pc1_binned_no_tf <- occ_pc_no_tf %>%
+  mutate(pc1_bin = ntile(PC1, n_bins)) %>%
+  group_by(pc1_bin) %>%
+  summarise(
+    pc1_mean = mean(PC1),
+    occ_mean = mean(log2_mean_occupancy),
+    n_genes  = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(pc1_bin)
+
+peak_bin_no_tf <- pc1_binned_no_tf$pc1_bin[which.max(pc1_binned_no_tf$occ_mean)]
+plateau_pc1_threshold_no_tf <- pc1_binned_no_tf %>%
+  filter(pc1_bin == peak_bin_no_tf) %>%
+  pull(pc1_mean)
+
+cat("With TF targets included - peak at PC1 ~",
+    round(plateau_pc1_threshold, 2), "(bin", peak_bin, "of", n_bins, ")\n")
+cat("With TF targets EXCLUDED  - peak at PC1 ~",
+    round(plateau_pc1_threshold_no_tf, 2), "(bin", peak_bin_no_tf, "of", n_bins, ")\n\n")
+
+if (peak_bin_no_tf >= n_bins - 2) {
+  cat("Peak bin with TF targets excluded is at or near the final bin -",
+      "i.e. occupancy is still rising (or barely turning over) at the",
+      "very top of PC1 once the 6 TFs' targets are removed. This",
+      "suggests the turnover/plateau seen in the full dataset is driven",
+      "substantially by IFH1/CBF1/SFP1 target genes specifically,",
+      "rather than being a general property of high-PC1 genes as a",
+      "whole. Report the saturation effect as specific to these TF",
+      "targets, not as a general phenomenon.\n")
+} else {
+  cat("A turnover point is still visible with TF targets excluded",
+      "(peak not at the final bin) - this indicates the plateau effect",
+      "is at least partly independent of the 6 TFs tested, i.e. a",
+      "broader saturation phenomenon that IFH1/CBF1/SFP1 targets also",
+      "happen to be part of, not something wholly created by them.\n")
+}
+```
+
+```{r plot-robustness-check, fig.width=9, fig.height=6}
+# Overlay both binned-mean trends (all genes vs TF-targets-excluded) for
+# a direct visual comparison of whether the turnover persists.
+binned_comparison <- bind_rows(
+  pc1_binned      %>% mutate(gene_set = "All genes"),
+  pc1_binned_no_tf %>% mutate(gene_set = "Excluding CBF1/IFH1/SFP1/ERT1/RTG1/RTG3 targets")
+)
+
+p_robustness <- ggplot(binned_comparison,
+                       aes(x = pc1_mean, y = occ_mean, color = gene_set)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 1.5) +
+  scale_color_manual(values = c(
+    "All genes" = project_colours[["grey"]],
+    "Excluding CBF1/IFH1/SFP1/ERT1/RTG1/RTG3 targets" = project_colours[["red"]]
+  )) +
+  labs(
+    title = "Robustness check: does the PC1 occupancy plateau persist without the headline TF targets?",
+    subtitle = "Binned mean log2(occupancy) vs PC1 gene loading, all genes vs TF-targets-excluded",
+    x = "PC1 gene loading (binned mean)",
+    y = "log2(mean RNAPII occupancy + 1), binned mean",
+    color = NULL
+  ) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+print(p_robustness)
+```
+
 ```{r hypergeometric-overlap-test}
 # Hypergeometric test for overlap between the saturation candidate genes
 # and each TF's direct target genes, restricted to the common gene
@@ -301,6 +387,8 @@ ggsave(file.path(figures_dir, "figure_rnapii_saturation_tf_overlap.png"),
        plot = p_saturation_tf, width = 8, height = 5, dpi = 300)
 ggsave(file.path(figures_dir, "figure_rnapii_saturation_scatter_highlighted.png"),
        plot = p_highlight, width = 8, height = 6, dpi = 300)
+ggsave(file.path(figures_dir, "figure_rnapii_saturation_robustness_check.png"),
+       plot = p_robustness, width = 9, height = 6, dpi = 300)
 
 cat("Done - results saved to output_tables/ and figures/\n")
 ```

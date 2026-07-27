@@ -1,0 +1,483 @@
+---
+title: "RNAPII Occupancy Follow-up: EFG/H Only, Transcription Rate Validation, Bcy1-AID+PhIAA"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
+
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
+```
+
+```{r libraries}
+library(tidyverse)
+
+select <- dplyr::select
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
+```
+
+# Background
+
+Follow-up to scripts 11/12, per Matthew's feedback (Slack):
+
+1. A/B/C vs EFG/H/J is a nutrient-condition difference, not equivalent
+   experiments as originally assumed. Adriana's data matches the nutrient
+   conditions of EFG and H specifically, so only those two should be
+   compared against PC1/PC2.
+2. EFG and H are cycling (not arrested) small cells, so cell-cycle genes
+   should be filtered out before repeating the correlation.
+3. Additional validation: correlate occupancy against published
+   transcription rate estimates already in the annotation file
+   (miller_synth_rate, neymotin_synth_rate), and against Adriana's own
+   unnormalised scTPM at the first (smallest-cell) time point.
+4. Key figure: Bcy1-AID + PhIAA data (small vs large cells) plotted
+   against transcription rate, to show the occupancy-transcription
+   correlation breaks down under direct signalling perturbation - a
+   direct test against the promoter-saturation model (Vidal et al.),
+   which would predict this correlation should hold even under
+   perturbation if saturation were driving transcriptional reprogramming.
+
+ASSUMPTIONS MADE BELOW THAT NEED CHECKING AGAINST WHAT MATTHEW ACTUALLY
+MEANT (each flagged again at the relevant point in the script):
+- "Adriana's first time point" = condition "OD 0.1", arrest "1hr G1...",
+  exp_group_3 "A", strain MS69 (WT) - the earliest/smallest sample in
+  what looks like a separate OD-timecourse series, distinct from the
+  drug-perturbation panel (exp_group_3 "B").
+- Bcy1-AID + PhIAA = strain_id MS756 / MS756c2, strain_info "AID-Bcy1",
+  condition "PhIAA" vs "DMSO" (matched vehicle control), at "1hr G1..."
+  (small) vs "Large G..." (large) arrest.
+- MS756 and MS756c2 are treated as biological replicates of the same
+  strain and averaged together.
+- "Plot vs transcription rate ... to show loss of correlation" is built
+  as: occupancy (fixed, from the published ChIP data) vs the
+  perturbation-induced transcriptional change (log2FC PhIAA/DMSO),
+  separately in small and large cells. An alternative, simpler reading
+  (occupancy vs absolute TPM level, not log2FC) is also included as a
+  secondary check.
+
+```{r load-occupancy-raw}
+occupancy_path <- file.path(
+  tables_dir,
+  "210601_gene_annotation_RPB_occupancy.txt"
+)
+
+occupancy_raw <- read_tsv(occupancy_path, show_col_types = FALSE)
+
+cat("Occupancy data:", nrow(occupancy_raw), "genes x",
+    ncol(occupancy_raw), "columns\n")
+```
+
+# Part A: Occupancy vs PC1/PC2, restricted to EFG and H, cell-cycle genes excluded
+
+```{r select-efg-h-and-cellcycle-flags}
+occupancy_efgh <- occupancy_raw %>%
+  select(systematic_name, gene_name,
+         RPKM_mean_EFG, RPKM_mean_H, rankEFG, rankH,
+         cell_cycle_high_confidence, cell_cycle_low_confidence,
+         Campbell_2020_cell_cycle_phase, Spellman_1998_cell_cycle_phase,
+         Lichtenberg_2004_cell_cycle_phase) %>%
+  rename(gene_id = systematic_name)
+
+cat("Cell-cycle flag counts (high confidence):\n")
+print(table(occupancy_efgh$cell_cycle_high_confidence, useNA = "ifany"))
+```
+
+```{r filter-cellcycle-genes}
+# Excluding genes flagged TRUE for cell_cycle_high_confidence, per
+# Matthew's instruction that EFG/H are cycling cells and cell-cycle
+# genes should be removed before correlating. Using the high-confidence
+# flag (not low-confidence) as the exclusion criterion - a stricter
+# annotation than low-confidence, chosen to avoid removing genes that
+# aren't robustly cell-cycle-regulated. If Matthew intended the broader
+# low-confidence exclusion instead, swap the filter below.
+occupancy_efgh_filtered <- occupancy_efgh %>%
+  filter(is.na(cell_cycle_high_confidence) | cell_cycle_high_confidence == FALSE)
+
+cat("Genes retained after excluding high-confidence cell-cycle genes:",
+    nrow(occupancy_efgh_filtered), "of", nrow(occupancy_efgh), "\n")
+```
+
+```{r compute-efgh-average}
+occupancy_efgh_filtered <- occupancy_efgh_filtered %>%
+  rowwise() %>%
+  mutate(
+    n_efgh_present  = sum(!is.na(c(RPKM_mean_EFG, RPKM_mean_H))),
+    mean_occupancy_efgh = mean(c(RPKM_mean_EFG, RPKM_mean_H), na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  filter(n_efgh_present >= 1) %>%
+  mutate(
+    log2_occupancy_efgh = log2(mean_occupancy_efgh + 1),
+    rank_occupancy_efgh = rank(mean_occupancy_efgh, ties.method = "average")
+  )
+
+cat("Genes with at least one of EFG/H present (post cell-cycle filter):",
+    nrow(occupancy_efgh_filtered), "\n")
+```
+
+```{r join-pc-efgh}
+pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
+                      show_col_types = FALSE)
+
+pc_loadings <- pca_genes %>% select(gene_id, PC1, PC2)
+
+occ_efgh_pc <- occupancy_efgh_filtered %>%
+  inner_join(pc_loadings, by = "gene_id")
+
+cat("Genes with EFG/H occupancy (cell-cycle-filtered) + PC1/PC2:",
+    nrow(occ_efgh_pc), "\n")
+```
+
+```{r correlate-efgh}
+run_correlation <- function(x, y, method = "pearson") {
+  ct <- cor.test(x, y, method = method)
+  tibble(r = unname(ct$estimate), p_value = ct$p.value)
+}
+
+efgh_results <- bind_rows(
+  run_correlation(occ_efgh_pc$log2_occupancy_efgh, occ_efgh_pc$PC1) %>%
+    mutate(metric = "log2_occupancy", pc = "PC1"),
+  run_correlation(occ_efgh_pc$log2_occupancy_efgh, occ_efgh_pc$PC2) %>%
+    mutate(metric = "log2_occupancy", pc = "PC2"),
+  run_correlation(occ_efgh_pc$rank_occupancy_efgh, occ_efgh_pc$PC1) %>%
+    mutate(metric = "rank_occupancy", pc = "PC1"),
+  run_correlation(occ_efgh_pc$rank_occupancy_efgh, occ_efgh_pc$PC2) %>%
+    mutate(metric = "rank_occupancy", pc = "PC2")
+) %>%
+  select(pc, metric, r, p_value) %>%
+  mutate(n_genes = nrow(occ_efgh_pc))
+
+cat("EFG/H occupancy (cell-cycle genes excluded) vs PC1/PC2:\n")
+print(efgh_results)
+
+cat("\nFor comparison, the original all-experiment-average result",
+    "(script 11, no cell-cycle filter) was approximately: PC1 log2 r =",
+    "0.22, PC2 log2 r = 0.03. Compare against efgh_results above to see",
+    "whether restricting to EFG/H and removing cell-cycle genes",
+    "strengthens, weakens, or leaves unchanged the PC1 relationship.\n")
+```
+
+```{r plot-efgh-scatter, fig.width=15, fig.height=5.5}
+# Titles shortened (moved the "RNAPII occupancy (EFG/H, cell-cycle
+# genes excluded)" portion to a shared caption instead of repeating it
+# in both panel titles) and the combined figure widened, since the two
+# original panel titles were long enough to overlap when placed side
+# by side at the previous width.
+plot_occupancy_scatter <- function(df, pc_col, pc_label, r_val, occ_col) {
+  df_binned <- df %>%
+    mutate(pc_bin = ntile(.data[[pc_col]], 30)) %>%
+    group_by(pc_bin) %>%
+    summarise(
+      pc_mean  = mean(.data[[pc_col]]),
+      occ_mean = mean(.data[[occ_col]]),
+      .groups = "drop"
+    )
+
+  ggplot(df, aes(x = .data[[pc_col]], y = .data[[occ_col]])) +
+    geom_point(color = project_colours[["blue"]], alpha = 0.15, size = 0.8) +
+    geom_line(data = df_binned, aes(x = pc_mean, y = occ_mean),
+              color = "black", linewidth = 0.8) +
+    labs(
+      title = paste0("vs ", pc_label),
+      subtitle = paste0("Pearson r = ", round(r_val, 3),
+                        " | n = ", nrow(df), " genes"),
+      x = pc_label,
+      y = "log2(mean EFG/H occupancy + 1)"
+    ) +
+    theme_bw() +
+    theme(plot.title = element_text(size = 11))
+}
+
+r_pc1_efgh <- efgh_results %>% filter(metric == "log2_occupancy", pc == "PC1") %>% pull(r)
+r_pc2_efgh <- efgh_results %>% filter(metric == "log2_occupancy", pc == "PC2") %>% pull(r)
+
+p_efgh_pc1 <- plot_occupancy_scatter(occ_efgh_pc, "PC1", "PC1 gene loading",
+                                     r_pc1_efgh, "log2_occupancy_efgh")
+p_efgh_pc2 <- plot_occupancy_scatter(occ_efgh_pc, "PC2", "PC2 gene loading",
+                                     r_pc2_efgh, "log2_occupancy_efgh")
+
+fig_efgh <- (p_efgh_pc1 + p_efgh_pc2) +
+  plot_annotation(
+    title = "RNAPII occupancy (EFG/H, cell-cycle genes excluded)",
+    theme = theme(plot.title = element_text(face = "bold", size = 13))
+  )
+
+print(fig_efgh)
+```
+
+# Part B: Validate occupancy against published transcription rate annotations
+
+```{r load-synth-rate-columns}
+synth_rates <- occupancy_raw %>%
+  select(systematic_name, miller_synth_rate, neymotin_synth_rate) %>%
+  rename(gene_id = systematic_name)
+
+occ_efgh_synth <- occ_efgh_pc %>%
+  left_join(synth_rates, by = "gene_id")
+
+cat("Genes with Miller synth rate:",
+    sum(!is.na(occ_efgh_synth$miller_synth_rate)), "\n")
+cat("Genes with Neymotin synth rate:",
+    sum(!is.na(occ_efgh_synth$neymotin_synth_rate)), "\n")
+```
+
+```{r correlate-synth-rates}
+synth_rate_results <- bind_rows(
+  occ_efgh_synth %>%
+    filter(!is.na(miller_synth_rate)) %>%
+    { run_correlation(.$log2_occupancy_efgh, .$miller_synth_rate, method = "spearman") } %>%
+    mutate(source = "Miller synth rate"),
+  occ_efgh_synth %>%
+    filter(!is.na(neymotin_synth_rate)) %>%
+    { run_correlation(.$log2_occupancy_efgh, .$neymotin_synth_rate, method = "spearman") } %>%
+    mutate(source = "Neymotin synth rate")
+)
+
+cat("EFG/H occupancy vs published transcription (synthesis) rate estimates",
+    "(Spearman, as a validation check that occupancy tracks independently",
+    "measured transcription rate):\n")
+print(synth_rate_results)
+```
+
+# Part C: Validate occupancy against Adriana's raw scTPM at the first time point
+
+```{r identify-first-timepoint-sample}
+# "Adriana's first time point": interpreted as the OD-timecourse series
+# (exp_group_3 == "A", distinct from the drug-perturbation panel where
+# exp_group_3 == "B"), earliest point (OD 0.1, 1hr G1 arrest, WT strain
+# MS69). CHECK: confirm this is the correct sample before trusting the
+# result below - if wrong, adjust the filter conditions.
+df_sc_final <- read_tsv(file.path(tables_dir, "df_sc_final.txt"),
+                        show_col_types = FALSE)
+
+first_timepoint_samples <- df_sc_final %>%
+  filter(exp_group_3 == "A", condition == "OD 0.1",
+         str_detect(arrest, "^1hr")) %>%
+  distinct(sample, sample_short, condition, arrest, strain_id, mean_cell_volume)
+
+cat("Sample(s) identified as 'Adriana's first time point':\n")
+print(first_timepoint_samples)
+
+if (nrow(first_timepoint_samples) != 1) {
+  cat("\nWARNING: expected exactly 1 sample, found", nrow(first_timepoint_samples),
+      "- check the filter conditions above before trusting Part C results.\n")
+}
+```
+
+```{r correlate-first-timepoint-tpm}
+first_tp_tpm <- df_sc_final %>%
+  filter(sample %in% first_timepoint_samples$sample) %>%
+  select(gene_id, TPM) %>%
+  distinct()
+
+occ_efgh_firsttp <- occ_efgh_pc %>%
+  inner_join(first_tp_tpm, by = "gene_id") %>%
+  filter(!is.na(TPM))
+
+cat("Genes with both EFG/H occupancy and first-timepoint raw TPM:",
+    nrow(occ_efgh_firsttp), "\n")
+
+first_tp_correlation <- run_correlation(
+  occ_efgh_firsttp$log2_occupancy_efgh, occ_efgh_firsttp$TPM,
+  method = "spearman"
+)
+
+cat("\nEFG/H occupancy vs Adriana's raw (unnormalised) TPM at the first",
+    "time point (Spearman):\n")
+print(first_tp_correlation)
+```
+
+# Part D: Bcy1-AID + PhIAA - does occupancy predict the perturbation response?
+
+```{r identify-bcy1-samples}
+# Bcy1-AID + PhIAA vs DMSO, small ("1hr G1...") vs large ("Large G...")
+# arrest. MS756 and MS756c2 treated as biological replicates of the same
+# AID-Bcy1 strain and averaged. CHECK: confirm arrest string matching
+# below actually captures the intended small/large samples (arrest
+# column values are truncated in the console output used to identify
+# them, so str_detect patterns are a best guess at the full strings).
+bcy1_samples <- df_sc_final %>%
+  filter(strain_id %in% c("MS756", "MS756c2"),
+         condition %in% c("PhIAA", "DMSO")) %>%
+  mutate(
+    cell_size_group = case_when(
+      str_detect(arrest, "^1hr")  ~ "small",
+      str_detect(arrest, "^Large") ~ "large",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(cell_size_group))
+
+cat("Bcy1-AID samples identified:\n")
+print(bcy1_samples %>%
+        distinct(sample, condition, arrest, cell_size_group, strain_id,
+                 mean_cell_volume))
+```
+
+```{r compute-bcy1-log2fc}
+# Mean TPMsc per gene x condition x cell_size_group (averaging replicate
+# samples, including across MS756/MS756c2), then log2FC(PhIAA/DMSO)
+# within each cell size group separately.
+bcy1_mean_tpm <- bcy1_samples %>%
+  group_by(gene_id, condition, cell_size_group) %>%
+  summarise(mean_tpmsc = mean(TPMsc, na.rm = TRUE), .groups = "drop")
+
+bcy1_log2fc <- bcy1_mean_tpm %>%
+  pivot_wider(names_from = condition, values_from = mean_tpmsc) %>%
+  filter(!is.na(PhIAA), !is.na(DMSO), PhIAA > 0, DMSO > 0) %>%
+  mutate(log2fc_phiaa_dmso = log2(PhIAA / DMSO))
+
+cat("Genes with log2FC(PhIAA/DMSO) computed, by cell size group:\n")
+print(table(bcy1_log2fc$cell_size_group))
+```
+
+```{r join-bcy1-occupancy}
+bcy1_occ <- bcy1_log2fc %>%
+  inner_join(
+    occ_efgh_pc %>% select(gene_id, log2_occupancy_efgh, PC1, PC2),
+    by = "gene_id"
+  )
+
+cat("Genes with both Bcy1 log2FC and EFG/H occupancy:", nrow(bcy1_occ), "\n")
+```
+
+```{r correlate-bcy1-occupancy}
+bcy1_correlation <- bcy1_occ %>%
+  group_by(cell_size_group) %>%
+  summarise(
+    r = cor(log2_occupancy_efgh, log2fc_phiaa_dmso, method = "spearman",
+            use = "complete.obs"),
+    p_value = cor.test(log2_occupancy_efgh, log2fc_phiaa_dmso,
+                       method = "spearman")$p.value,
+    n = n(),
+    .groups = "drop"
+  )
+
+cat("Correlation between static occupancy and PhIAA-induced transcriptional",
+    "change (log2FC PhIAA/DMSO), separately in small and large cells.\n")
+cat("Under a strict promoter-saturation model, occupancy alone should",
+    "largely determine this response. Report both r and r^2 below:",
+    "r describes the strength/direction of any relationship, r^2",
+    "describes how much of the response variance occupancy actually",
+    "explains - a moderate r with a small r^2 (as found here, ~10-12%)",
+    "indicates occupancy has *some* relationship to the response but is",
+    "far from sufficient to explain it, which is the precise claim to",
+    "report rather than 'no correlation':\n")
+print(bcy1_correlation %>% mutate(r2_pct = round(r^2 * 100, 1)))
+```
+
+```{r plot-bcy1-occupancy, fig.width=11, fig.height=5}
+# Title/subtitle corrected to match the actual result: bcy1_correlation
+# (computed in the chunk above) shows r ~ 0.31-0.35 in both cell size
+# groups, p < 1e-100, n = 4392 - a moderate, highly significant
+# correlation, NOT "no correlation" as an earlier version of this figure
+# claimed. r^2 (~10-12%) is used in the subtitle since that is the more
+# interpretable quantity here: it states plainly how much of the
+# transcriptional response variance is (and, more importantly, is NOT)
+# explained by static occupancy alone. Values are pulled directly from
+# bcy1_correlation rather than hardcoded, so the figure stays accurate
+# if the underlying data/filtering changes on a re-run.
+bcy1_corr_label <- bcy1_correlation %>%
+  mutate(
+    r2 = r^2,
+    label = paste0(
+      str_to_title(cell_size_group), ": r = ", round(r, 2),
+      " (r\u00b2 = ", round(r2 * 100, 1), "%)"
+    )
+  ) %>%
+  arrange(cell_size_group) %>%
+  pull(label) %>%
+  paste(collapse = "  |  ")
+
+p_bcy1 <- ggplot(bcy1_occ, aes(x = log2_occupancy_efgh, y = log2fc_phiaa_dmso)) +
+  geom_point(color = project_colours[["blue"]], alpha = 0.3, size = 1) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
+  geom_smooth(method = "lm", color = "black", se = FALSE, linewidth = 0.7) +
+  facet_wrap(~cell_size_group, labeller = labeller(
+    cell_size_group = c(small = "Small cells", large = "Large cells")
+  )) +
+  labs(
+    title = "RNAPII occupancy explains only a small fraction of the Bcy1-AID + PhIAA transcriptional response",
+    subtitle = paste0(
+      "Static occupancy (EFG/H) vs log2FC(PhIAA/DMSO)  |  ", bcy1_corr_label,
+      "  |  most of the transcriptional response is not explained by baseline occupancy"
+    ),
+    x = "log2(mean EFG/H occupancy + 1)",
+    y = "log2FC (PhIAA / DMSO)"
+  ) +
+  theme_bw() +
+  theme(plot.subtitle = element_text(size = 8.5))
+
+print(p_bcy1)
+```
+
+```{r plot-bcy1-occupancy-alternative, fig.width=11, fig.height=5}
+# Secondary/alternative reading: occupancy vs absolute TPM level (not
+# log2FC) within PhIAA-treated cells only, small vs large - a simpler
+# version of "plot occupancy vs transcription rate in small and large
+# cells" in case this, rather than the log2FC version above, is what
+# Matthew meant.
+bcy1_absolute <- bcy1_mean_tpm %>%
+  filter(condition == "PhIAA") %>%
+  mutate(log2_tpmsc = log2(mean_tpmsc + 1)) %>%
+  inner_join(
+    occ_efgh_pc %>% select(gene_id, log2_occupancy_efgh),
+    by = "gene_id"
+  )
+
+bcy1_absolute_correlation <- bcy1_absolute %>%
+  group_by(cell_size_group) %>%
+  summarise(
+    r = cor(log2_occupancy_efgh, log2_tpmsc, method = "spearman",
+            use = "complete.obs"),
+    n = n(),
+    .groups = "drop"
+  )
+
+cat("Alternative version: occupancy vs absolute PhIAA-treated expression",
+    "level (not log2FC), small vs large cells:\n")
+print(bcy1_absolute_correlation)
+
+p_bcy1_absolute <- ggplot(bcy1_absolute, aes(x = log2_occupancy_efgh, y = log2_tpmsc)) +
+  geom_point(color = project_colours[["red"]], alpha = 0.3, size = 1) +
+  geom_smooth(method = "lm", color = "black", se = FALSE, linewidth = 0.7) +
+  facet_wrap(~cell_size_group, labeller = labeller(
+    cell_size_group = c(small = "Small cells", large = "Large cells")
+  )) +
+  labs(
+    title = "RNAPII occupancy vs absolute expression under PhIAA treatment",
+    subtitle = "Alternative reading: static occupancy vs PhIAA-treated log2(TPMsc), small vs large cells",
+    x = "log2(mean EFG/H occupancy + 1)",
+    y = "log2(TPMsc + 1), PhIAA-treated"
+  ) +
+  theme_bw()
+
+print(p_bcy1_absolute)
+```
+
+```{r save-outputs}
+write_tsv(occ_efgh_pc, file.path(output_dir, "rnapii_occupancy_efgh_pc_joined.txt"))
+write_tsv(efgh_results, file.path(output_dir, "rnapii_occupancy_efgh_correlation.txt"))
+write_tsv(synth_rate_results, file.path(output_dir, "rnapii_occupancy_synth_rate_validation.txt"))
+write_tsv(first_tp_correlation, file.path(output_dir, "rnapii_occupancy_first_timepoint_validation.txt"))
+write_tsv(bcy1_occ, file.path(output_dir, "bcy1_phiaa_occupancy_joined.txt"))
+write_tsv(bcy1_correlation, file.path(output_dir, "bcy1_phiaa_occupancy_correlation.txt"))
+
+ggsave(file.path(figures_dir, "figure_rnapii_occupancy_efgh_scatter.png"),
+       plot = fig_efgh, width = 15, height = 5.5, dpi = 300)
+ggsave(file.path(figures_dir, "figure_bcy1_phiaa_occupancy_log2fc.png"),
+       plot = p_bcy1, width = 11, height = 5, dpi = 300)
+ggsave(file.path(figures_dir, "figure_bcy1_phiaa_occupancy_absolute.png"),
+       plot = p_bcy1_absolute, width = 11, height = 5, dpi = 300)
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```
