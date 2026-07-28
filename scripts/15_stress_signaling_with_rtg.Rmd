@@ -1,0 +1,196 @@
+---
+title: "TF Enrichment - Stress Signaling Gene Sets (mitch), incl. RTG targets"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
+
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
+```
+
+```{r libraries}
+library(tidyverse)
+library(mitch)
+
+select <- dplyr::select
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
+```
+
+# Background
+
+Follow-up to Adriana's question (Slack): are retrograde pathway (RTG)
+targets or GCN2 targets enriched on PC1/PC2? GCN2_targets was already
+tested in the original stress signalling mitch script, alongside
+SNF1_targets and Gis1_targets. RTG_targets was built by
+00b_add_stress_signaling_genesets.R but deliberately excluded from
+testing at the time ("Restricted to GCN2, SNF1, and Gis1 targets only
+(as requested)"). This script adds RTG_targets to the test, alongside
+re-confirming GCN2_targets, SNF1_targets, and Gis1_targets.
+
+NOTE: the RTG targets sheet in Phospho_Residues_StressSignaling.xlsx
+lists IDH1 with gene_id "YLR304C", which is actually the systematic
+name for ACO1 (correctly listed on the row above). IDH1's real
+systematic name is YNL009W. This looks like a copy-paste error in the
+source spreadsheet - flagged to Adriana, but not corrected here
+automatically, since the correct fix (YNL009W vs simply dropping the
+duplicate) should be confirmed with her rather than assumed. As a
+result RTG_targets currently contains 6 unique systematic IDs, not 7,
+because YLR304C is duplicated under two gene names.
+
+```{r load-pca}
+# PC scores: PC1/PC2 only (PC4+ confirmed as noise)
+pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
+                      show_col_types = FALSE)
+
+mitch_input <- pca_genes %>%
+  select(gene_id, PC1, PC2) %>%
+  column_to_rownames("gene_id")
+
+cat("PC input:", nrow(mitch_input), "genes x", ncol(mitch_input), "contrasts\n")
+```
+
+```{r load-genesets}
+# Stress signaling gene sets built by 00b_add_stress_signaling_genesets.R.
+# Now testing GCN2, SNF1, Gis1, AND RTG targets - RTG added per Adriana's
+# request. GCN2_regulators and Tod6_Dot6_lit remain available in the
+# .rda but are not tested here: GCN2_regulators has only 4 genes (below
+# the pipeline's minsetsize = 5), and Tod6/Dot6 literature targets are
+# already covered via the Table A/C/E Dot6_Tod6 gene sets built from
+# Huber et al. 2011 (see script 05/07/09), so re-testing the literature
+# list here would be redundant with that more directly regulation-based
+# gene set.
+load(file.path(tables_dir, "stress_signaling_genesets.rda"))
+
+genesets_stress <- stress_signaling_genesets[
+  c("GCN2_targets", "SNF1_targets", "Gis1_targets", "RTG_targets")
+]
+
+cat("Stress signaling gene sets tested (RTG_targets newly added):\n")
+for (nm in names(genesets_stress)) {
+  n_unique <- length(unique(genesets_stress[[nm]]))
+  n_total  <- length(genesets_stress[[nm]])
+  flag <- if (n_unique < n_total) {
+    paste0("  <- ", n_total - n_unique, " duplicate ID(s) present")
+  } else {
+    ""
+  }
+  cat(" ", nm, ":", n_total, "genes (", n_unique, "unique )", flag, "\n")
+}
+```
+
+```{r check-gene-overlap}
+# Sanity check: confirm reasonable overlap between PCA genes and gene set
+# members before running enrichment - same check as the original stress
+# signalling script, repeated here since RTG_targets is a new addition
+# and could plausibly fail to overlap if its gene IDs are malformed.
+pca_gene_ids <- rownames(mitch_input)
+
+cat("Genes in PCA:", length(pca_gene_ids), "\n\n")
+cat("Per-geneset overlap with PCA data:\n")
+for (nm in names(genesets_stress)) {
+  n_overlap <- length(intersect(pca_gene_ids, unique(genesets_stress[[nm]])))
+  n_unique  <- length(unique(genesets_stress[[nm]]))
+  cat(" ", nm, ":", n_overlap, "of", n_unique, "unique genes overlap with PCA data\n")
+}
+```
+
+```{r run-mitch}
+# mitch enrichment, matching the original stress signalling script's
+# approach (priority = "effect", minsetsize = 5). RTG_targets has only
+# 6 unique genes after the ID issue above - right at/near the
+# minsetsize threshold, so check the console output below to confirm
+# it wasn't silently dropped.
+cat("Running mitch: stress signaling gene sets (incl. RTG_targets)\n")
+
+mitch_stress <- mitch_calc(
+  x        = mitch_input,
+  genesets = genesets_stress,
+  priority = "effect",
+  minsetsize = 5,
+  cores    = 1
+)
+
+mitch_stress_result <- mitch_stress$enrichment_result %>%
+  arrange(p.adjustMANOVA)
+
+cat("\nGene sets returned by mitch (check RTG_targets is present):\n")
+print(mitch_stress_result)
+
+n_sig <- sum(mitch_stress_result$p.adjustMANOVA < 0.05, na.rm = TRUE)
+cat("\nSignificant gene sets (FDR < 0.05):", n_sig, "of",
+    nrow(mitch_stress_result), "\n")
+
+if (!"RTG_targets" %in% mitch_stress_result$set) {
+  cat("\nWARNING: RTG_targets not present in mitch output - likely",
+      "dropped for having fewer unique genes than minsetsize (5) after",
+      "removing the duplicate YLR304C ID and/or after intersecting with",
+      "the PCA gene universe. Check the overlap count printed above.\n")
+}
+```
+
+```{r plot-2d, fig.width=10, fig.height=9}
+# 2D scatter of s.PC1 vs s.PC2 effect sizes, matching the original
+# stress signalling script's plot
+plot_stress_2d <- function(df, title) {
+  ggplot(df, aes(x = s.PC1, y = s.PC2)) +
+    geom_point(aes(color = -log10(p.adjustMANOVA)), size = 3, alpha = 0.85) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
+    ggrepel::geom_text_repel(aes(label = set), size = 3, max.overlaps = 20) +
+    scale_color_gradient(low = project_colours[["grey"]], high = project_colours[["red"]]) +
+    labs(
+      title = title,
+      x = "Effect size PC1 (s.PC1)",
+      y = "Effect size PC2 (s.PC2)",
+      color = expression(-log[10]("adj. p-value"))
+    ) +
+    theme_bw()
+}
+
+if (!requireNamespace("ggrepel", quietly = TRUE)) install.packages("ggrepel")
+library(ggrepel)
+
+p_stress_2d <- plot_stress_2d(
+  mitch_stress_result,
+  "Stress signaling gene sets - mitch 2D (PC1 vs PC2), incl. RTG targets"
+)
+print(p_stress_2d)
+```
+
+```{r summarise-for-adriana}
+# Plain-English summary of the answer to Adriana's question, printed
+# directly so it can be copied into a Slack reply without re-deriving
+# it from the table above.
+cat("=== Summary for Adriana ===\n\n")
+
+for (nm in c("GCN2_targets", "RTG_targets")) {
+  row <- mitch_stress_result %>% filter(set == nm)
+  if (nrow(row) == 0) {
+    cat(nm, ": not tested (see WARNING above if this is RTG_targets)\n\n")
+  } else {
+    sig <- if (row$p.adjustMANOVA < 0.05) "SIGNIFICANT" else "not significant"
+    cat(nm, "(", sig, ", FDR =", format(row$p.adjustMANOVA, scientific = TRUE, digits = 3), "):\n")
+    cat("  s.PC1 =", round(row$s.PC1, 3), "| s.PC2 =", round(row$s.PC2, 3), "\n\n")
+  }
+}
+```
+
+```{r save-outputs}
+write_tsv(mitch_stress_result,
+          file.path(output_dir, "tf_mitch_stress_signaling_with_rtg.txt"))
+
+ggsave(file.path(figures_dir, "tf_mitch_stress_signaling_with_rtg_2d.png"),
+       plot = p_stress_2d, width = 10, height = 9, dpi = 300)
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```

@@ -1,0 +1,106 @@
+---
+title: "PC1/PC2 vs Cell Volume"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
+
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
+```
+
+```{r libraries}
+library(tidyverse)
+library(patchwork)
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
+```
+
+```{r load-pca-samples}
+# Sample-level PCA scores (93 samples), joined against mean cell
+# volume per sample. This is the direct validation that PC1 and PC2
+# mean what scripts 03/06/09 assume they mean - those scripts only
+# ever compute cor_PC1_vol / cor_PC2_vol as a subtitle number, with
+# no standalone figure showing the relationship. This script produces
+# that figure.
+pca_samples <- read_tsv(file.path(tables_dir, "PCA_samples_AC.txt"),
+                        show_col_types = FALSE) %>%
+  filter(!is.na(mean_cell_volume))
+
+pc_vol_cor <- pca_samples %>%
+  summarise(
+    cor_PC1_vol = cor(PC1, mean_cell_volume, method = "spearman"),
+    cor_PC2_vol = cor(PC2, mean_cell_volume, method = "spearman")
+  )
+
+cat("PC1 vs cell volume (Spearman r):", round(pc_vol_cor$cor_PC1_vol, 3), "\n")
+cat("PC2 vs cell volume (Spearman r):", round(pc_vol_cor$cor_PC2_vol, 3), "\n")
+cat("n samples:", nrow(pca_samples), "\n")
+```
+
+```{r plot-pc1-vs-volume}
+p_pc1_vol <- ggplot(pca_samples, aes(x = mean_cell_volume, y = PC1)) +
+  geom_point(color = project_colours[["purple"]], alpha = 0.6, size = 2) +
+  geom_smooth(method = "lm", color = "black", se = FALSE, linewidth = 0.8) +
+  labs(
+    title = "PC1 sample score against measured cell volume",
+    subtitle = paste0(
+      "n = ", nrow(pca_samples), " samples | ",
+      "Spearman r = ", round(pc_vol_cor$cor_PC1_vol, 3)
+    ),
+    x = "Mean cell volume (fL)",
+    y = "PC1 sample score"
+  ) +
+  theme_bw()
+
+print(p_pc1_vol)
+```
+
+```{r plot-pc2-vs-volume}
+p_pc2_vol <- ggplot(pca_samples, aes(x = mean_cell_volume, y = PC2)) +
+  geom_point(color = project_colours[["blue"]], alpha = 0.6, size = 2) +
+  geom_smooth(method = "lm", color = "black", se = FALSE, linewidth = 0.8) +
+  labs(
+    title = "PC2 sample score against measured cell volume",
+    subtitle = paste0(
+      "n = ", nrow(pca_samples), " samples | ",
+      "Spearman r = ", round(pc_vol_cor$cor_PC2_vol, 3)
+    ),
+    x = "Mean cell volume (fL)",
+    y = "PC2 sample score"
+  ) +
+  theme_bw()
+
+print(p_pc2_vol)
+```
+
+```{r combined-panel}
+# Side-by-side panel is the version for the dissertation - shows PC1
+# and PC2 have opposite relationships with volume in one figure,
+# which is the actual point (PC2 tracks size, PC1 does not).
+p_combined <- p_pc1_vol + p_pc2_vol +
+  plot_layout(ncol = 2)
+
+print(p_combined)
+```
+
+```{r save-outputs}
+write_tsv(pc_vol_cor, file.path(output_dir, "pc_vs_cell_volume_correlations.txt"))
+
+ggsave(file.path(figures_dir, "figure_pc1_vs_cell_volume.png"),
+       plot = p_pc1_vol, width = 6, height = 5, dpi = 300)
+ggsave(file.path(figures_dir, "figure_pc2_vs_cell_volume.png"),
+       plot = p_pc2_vol, width = 6, height = 5, dpi = 300)
+ggsave(file.path(figures_dir, "figure_pc1_pc2_vs_cell_volume_combined.png"),
+       plot = p_combined, width = 11, height = 5, dpi = 300)
+
+cat("Done - results saved to output_tables/ and figures/\n")
+```

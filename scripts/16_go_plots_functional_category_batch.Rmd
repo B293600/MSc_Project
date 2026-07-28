@@ -1,0 +1,340 @@
+---
+title: "Functional Category Annotation Across All GO Enrichment Plots"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
+
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
+```
+
+```{r libraries}
+library(tidyverse)
+library(patchwork)
+
+select <- dplyr::select
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
+
+if (!requireNamespace("ggrepel", quietly = TRUE)) install.packages("ggrepel")
+library(ggrepel)
+```
+
+# Background
+
+Per Matthew's suggestion (via Adriana): add functional category annotation
+(e.g. mitochondrial, amino acid biosynthesis) to GO enrichment plots, so a
+reader gets biological context at a glance.
+
+Unlike the TF dot plots (script 15), where category had to be inferred
+indirectly via GO enrichment of each TF's target genes, GO enrichment
+plots already show GO TERMS directly as their data points - so the term
+Description text can be categorised directly, with no extra enrichment
+step needed.
+
+This script defines ONE shared categorisation function, then applies it
+to every saved GO enrichment output table found in output_tables/,
+regenerating each plot with category as an additional visual dimension.
+Two plot "shapes" are handled generically:
+  (a) ranked dot plots (one axis = -log10(p) or NES, one row per term) -
+      clusterProfiler overrepresentation, GSEA outputs
+  (b) 2D scatter plots (s.PC1 vs s.PC2) - mitch / Cox & Mann outputs
+
+```{r shared-category-function}
+# Shared GO term -> broad category classifier, identical logic to
+# script 15's TF version, applied here directly to GO term Description
+# text rather than indirectly via target-gene enrichment. Pragmatic
+# keyword matching on free text - imperfect by nature, so category
+# assignments are always saved to a review table alongside each plot,
+# not silently trusted.
+#
+# UPDATED after reviewing the first batch of categorised plots:
+# - "ribonucleoprotein" and "nucleol" added to the ribosome biogenesis
+#   pattern - "ribonucleoprotein complex", "ribonucleoprotein complex
+#   biogenesis", and "nucleolus" were all falling through to
+#   "Other / unclassified" despite clearly belonging with the ribosome
+#   biogenesis / translation cluster.
+# - New "General / central metabolism" bucket added, catching broad
+#   catabolic/precursor-metabolite terms (carboxylic acid, organic
+#   acid, oxoacid, precursor metabolites, energy derivation) that were
+#   previously falling through on the PC1 bottom 10% plot in
+#   particular (TOR/PKA-inhibited / catabolic side of PC1) - these
+#   don't cleanly match "carbohydrate" specifically but are clearly
+#   central/general metabolism rather than unclassified.
+categorise_go_term <- function(description) {
+  d <- str_to_lower(description)
+  case_when(
+    str_detect(d, "ribosom|translation|rrna|preribosome|rna processing|spliceosom|ribonucleoprotein|nucleol") ~ "Ribosome biogenesis / translation",
+    str_detect(d, "mitochondri|respirat|electron transport|oxidative phosphorylation|tricarboxylic|citrate cycle|cytochrome|proton.transport") ~ "Mitochondrial / respiration",
+    str_detect(d, "amino acid|sulfur|methionine|arginine|histidine|lysine biosynthe") ~ "Amino acid / sulfur metabolism",
+    str_detect(d, "carbohydrate|glucose|glycolysis|gluconeogenesis|hexose|lactate") ~ "Carbohydrate / glucose metabolism",
+    str_detect(d, "cell cycle|budding|cytokinesis|dna replication|chromosome segregation") ~ "Cell cycle",
+    str_detect(d, "stress|starvation|heat shock|osmotic|oxidative stress|autophagy") ~ "Stress response",
+    str_detect(d, "chromatin|transcription elongation|transcription initiation|histone|epigenetic") ~ "Chromatin / transcription regulation",
+    str_detect(d, "vacuol|lysosom|proteolysis|protein catabolic") ~ "Vacuolar / protein degradation",
+    str_detect(d, "lipid|fatty acid|steroid|ergosterol") ~ "Lipid / sterol metabolism",
+    str_detect(d, "carboxylic acid|organic acid|oxoacid|precursor metabolite|energy derivation") ~ "General / central metabolism",
+    TRUE ~ "Other / unclassified"
+  )
+}
+
+category_colours <- c(
+  "Ribosome biogenesis / translation"      = project_colours[["blue"]],
+  "Mitochondrial / respiration"            = project_colours[["red"]],
+  "Amino acid / sulfur metabolism"         = project_colours[["purple"]],
+  "Carbohydrate / glucose metabolism"      = "#e8a33d",
+  "Cell cycle"                             = "#3d9e5a",
+  "Stress response"                        = "#c94f7c",
+  "Chromatin / transcription regulation"   = "#5a5a9e",
+  "Vacuolar / protein degradation"         = "#8c6d31",
+  "Lipid / sterol metabolism"              = "#31a1a3",
+  "General / central metabolism"           = "#b0a19a",
+  "Other / unclassified"                   = "grey50"
+)
+```
+
+```{r generic-ranked-dot-plot-function}
+# Generic re-plot for "ranked dot plot" style GO tables (clusterProfiler
+# enrichGO / gseGO output). Expects columns: Description, one of
+# {p.adjust}, one of {Count, setSize}, optionally NES (for GSEA-style
+# x-axis) - auto-detects which are present. n_top limits to the most
+# significant terms per call, matching original figure conventions.
+plot_ranked_go_categorised <- function(df, title, subtitle = NULL,
+                                        n_top = 20, use_nes = FALSE) {
+  if (nrow(df) == 0) return(NULL)
+
+  size_col <- if ("Count" %in% colnames(df)) "Count" else
+              if ("setSize" %in% colnames(df)) "setSize" else NA
+
+  df_top <- df %>%
+    mutate(category = categorise_go_term(Description)) %>%
+    arrange(p.adjust) %>%
+    slice_head(n = n_top) %>%
+    mutate(
+      Description_short = truncate_wrap_description(Description),
+      x_val = if (use_nes) NES else -log10(p.adjust),
+      Description_short = fct_reorder(Description_short, x_val)
+    )
+
+  p <- ggplot(df_top, aes(x = x_val, y = Description_short, color = category))
+
+  if (!is.na(size_col)) {
+    p <- p + geom_point(aes(size = .data[[size_col]]), alpha = 0.85)
+  } else {
+    p <- p + geom_point(size = 3, alpha = 0.85)
+  }
+
+  if (use_nes) {
+    p <- p + geom_vline(xintercept = 0, linetype = "dashed",
+                        color = project_colours[["grey"]])
+  }
+
+  p +
+    scale_color_manual(values = category_colours, name = "Functional category") +
+    labs(
+      title = title,
+      subtitle = subtitle,
+      x = if (use_nes) "Normalised Enrichment Score (NES)" else expression(-log[10]("adjusted p-value")),
+      y = NULL,
+      size = if (!is.na(size_col)) size_col else NULL
+    ) +
+    theme_bw() +
+    theme(axis.text.y = element_text(size = 8))
+}
+```
+
+```{r generic-2d-scatter-function}
+# Generic re-plot for "2D scatter" style GO tables (mitch / Cox & Mann
+# 2D annotation enrichment). Expects columns: set (or label/term),
+# s.PC1, s.PC2, and one of {p.adjustMANOVA, p.adjust}.
+plot_2d_go_categorised <- function(df, title, subtitle = NULL, n_label = 15) {
+  if (nrow(df) == 0) return(NULL)
+
+  term_col <- if ("set" %in% colnames(df)) "set" else
+              if ("term" %in% colnames(df)) "term" else "label"
+  padj_col <- if ("p.adjustMANOVA" %in% colnames(df)) "p.adjustMANOVA" else "p.adjust"
+
+  df <- df %>%
+    rename(term_label = all_of(term_col), padj_val = all_of(padj_col)) %>%
+    mutate(category = categorise_go_term(term_label))
+
+  df_label <- df %>%
+    mutate(
+      dist = sqrt(s.PC1^2 + s.PC2^2),
+      quadrant = case_when(
+        s.PC1 >= 0 & s.PC2 >= 0 ~ "Q1",
+        s.PC1 <  0 & s.PC2 >= 0 ~ "Q2",
+        s.PC1 <  0 & s.PC2 <  0 ~ "Q3",
+        s.PC1 >= 0 & s.PC2 <  0 ~ "Q4"
+      )
+    ) %>%
+    group_by(quadrant) %>%
+    slice_max(dist, n = ceiling(n_label / 4)) %>%
+    ungroup() %>%
+    mutate(short_label = truncate_label(term_label, width = 35))
+
+  ggplot(df, aes(x = s.PC1, y = s.PC2, color = category)) +
+    geom_point(aes(size = -log10(padj_val)), alpha = 0.75) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
+    ggrepel::geom_text_repel(
+      data = df_label, aes(label = short_label),
+      size = 2.5, max.overlaps = 20, show.legend = FALSE
+    ) +
+    scale_color_manual(values = category_colours, name = "Functional category") +
+    labs(
+      title = title,
+      subtitle = subtitle,
+      x = "Effect size PC1 (s.PC1)",
+      y = "Effect size PC2 (s.PC2)",
+      size = expression(-log[10]("adj. p-value"))
+    ) +
+    theme_bw()
+}
+```
+
+```{r batch-process-ranked-tables}
+# List of saved GO enrichment tables (ranked dot plot style) to process.
+# Adjust file names/paths below if any don't match your actual
+# output_tables/ contents - each missing file is skipped with a message
+# rather than erroring, so partial runs are safe.
+ranked_go_files <- tribble(
+  ~file,                                        ~title,                                    ~use_nes,
+  "go_clusterprofiler_pc1_top10pct.txt",        "PC1 top 10% - GO enrichment (categorised)", FALSE,
+  "go_clusterprofiler_pc1_bottom10pct.txt",     "PC1 bottom 10% - GO enrichment (categorised)", FALSE,
+  "go_clusterprofiler_pc2_top10pct.txt",        "PC2 top 10% - GO enrichment (categorised)", FALSE,
+  "go_clusterprofiler_pc2_bottom10pct.txt",     "PC2 bottom 10% - GO enrichment (categorised)", FALSE,
+  "go_gsea_pc1.txt",                            "PC1 - GO enrichment GSEA (categorised)",    TRUE,
+  "go_gsea_pc2.txt",                            "PC2 - GO enrichment GSEA (categorised)",    TRUE,
+  "go_gsea_expression_volume_slope.txt",        "Expression-volume slope - GO GSEA (categorised)", TRUE
+)
+
+ranked_plots <- list()
+category_review_tables <- list()
+
+for (i in seq_len(nrow(ranked_go_files))) {
+  fpath <- file.path(output_dir, ranked_go_files$file[i])
+
+  if (!file.exists(fpath)) {
+    cat("SKIPPED (file not found):", ranked_go_files$file[i], "\n")
+    next
+  }
+
+  df <- read_tsv(fpath, show_col_types = FALSE)
+  p <- plot_ranked_go_categorised(
+    df,
+    title = ranked_go_files$title[i],
+    use_nes = ranked_go_files$use_nes[i]
+  )
+
+  if (!is.null(p)) {
+    plot_name <- str_remove(ranked_go_files$file[i], "\\.txt$")
+    ranked_plots[[plot_name]] <- p
+
+    category_review_tables[[plot_name]] <- df %>%
+      mutate(category = categorise_go_term(Description)) %>%
+      count(category, sort = TRUE) %>%
+      mutate(source = plot_name)
+
+    cat("Processed:", ranked_go_files$file[i], "-", nrow(df), "terms\n")
+  }
+}
+
+cat("\n", length(ranked_plots), "ranked GO plots processed.\n")
+```
+
+```{r batch-process-2d-tables}
+# 2D scatter style GO tables
+scatter_go_files <- tribble(
+  ~file,                              ~title,
+  "2d_enrichment_go.txt",             "2D annotation enrichment - GO terms (categorised)",
+  "go_mitch_pc1_pc2_significant.txt", "GO enrichment - mitch 2D, PC1 vs PC2 (categorised)"
+)
+
+scatter_plots <- list()
+
+for (i in seq_len(nrow(scatter_go_files))) {
+  fpath <- file.path(output_dir, scatter_go_files$file[i])
+
+  if (!file.exists(fpath)) {
+    cat("SKIPPED (file not found):", scatter_go_files$file[i], "\n")
+    next
+  }
+
+  df <- read_tsv(fpath, show_col_types = FALSE)
+  p <- plot_2d_go_categorised(df, title = scatter_go_files$title[i])
+
+  if (!is.null(p)) {
+    plot_name <- str_remove(scatter_go_files$file[i], "\\.txt$")
+    scatter_plots[[plot_name]] <- p
+
+    term_col <- if ("set" %in% colnames(df)) "set" else
+                if ("term" %in% colnames(df)) "term" else "label"
+
+    category_review_tables[[plot_name]] <- df %>%
+      rename(term_label = all_of(term_col)) %>%
+      mutate(category = categorise_go_term(term_label)) %>%
+      count(category, sort = TRUE) %>%
+      mutate(source = plot_name)
+
+    cat("Processed:", scatter_go_files$file[i], "-", nrow(df), "terms\n")
+  }
+}
+
+cat("\n", length(scatter_plots), "2D GO plots processed.\n")
+```
+
+```{r print-all-plots, fig.width=11, fig.height=9}
+all_go_plots <- c(ranked_plots, scatter_plots)
+
+for (nm in names(all_go_plots)) {
+  print(all_go_plots[[nm]])
+}
+```
+
+```{r review-category-distribution}
+# Category counts per plot, for reviewing how much of each figure ends
+# up "Other / unclassified" (a high proportion suggests the keyword
+# list needs extending before these categorised versions are trusted
+# for the dissertation)
+category_review <- bind_rows(category_review_tables)
+
+cat("Category distribution per plot (check 'Other / unclassified'",
+    "proportion before trusting these figures):\n")
+print(category_review %>% arrange(source, desc(n)), n = Inf)
+
+other_proportion <- category_review %>%
+  group_by(source) %>%
+  summarise(
+    total = sum(n),
+    other = sum(n[category == "Other / unclassified"]),
+    pct_other = round(100 * other / total, 1),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(pct_other))
+
+cat("\n% of terms falling into 'Other / unclassified' per plot",
+    "(high values = keyword list needs extending):\n")
+print(other_proportion)
+```
+
+```{r save-outputs}
+write_tsv(category_review, file.path(output_dir, "go_category_review_all_plots.txt"))
+
+for (nm in names(all_go_plots)) {
+  ggsave(file.path(figures_dir, paste0(nm, "_categorised.png")),
+         plot = all_go_plots[[nm]], width = 11, height = 9, dpi = 300)
+}
+
+cat("Done -", length(all_go_plots), "categorised plots saved to figures/,",
+    "review table saved to output_tables/go_category_review_all_plots.txt\n")
+```
