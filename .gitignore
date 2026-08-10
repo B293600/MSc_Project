@@ -14,3 +14,4 @@ tables/df_sc_final.txt
 tables/
 output_tables/
 scripts/.RData*
+scripts/.RData
