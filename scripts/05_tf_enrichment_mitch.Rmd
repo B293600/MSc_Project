@@ -275,11 +275,56 @@ if (nrow(dot6_tod6_tf_e) == 0) {
 }
 ```
 
+```{r check-dot6-tod6-table-c}
+# Table C's PC1 top-20 plot (Image 6 from the review round) lists
+# "Dot6_Tod6_activated" as a y-axis category with no point drawn at
+# that row - unlike Table E, this isn't a ranking/labelling problem,
+# since the category shouldn't appear in a slice_head(n=20) selection
+# at all unless it has a value. Three possibilities, checked in order:
+# (1) the set isn't in mitch_tf_c_res$full at all (build_genesets_c
+#     dropped it, e.g. failed the >= 5 gene filter for Table C
+#     specifically, which uses a different gene universe than Table E);
+# (2) it's present but s.PC1/s.PC2 is NA, which ggplot silently omits
+#     from the geom_point layer while still leaving the factor level
+#     (and therefore the axis row) behind;
+# (3) it's present with a real value that happens to render off-scale
+#     or exactly under gridlines/another point.
+dot6_tod6_tf_c <- mitch_tf_c_res$full %>%
+  filter(str_detect(set, "Dot6_Tod6"))
+
+if (nrow(dot6_tod6_tf_c) == 0) {
+  cat("No Dot6_Tod6 gene set found in Table C mitch results at all - ",
+      "case (1): dropped during genesets_c construction, most likely ",
+      "the >= 5 gene minimum for Table C's own gene universe (Table C ",
+      "genes are not the same set as Table E's bound+regulated genes).\n",
+      sep = "")
+} else {
+  cat("Dot6_Tod6 gene set(s) found in Table C mitch results:\n")
+  print(dot6_tod6_tf_c %>% select(set, s.PC1, s.PC2, p.adjustMANOVA))
+
+  na_check <- dot6_tod6_tf_c %>% filter(is.na(s.PC1) | is.na(s.PC2))
+  if (nrow(na_check) > 0) {
+    cat("\n-> Case (2): NA value(s) in s.PC1/s.PC2 - point silently",
+        "dropped by ggplot but the category label persists on the",
+        "axis. Check the underlying log2FC column in table_c for",
+        "why this set produced no computable effect size.\n")
+  } else {
+    cat("\n-> Case (3): a real, non-NA value exists (printed above).",
+        "If this doesn't match the empty row seen in the plot, the",
+        "issue is in plot_tf_single()'s rendering, not the data -",
+        "check whether s.PC1 for this set happens to fall at exactly\n",
+        "the same x-position as another labelled point (overplotting),",
+        "or outside the panel's default scale.\n")
+  }
+}
+```
+
 ```{r plot-function}
 # 2D scatter of s.PC1 vs s.PC2 effect sizes - the key output for TF
 # enrichment, matching Adriana's original PC1 vs PC2 TF enrichment
 # scatter plot from the meeting. Colour = significance; outliers labelled.
-plot_tf_2d <- function(df, title, n_label = 12) {
+plot_tf_2d <- function(df, title, n_label = 12, force_label = character(0),
+                       overlay_df = NULL, overlay_source_label = "Literature (Adriana)") {
   if (nrow(df) == 0) {
     cat("No significant results for:", title, "\n")
     return(NULL)
@@ -300,11 +345,34 @@ plot_tf_2d <- function(df, title, n_label = 12) {
     ) %>%
     group_by(quadrant) %>%
     slice_max(dist, n = ceiling(n_label / 4)) %>%
-    ungroup() %>%
+    ungroup()
+
+  # Add any sets in force_label that aren't already in the top-per-quadrant
+  # selection - e.g. Dot6_Tod6, which is significant (p.adj = 2.7e-4 for
+  # the activated set) but doesn't rank into the top 3 of its quadrant by
+  # distance from origin, so would otherwise be invisible on this plot
+  # despite being a biologically important, deliberately-tested hit.
+  if (length(force_label) > 0) {
+    forced <- df %>%
+      filter(set %in% force_label, !set %in% df_label$set) %>%
+      mutate(
+        dist = sqrt(s.PC1^2 + s.PC2^2),
+        quadrant = case_when(
+          s.PC1 >= 0 & s.PC2 >= 0 ~ "Q1",
+          s.PC1 <  0 & s.PC2 >= 0 ~ "Q2",
+          s.PC1 <  0 & s.PC2 <  0 ~ "Q3",
+          s.PC1 >= 0 & s.PC2 <  0 ~ "Q4"
+        )
+      )
+    df_label <- bind_rows(df_label, forced)
+  }
+
+  df_label <- df_label %>%
     mutate(label = truncate_label(set, width = 35))
 
-  ggplot(df, aes(x = s.PC1, y = s.PC2)) +
-    geom_point(aes(color = -log10(p.adjustMANOVA)), alpha = 0.7, size = 2) +
+  p <- ggplot(df, aes(x = s.PC1, y = s.PC2)) +
+    geom_point(aes(color = -log10(pmax(p.adjustMANOVA, .Machine$double.xmin))),
+              alpha = 0.7, size = 2) +
     geom_hline(yintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
     geom_vline(xintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
     ggrepel::geom_text_repel(
@@ -312,9 +380,40 @@ plot_tf_2d <- function(df, title, n_label = 12) {
       aes(label = label),
       size = 2.8, max.overlaps = 20
     ) +
-    scale_color_gradient(low = project_colours[["grey"]], high = project_colours[["red"]]) +
+    scale_color_gradient(low = project_colours[["grey"]], high = project_colours[["red"]])
+
+  # Overlay: Adriana's literature-curated gene sets (RTG_targets,
+  # GCN2_targets, SNF1_targets, Gis1_targets - see
+  # 15_stress_signaling_with_rtg.Rmd), plotted on the same PC1/PC2 axes
+  # as Table E's own direct-target gene sets, per Matthew's request to
+  # show these together rather than as a separate figure. Distinct
+  # shape + fixed colour (not part of the continuous significance
+  # gradient above) and always labelled, since there are only ever a
+  # handful of these sets - no risk of crowding.
+  if (!is.null(overlay_df) && nrow(overlay_df) > 0) {
+    overlay_df <- overlay_df %>%
+      mutate(label = truncate_label(set, width = 35))
+
+    p <- p +
+      geom_point(
+        data = overlay_df,
+        aes(x = s.PC1, y = s.PC2),
+        shape = 18, size = 4, color = project_colours[["pink"]]
+      ) +
+      ggrepel::geom_text_repel(
+        data = overlay_df,
+        aes(x = s.PC1, y = s.PC2, label = label),
+        size = 2.8, color = project_colours[["pink"]], max.overlaps = 20,
+        fontface = "italic"
+      )
+  }
+
+  p +
     labs(
       title = title,
+      subtitle = if (!is.null(overlay_df) && nrow(overlay_df) > 0) {
+        paste0("Diamond points (pink, italic labels) = ", overlay_source_label)
+      } else NULL,
       x = "Effect size PC1 (s.PC1)",
       y = "Effect size PC2 (s.PC2)",
       color = expression(-log[10]("adj. p-value"))
@@ -335,11 +434,19 @@ plot_tf_single <- function(df, pc_col, title, n_top = 20) {
       label = fct_reorder(label, .data[[pc_col]]),
       direction = if_else(.data[[pc_col]] > 0,
                           "Positive (high PC score)",
-                          "Negative (low PC score)")
+                          "Negative (low PC score)"),
+      # Guard against p-values that underflow to exactly 0 (seen with
+      # Dot6_Tod6_activated in Table C: p.adjustMANOVA = 0 exactly,
+      # from a large effect size on a fairly small gene set). -log10(0)
+      # is Inf, which geom_point cannot draw - it drops the point
+      # silently while the category stays on the y-axis (already
+      # selected into df_top by effect size before this runs), leaving
+      # an empty row with a label and no visible point.
+      neg_log10_p = -log10(pmax(p.adjustMANOVA, .Machine$double.xmin))
     )
 
   ggplot(df_top, aes(x = .data[[pc_col]], y = label,
-                     size = -log10(p.adjustMANOVA), color = direction)) +
+                     size = neg_log10_p, color = direction)) +
     geom_point(alpha = 0.8) +
     geom_vline(xintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
     scale_color_manual(values = c(
@@ -370,8 +477,35 @@ plot_tf_single(mitch_tf_c, "s.PC1", "TF enrichment - Table C, PC1 top 20")
 plot_tf_single(mitch_tf_c, "s.PC2", "TF enrichment - Table C, PC2 top 20")
 ```
 
+```{r load-stress-signaling-overlay}
+# Adriana's literature-curated gene sets (RTG_targets, GCN2_targets,
+# SNF1_targets, Gis1_targets - see 15_stress_signaling_with_rtg.Rmd,
+# sourced from her Phospho_Residues_StressSignaling.xlsx). Per
+# Matthew's request, shown as an overlay on the same Table E PC1/PC2
+# plot rather than as a separate comparison figure, so the two RTG
+# sources (this literature list vs. Table E's own RTG1_direct_activated/
+# RTG3_direct_activated ChIP-based columns) sit side by side on one
+# plot with different sources visually distinguished.
+stress_signaling_path <- file.path(output_dir, "tf_mitch_stress_signaling_with_rtg.txt")
+
+if (file.exists(stress_signaling_path)) {
+  stress_overlay <- read_tsv(stress_signaling_path, show_col_types = FALSE) %>%
+    filter(p.adjustMANOVA < 0.05)
+  cat("Stress signalling gene sets available for overlay (significant only):\n")
+  print(stress_overlay %>% select(set, s.PC1, s.PC2, p.adjustMANOVA))
+} else {
+  cat("WARNING: tf_mitch_stress_signaling_with_rtg.txt not found - run ",
+      "15_stress_signaling_with_rtg.Rmd first. Overlay will be skipped.\n", sep = "")
+  stress_overlay <- NULL
+}
+```
+
 ```{r plots-table-e, fig.width=10, fig.height=9}
-plot_tf_2d(mitch_tf_e,     "TF enrichment - Table E direct targets (mitch 2D)")
+plot_tf_2d(mitch_tf_e,     "TF enrichment - Table E direct targets (mitch 2D)",
+           n_label = 20,
+           force_label = c("Dot6_Tod6_direct_activated", "Dot6_Tod6_direct_repressed"),
+           overlay_df = stress_overlay,
+           overlay_source_label = "Literature-curated (Adriana), not Table E direct targets")
 plot_tf_single(mitch_tf_e, "s.PC1", "TF enrichment - Table E, PC1 top 20")
 plot_tf_single(mitch_tf_e, "s.PC2", "TF enrichment - Table E, PC2 top 20")
 ```
@@ -399,7 +533,11 @@ save_plot(plot_tf_single(mitch_tf_c, "s.PC1", "TF enrichment - Table C, PC1"),
 save_plot(plot_tf_single(mitch_tf_c, "s.PC2", "TF enrichment - Table C, PC2"),
           "tf_mitch_tableC_pc2.png")
 
-save_plot(plot_tf_2d(mitch_tf_e, "TF enrichment - Table E (mitch 2D)"),
+save_plot(plot_tf_2d(mitch_tf_e, "TF enrichment - Table E (mitch 2D)",
+                     n_label = 20,
+                     force_label = c("Dot6_Tod6_direct_activated", "Dot6_Tod6_direct_repressed"),
+                     overlay_df = stress_overlay,
+                     overlay_source_label = "Literature-curated (Adriana), not Table E direct targets"),
           "tf_mitch_tableE_2d.png")
 save_plot(plot_tf_single(mitch_tf_e, "s.PC1", "TF enrichment - Table E, PC1"),
           "tf_mitch_tableE_pc1.png")

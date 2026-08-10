@@ -85,7 +85,17 @@ occupancy_efgh <- occupancy_raw %>%
          cell_cycle_high_confidence, cell_cycle_low_confidence,
          Campbell_2020_cell_cycle_phase, Spellman_1998_cell_cycle_phase,
          Lichtenberg_2004_cell_cycle_phase) %>%
-  rename(gene_id = systematic_name)
+  rename(gene_id = systematic_name) %>%
+  distinct(gene_id, .keep_all = TRUE)  # YLR352W, YMR035W, YOR194C were
+                                        # duplicated in the raw annotation
+                                        # file (confirmed identical/rounding-
+                                        # noise-only rows, not real
+                                        # isoform/ORF differences).
+                                        # Keeps first occurrence. Clears the
+                                        # many-to-many join warnings that
+                                        # otherwise fire on every downstream
+                                        # join against occ_efgh_pc (Parts
+                                        # A/B/D and Figure 18).
 
 cat("Cell-cycle flag counts (high confidence):\n")
 print(table(occupancy_efgh$cell_cycle_high_confidence, useNA = "ifany"))
@@ -386,6 +396,11 @@ print(bcy1_correlation %>% mutate(r2_pct = round(r^2 * 100, 1)))
 # explained by static occupancy alone. Values are pulled directly from
 # bcy1_correlation rather than hardcoded, so the figure stays accurate
 # if the underlying data/filtering changes on a re-run.
+#
+# NOTE: this panel plots occupancy vs the DRUG effect (log2FC
+# PhIAA/DMSO), kept here as a sanity check / secondary reading. Figure
+# 18 proper (Part E below) plots the SIZE effect (log2FC large/small)
+# instead, per the restructure - see Part E for the primary figure.
 bcy1_corr_label <- bcy1_correlation %>%
   mutate(
     r2 = r^2,
@@ -406,16 +421,18 @@ p_bcy1 <- ggplot(bcy1_occ, aes(x = log2_occupancy_efgh, y = log2fc_phiaa_dmso)) 
     cell_size_group = c(small = "Small cells", large = "Large cells")
   )) +
   labs(
-    title = "RNAPII occupancy explains only a small fraction of the Bcy1-AID + PhIAA transcriptional response",
     subtitle = paste0(
-      "Static occupancy (EFG/H) vs log2FC(PhIAA/DMSO)  |  ", bcy1_corr_label,
-      "  |  most of the transcriptional response is not explained by baseline occupancy"
+      "Static occupancy vs log2 FC (PhIAA/DMSO)  |  ", bcy1_corr_label
     ),
-    x = "log2(mean EFG/H occupancy + 1)",
-    y = "log2FC (PhIAA / DMSO)"
+    x = "log2(mean RNAPII occupancy + 1)",
+    y = "log2 FC (PhIAA/DMSO)"
   ) +
   theme_bw() +
-  theme(plot.subtitle = element_text(size = 8.5))
+  theme(
+    plot.subtitle   = element_text(size = 8.5),
+    strip.background = element_blank(),
+    strip.text        = element_text(face = "bold", size = 11)
+  )
 
 print(p_bcy1)
 ```
@@ -454,14 +471,334 @@ p_bcy1_absolute <- ggplot(bcy1_absolute, aes(x = log2_occupancy_efgh, y = log2_t
     cell_size_group = c(small = "Small cells", large = "Large cells")
   )) +
   labs(
-    title = "RNAPII occupancy vs absolute expression under PhIAA treatment",
     subtitle = "Alternative reading: static occupancy vs PhIAA-treated log2(TPMsc), small vs large cells",
-    x = "log2(mean EFG/H occupancy + 1)",
+    x = "log2(mean RNAPII occupancy + 1)",
     y = "log2(TPMsc + 1), PhIAA-treated"
   ) +
-  theme_bw()
+  theme_bw() +
+  theme(
+    strip.background = element_blank(),
+    strip.text        = element_text(face = "bold", size = 11)
+  )
 
 print(p_bcy1_absolute)
+```
+
+# Part E: Figure 18 -- WT+PhIAA and Bcy1-AID+PhIAA, size effect vs occupancy/TPM/transcription rate
+
+```{r figure18-assumptions-flag}
+## FIGURE 18 -- RESOLVED so far (see figure18-diagnose-samples output):
+##
+## 1. BATCH: "exp250624" is confirmed as a substring of `sample` for
+##    both MS69 and MS756 PhIAA rows. CONFIRMED.
+## 2. ARREST STRING MAPPING is strain-specific (this was the actual bug
+##    in the first version): MS69 uses "1hr G1 arrest"/"4.75hr G1
+##    arrest", MS756 uses "1hr G1 arrest"/"Large G1 arrest" for what is
+##    the same small/large timepoint pair. Confirmed via
+##    mean_cell_volume (~65-69 fL small, ~243-268 fL large, consistent
+##    across both strains). CONFIRMED, implemented in
+##    figure18-identify-samples below.
+## 3. MS756c2 is absent from batch exp250624 entirely - "Bcy1-AID" in
+##    Figure 18 means MS756 alone here, unlike Part D above which pools
+##    MS756/MS756c2 from a different batch. NOTED, not a bug.
+## 4. Each strain x size x PhIAA combination in this batch has exactly
+##    one replicate. Thinner than Part D's pooled comparison - flagged
+##    as an open question for Matthew (worth pooling in a second batch,
+##    or is single-replicate-per-batch fine for this figure?), not
+##    blocking.
+## 5. NO DMSO NEEDED: the y-axis here is the SIZE effect (log2FC
+##    large/small, WITHIN PhIAA only), not the drug effect - so
+##    exp250624 lacking a DMSO arm doesn't block this analysis. Part D
+##    above correctly still uses the DMSO-paired batch (exp241010) for
+##    its own (different) drug-effect figure.
+##
+## STILL OPEN / NOT YET CONFIRMED:
+## 6. TPM BASELINE: defined as each gene's small-cell PhIAA TPMsc (log2)
+##    - the starting expression level before the size change, not
+##    large-cell or a mean of both. Swap `cell_size_group == "small"`
+##    in figure18-join-predictors below if a different baseline is
+##    wanted.
+## 7. TRANSCRIPTION RATE: Miller and Neymotin synthesis-rate estimates
+##    are averaged into one `mean_synth_rate` predictor (same approach
+##    already used for EFG/H occupancy) rather than shown as two
+##    separate panels. Flag if the two sources should stay separate.
+```
+
+```{r figure18-diagnose-samples}
+## DIAGNOSTIC - run this first. The previous version of this script
+## guessed at both the batch substring ("exp250624" inside `sample`)
+## and the arrest strings ("1hr-arrest" / "4hr45m-arrest") without
+## being able to see the actual data, and the guess was wrong (empty
+## match -> pivot_wider produced no "small" column -> cryptic "object
+## 'small' not found" error downstream). This chunk shows the real
+## values so the filter below can be built from what's actually there
+## instead of guessed again.
+
+cat("All MS69/MS756/MS756c2 + PhIAA rows, regardless of batch guess:\n")
+df_sc_final %>%
+  filter(strain_id %in% c("MS69", "MS756", "MS756c2"),
+         condition == "PhIAA") %>%
+  distinct(sample, sample_short, strain_id, condition, arrest,
+           mean_cell_volume) %>%
+  arrange(strain_id, arrest) %>%
+  print(n = 100)
+
+cat("\nDoes any sample string actually contain 'exp250624'?\n")
+df_sc_final %>%
+  filter(str_detect(sample, "exp250624") |
+         str_detect(sample_short, "exp250624")) %>%
+  distinct(sample, sample_short) %>%
+  print(n = 20)
+
+cat("\nAll distinct arrest strings for MS69 and MS756/MS756c2 (any condition):\n")
+df_sc_final %>%
+  filter(strain_id %in% c("MS69", "MS756", "MS756c2")) %>%
+  distinct(strain_id, arrest) %>%
+  arrange(strain_id, arrest) %>%
+  print(n = 50)
+```
+
+```{r figure18-identify-samples}
+## WT (MS69) and Bcy1-AID (MS756) under PhIAA, batch exp250624 -
+## confirmed by diagnostic output (see figure18-diagnose-samples above
+## and the conversation this was resolved in):
+##
+## - BATCH: "exp250624" IS a substring of `sample` - the earlier guess
+##   was right on this part.
+## - AREST STRING MAPPING is strain-specific, not a single shared
+##   pattern - this was the actual bug. The `arrest` column uses
+##   different labels per strain for what is the same underlying
+##   timepoint/batch:
+##     MS69:  "1hr G1 arrest" (small) / "4.75hr G1 arrest" (large)
+##     MS756: "1hr G1 arrest" (small) / "Large G1 arrest"   (large)
+##   Confirmed via mean_cell_volume: ~65-69 fL for all "1hr" rows,
+##   ~243-268 fL for all "4.75hr"/"Large" rows in this batch - both
+##   strains land on the same small/large volume scale.
+## - MS756c2 is NOT present in exp250624 at all (only MS756 is) - so
+##   "Bcy1-AID+PhIAA" here means MS756 alone, not the MS756/MS756c2
+##   average used in Part D above. This is a real feature of the data,
+##   not a bug - noted in the sample count check below.
+## - Each strain x size x condition combination in this batch has
+##   exactly ONE sample (single replicate) - thinner than Part D's
+##   pooled-batch comparison, but consistent with how single-sample
+##   TPMsc comparisons are already used elsewhere in this pipeline
+##   (e.g. df_ms1039_wt in CW7). Flagged here rather than blocking on
+##   it - worth deciding with Matthew whether a second batch should be
+##   pooled in if within-batch, single-replicate is judged too thin.
+
+BATCH_STRING <- "exp250624"
+
+fig18_samples <- df_sc_final %>%
+  filter(str_detect(sample, BATCH_STRING),
+         strain_id %in% c("MS69", "MS756", "MS756c2"),
+         condition == "PhIAA") %>%
+  mutate(
+    strain_group = case_when(
+      strain_id == "MS69"                  ~ "WT",
+      strain_id %in% c("MS756", "MS756c2") ~ "Bcy1-AID",
+      TRUE                                 ~ NA_character_),
+    cell_size_group = case_when(
+      str_detect(arrest, "^1hr")                                    ~ "small",
+      strain_id == "MS69"  & str_detect(arrest, "^4\\.75hr")        ~ "large",
+      strain_id != "MS69"  & str_detect(arrest, "^Large")           ~ "large",
+      TRUE ~ NA_character_)
+  ) %>%
+  filter(!is.na(strain_group), !is.na(cell_size_group))
+
+cat("Figure 18 sample identification:\n")
+print(fig18_samples %>%
+        distinct(sample, strain_id, strain_group, condition, arrest,
+                 cell_size_group, mean_cell_volume))
+
+cat("\nSample counts per strain x size (expect exactly 1 each, per the",
+    "single-replicate caveat above - MS756c2 will show 0 rows since it",
+    "isn't in this batch, which is expected, not an error):\n")
+print(fig18_samples %>% count(strain_id, cell_size_group))
+
+if (nrow(fig18_samples) == 0) {
+  stop("fig18_samples is empty - re-check BATCH_STRING and the arrest ",
+       "patterns above against a fresh figure18-diagnose-samples run.")
+}
+
+for (grp in c("WT", "Bcy1-AID")) {
+  sizes_present <- fig18_samples %>%
+    filter(strain_group == grp) %>%
+    pull(cell_size_group) %>%
+    unique()
+  if (!all(c("small", "large") %in% sizes_present)) {
+    cat("\nWARNING:", grp, "is missing one of small/large (has:",
+        paste(sizes_present, collapse = ", "),
+        ") - the size FC pivot below will fail for this strain.\n")
+  }
+}
+```
+
+```{r figure18-compute-sizefc}
+## Per-gene mean TPMsc by strain x cell size (averaging replicate
+## samples, including across MS756/MS756c2), then log2FC(large/small)
+## within each strain separately - this is the SIZE effect, computed
+## entirely within the PhIAA condition.
+
+fig18_mean_tpm <- fig18_samples %>%
+  group_by(gene_id, strain_group, cell_size_group) %>%
+  summarise(mean_tpmsc = mean(TPMsc, na.rm = TRUE), .groups = "drop")
+
+fig18_wide_check <- fig18_mean_tpm %>%
+  pivot_wider(names_from = cell_size_group, values_from = mean_tpmsc)
+
+if (!all(c("small", "large") %in% colnames(fig18_wide_check))) {
+  stop("fig18_mean_tpm is missing a 'small' or 'large' column after ",
+       "pivoting (has: ", paste(setdiff(colnames(fig18_wide_check),
+       c("gene_id", "strain_group")), collapse = ", "), "). This means ",
+       "fig18_samples had no rows for that size group for at least one ",
+       "strain - go back to figure18-identify-samples and fix ",
+       "SMALL_ARREST_STRING/LARGE_ARREST_STRING/BATCH_STRING.")
+}
+
+fig18_sizefc <- fig18_wide_check %>%
+  filter(!is.na(small), !is.na(large), small > 0, large > 0) %>%
+  mutate(log2fc_size = log2(large / small))
+
+cat("Genes with size FC (large/small, PhIAA, exp250624) computed, by strain:\n")
+print(table(fig18_sizefc$strain_group))
+```
+
+```{r figure18-join-predictors}
+## TPM baseline: small-cell PhIAA TPMsc (log2), per strain - see
+## assumption 4 above.
+fig18_tpm_baseline <- fig18_mean_tpm %>%
+  filter(cell_size_group == "small") %>%
+  transmute(gene_id, strain_group, log2_tpm_baseline = log2(mean_tpmsc + 1))
+
+## Transcription rate: mean of Miller and Neymotin synthesis-rate
+## estimates where both are available - see assumption 5 above.
+synth_rate_mean <- occupancy_raw %>%
+  select(systematic_name, miller_synth_rate, neymotin_synth_rate) %>%
+  rename(gene_id = systematic_name) %>%
+  rowwise() %>%
+  mutate(mean_synth_rate = mean(c(miller_synth_rate, neymotin_synth_rate),
+                                na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(is.finite(mean_synth_rate)) %>%
+  select(gene_id, mean_synth_rate)
+
+fig18_data <- fig18_sizefc %>%
+  left_join(occ_efgh_pc %>% select(gene_id, log2_occupancy_efgh),
+            by = "gene_id") %>%
+  left_join(fig18_tpm_baseline, by = c("gene_id", "strain_group")) %>%
+  left_join(synth_rate_mean, by = "gene_id") %>%
+  filter(!is.na(log2_occupancy_efgh) | !is.na(log2_tpm_baseline) |
+         !is.na(mean_synth_rate))
+
+cat("Figure 18 joined dataset, genes per strain (at least one predictor present):\n")
+print(table(fig18_data$strain_group))
+```
+
+```{r figure18-plot-function}
+## Generic panel: predictor (x) vs the size effect log2FC (large/small,
+## y), with a 30-bin running mean overlay and Spearman R in the
+## subtitle - same visual convention used throughout the GBA/eIF4G
+## figures (scatter_binned_gba) and the occupancy-vs-PC scatter above
+## (plot_occupancy_scatter), applied here to a new set of x-variables.
+
+plot_predictor_vs_sizefc <- function(df, predictor_col, predictor_label,
+                                     point_col, tag = NULL) {
+  df_plot <- df %>%
+    filter(!is.na(.data[[predictor_col]]), !is.na(log2fc_size),
+           is.finite(.data[[predictor_col]]), is.finite(log2fc_size))
+
+  r_val <- cor(df_plot[[predictor_col]], df_plot$log2fc_size,
+              method = "spearman", use = "complete.obs")
+
+  # Axis trimming for display only, via coord_cartesian (not
+  # scale_*_continuous limits) - a handful of genes with near-zero
+  # TPM/synthesis-rate denominators produce extreme log2FC and extreme
+  # predictor values (e.g. WT panel B/C ran to +/-60 on the y-axis and
+  # past 400 on the synthesis-rate axis), crushing the bulk of the data
+  # into an unreadable strip near zero. coord_cartesian only changes
+  # what's drawn - r_val above and the binned means below are still
+  # computed on the FULL df_plot, so neither the reported R nor the
+  # binned mean line is affected by this trim.
+  x_lim <- quantile(df_plot[[predictor_col]], c(0.01, 0.99), na.rm = TRUE)
+  y_lim <- quantile(df_plot$log2fc_size, c(0.01, 0.99), na.rm = TRUE)
+
+  df_binned <- df_plot %>%
+    mutate(pred_bin = ntile(.data[[predictor_col]], 30)) %>%
+    group_by(pred_bin) %>%
+    summarise(
+      pred_mean = mean(.data[[predictor_col]]),
+      fc_mean   = mean(log2fc_size),
+      .groups = "drop")
+
+  p <- ggplot(df_plot, aes(x = .data[[predictor_col]], y = log2fc_size)) +
+    geom_point(color = point_col, alpha = 0.2, size = 0.8) +
+    geom_line(data = df_binned, aes(x = pred_mean, y = fc_mean),
+              color = "black", linewidth = 0.8) +
+    coord_cartesian(xlim = x_lim, ylim = y_lim) +
+    labs(
+      subtitle = paste0("Spearman R = ", round(r_val, 3),
+                        "  |  n = ", nrow(df_plot), " genes"),
+      x = predictor_label,
+      y = "log2 FC (large/small), PhIAA-treated"
+    ) +
+    theme_bw()
+
+  if (!is.null(tag)) p <- p + labs(tag = tag)
+  p
+}
+```
+
+```{r figure18-build, fig.width=16, fig.height=5.5}
+## Two 3-panel figures: WT+PhIAA and Bcy1-AID+PhIAA, each showing the
+## size effect against occupancy (A), TPM baseline (B), and
+## transcription rate (C). Comparing panel A between the two strains is
+## the direct test against promoter saturation: if occupancy predicts
+## the size effect in WT but that relationship breaks down under Bcy1
+## depletion, that argues the size effect depends on active signalling
+## rather than being fully explained by static occupancy alone.
+
+build_figure18_panel_set <- function(strain_label, df_strain) {
+  p_occ <- plot_predictor_vs_sizefc(
+    df_strain, "log2_occupancy_efgh",
+    "log2(mean EFG/H occupancy + 1)",
+    project_colours[["blue"]], tag = "A")
+
+  p_tpm <- plot_predictor_vs_sizefc(
+    df_strain, "log2_tpm_baseline",
+    "log2(TPMsc + 1), small cells (baseline)",
+    project_colours[["purple"]], tag = "B")
+
+  p_synth <- plot_predictor_vs_sizefc(
+    df_strain, "mean_synth_rate",
+    "Mean synthesis rate (Miller/Neymotin)",
+    project_colours[["red"]], tag = "C")
+
+  (p_occ | p_tpm | p_synth) +
+    plot_annotation(
+      title = paste0(strain_label, " + PhIAA: predictors of the size-dependent expression change"),
+      theme = theme(plot.title = element_text(face = "bold", size = 13))
+    )
+}
+
+fig18_wt   <- fig18_data %>% filter(strain_group == "WT")
+fig18_bcy1 <- fig18_data %>% filter(strain_group == "Bcy1-AID")
+
+figure18_wt_panel   <- build_figure18_panel_set("WT", fig18_wt)
+figure18_bcy1_panel <- build_figure18_panel_set("Bcy1-AID", fig18_bcy1)
+
+print(figure18_wt_panel)
+print(figure18_bcy1_panel)
+```
+
+```{r figure18-save}
+ggsave(file.path(figures_dir, "figure18_WT_PhIAA_size_fc_predictors.png"),
+       plot = figure18_wt_panel, width = 16, height = 5.5, dpi = 300)
+ggsave(file.path(figures_dir, "figure18_Bcy1AID_PhIAA_size_fc_predictors.png"),
+       plot = figure18_bcy1_panel, width = 16, height = 5.5, dpi = 300)
+
+write_tsv(fig18_data, file.path(output_dir, "figure18_size_fc_predictors_joined.txt"))
+
+cat("Saved Figure 18 (WT+PhIAA and Bcy1-AID+PhIAA panels)\n")
 ```
 
 ```{r save-outputs}

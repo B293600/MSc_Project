@@ -1,0 +1,232 @@
+---
+title: "RNAPII Occupancy vs Small/Large Cell FC - WT+PhIAA and BCY1-AID+PhIAA"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
+
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
+```
+
+```{r libraries}
+library(tidyverse)
+
+select <- dplyr::select
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
+```
+
+# Background
+
+Rebuild of the Bcy1-AID+PhIAA occupancy figure per Matthew's meeting
+feedback. Two changes from the previous version (script 14):
+
+1. Y-axis changed from log2FC(PhIAA/DMSO) to log2FC(large-PhIAA vs
+   small-PhIAA) - i.e. fold change between cell sizes within the same
+   PhIAA-treated condition, not a drug-vs-vehicle comparison. This
+   removes the need for a matched DMSO control entirely.
+2. Two separate graphs, WT+PhIAA and BCY1-AID+PhIAA, rather than one
+   figure split by facet, so each strain's relationship can be read
+   independently.
+3. Correlation switched from Pearson to Spearman, per Matthew's
+   instruction to use a rank-based approach throughout rather than
+   Pearson on ranked/near-ranked data.
+
+Both strains are drawn from the same experimental batch (exp250624),
+which contains MS69 (WT) and MS756 (Bcy1-AID) run together with matched
+PhIAA treatment at both small (1hr) and large (4.75hr) arrest - this
+avoids the batch-matching problem the DMSO-based version had, since no
+cross-batch DMSO control is needed for a small-vs-large FC.
+
+ASSUMPTIONS MADE BELOW THAT NEED CHECKING:
+- Cell size group (small/large) is determined from the arrest column,
+  which uses inconsistent label formats across samples: MS69's large
+  sample is labelled "4.75hr G1 arrest" (numeric), while MS756's is
+  labelled "Large G1 arrest" (categorical), for what is nominally the
+  same timepoint. Both patterns are matched explicitly. Confirmed
+  working for both strains in exp250624 - see the printed sample table
+  below, which should show exactly 4 rows.
+- "WT" = strain_id "MS69", "Bcy1-AID" = strain_id "MS756" (not MS756c2,
+  which appears in a different, later experiment and was not part of
+  the exp250624 batch).
+- Restricting to experiment "exp250624" specifically (rather than
+  pooling all PhIAA-treated MS69/MS756 samples across every batch) is
+  done via string matching on the sample column, since this is the one
+  batch containing both strains run together under matched conditions.
+  If a dedicated experiment ID column exists in df_sc_final.txt beyond
+  what's embedded in the sample name, this should be used instead -
+  check column names before running.
+
+```{r load-occupancy}
+# Reuses the same averaged occupancy calculation as script 13a/13b -
+# log2(mean RNAPII occupancy + 1) across the 6 available experiments
+# (A, B, C, EFG, H, J), requiring at least 4 of 6 present per gene.
+occupancy_path <- file.path(
+  tables_dir,
+  "210601_gene_annotation_RPB_occupancy.txt"
+)
+
+occupancy_raw <- read_tsv(occupancy_path, show_col_types = FALSE)
+
+occupancy_conditions <- c("A", "B", "C", "EFG", "H", "J")
+rpkm_cols <- paste0("RPKM_mean_", occupancy_conditions)
+
+occupancy <- occupancy_raw %>%
+  select(systematic_name, all_of(rpkm_cols)) %>%
+  rename(gene_id = systematic_name) %>%
+  rowwise() %>%
+  mutate(
+    n_experiments_present = sum(!is.na(c_across(all_of(rpkm_cols)))),
+    mean_occupancy         = mean(c_across(all_of(rpkm_cols)), na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  filter(n_experiments_present >= 4) %>%
+  mutate(log2_mean_occupancy = log2(mean_occupancy + 1)) %>%
+  select(gene_id, log2_mean_occupancy)
+
+cat("Genes with usable occupancy data (>= 4 of 6 experiments):",
+    nrow(occupancy), "\n")
+```
+
+```{r load-tpm-samples}
+df_sc_final <- read_tsv(file.path(tables_dir, "df_sc_final.txt"),
+                        show_col_types = FALSE)
+
+# Restrict to the exp250624 batch specifically, both strains, PhIAA
+# treatment only (no DMSO needed for this comparison).
+#
+# Cell size group is determined from the arrest column, which uses two
+# different label formats depending on the sample: some rows give a
+# numeric duration ("4.75hr G1 arrest"), others give a categorical
+# label ("Large G1 arrest") for what is nominally the same timepoint -
+# confirmed by direct inspection that MS756's exp250624 large-cell
+# sample uses "Large G1 arrest" specifically, while MS69's equivalent
+# sample uses "4.75hr G1 arrest". Both patterns are matched below so
+# neither strain is silently dropped.
+exp250624_samples <- df_sc_final %>%
+  filter(strain_id %in% c("MS69", "MS756"),
+         condition == "PhIAA",
+         str_detect(sample, "exp250624")) %>%
+  mutate(
+    strain_group = case_when(
+      strain_id == "MS69"  ~ "WT",
+      strain_id == "MS756" ~ "Bcy1-AID",
+      TRUE ~ NA_character_
+    ),
+    arrest_hours = as.numeric(str_extract(arrest, "^[0-9.]+")),
+    cell_size_group = case_when(
+      str_detect(arrest, "^1hr") ~ "small",
+      str_detect(arrest, "^Large") | (!is.na(arrest_hours) & arrest_hours >= 4) ~ "large",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(strain_group), !is.na(cell_size_group))
+
+cat("exp250624 PhIAA-treated samples identified:\n")
+print(exp250624_samples %>%
+        distinct(sample, strain_id, strain_group, arrest, arrest_hours,
+                 cell_size_group, mean_cell_volume))
+```
+
+```{r compute-small-large-log2fc}
+# Mean TPMsc per gene x strain x cell size (averaging any replicate
+# samples within exp250624), then log2FC(large/small) within each
+# strain separately.
+mean_tpm_by_group <- exp250624_samples %>%
+  group_by(gene_id, strain_group, cell_size_group) %>%
+  summarise(mean_tpmsc = mean(TPMsc, na.rm = TRUE), .groups = "drop")
+
+log2fc_small_large <- mean_tpm_by_group %>%
+  pivot_wider(names_from = cell_size_group, values_from = mean_tpmsc) %>%
+  filter(!is.na(large), !is.na(small), large > 0, small > 0) %>%
+  mutate(log2fc_large_small = log2(large / small))
+
+cat("Genes with log2FC(large/small) computed, by strain:\n")
+print(table(log2fc_small_large$strain_group))
+```
+
+```{r join-occupancy}
+occ_fc <- log2fc_small_large %>%
+  inner_join(occupancy, by = "gene_id")
+
+cat("Genes with both occupancy and log2FC(large/small):\n")
+print(table(occ_fc$strain_group))
+```
+
+```{r define-plot-function}
+# Binned mean overlay, matching the convention used in scripts 13a/13b,
+# plus Spearman correlation per Matthew's instruction to use a
+# rank-based approach rather than Pearson.
+n_bins <- 30
+
+plot_occupancy_vs_fc <- function(df, strain_label, point_colour) {
+
+  spearman_result <- cor.test(df$log2_mean_occupancy,
+                              df$log2fc_large_small,
+                              method = "spearman")
+
+  binned <- df %>%
+    mutate(occ_bin = ntile(log2_mean_occupancy, n_bins)) %>%
+    group_by(occ_bin) %>%
+    summarise(
+      occ_mean = mean(log2_mean_occupancy),
+      fc_mean  = mean(log2fc_large_small),
+      .groups = "drop"
+    )
+
+  ggplot(df, aes(x = log2_mean_occupancy, y = log2fc_large_small)) +
+    geom_point(color = point_colour, alpha = 0.3, size = 1) +
+    geom_line(data = binned, aes(x = occ_mean, y = fc_mean),
+              color = "black", linewidth = 1) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
+    labs(
+      subtitle = paste0(
+        strain_label, "  |  n = ", nrow(df), " genes  |  ",
+        "Spearman r = ", round(unname(spearman_result$estimate), 3),
+        "  |  p ", if (spearman_result$p.value < 0.001) "< 0.001"
+                   else paste0("= ", round(spearman_result$p.value, 3))
+      ),
+      x = "log2(mean RNAPII occupancy + 1)",
+      y = "log2 FC (large-PhIAA / small-PhIAA)"
+    ) +
+    theme_bw()
+}
+```
+
+```{r plot-wt}
+p_wt <- plot_occupancy_vs_fc(
+  occ_fc %>% filter(strain_group == "WT"),
+  strain_label = "WT + PhIAA",
+  point_colour = project_colours[["purple"]]
+)
+
+print(p_wt)
+```
+
+```{r plot-bcy1}
+p_bcy1 <- plot_occupancy_vs_fc(
+  occ_fc %>% filter(strain_group == "Bcy1-AID"),
+  strain_label = "Bcy1-AID + PhIAA",
+  point_colour = project_colours[["red"]]
+)
+
+print(p_bcy1)
+```
+
+```{r save-outputs}
+ggsave(file.path(figures_dir, "figure_wt_phiaa_occupancy_vs_size_fc.png"),
+       plot = p_wt, width = 7, height = 5.5, dpi = 300)
+ggsave(file.path(figures_dir, "figure_bcy1_phiaa_occupancy_vs_size_fc.png"),
+       plot = p_bcy1, width = 7, height = 5.5, dpi = 300)
+
+cat("Done - both figures saved to figures/\n")
+```

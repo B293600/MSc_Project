@@ -31,76 +31,301 @@ load(file.path(project_dir, "project_colours.rda"))
 # ever compute cor_PC1_vol / cor_PC2_vol as a subtitle number, with
 # no standalone figure showing the relationship. This script produces
 # that figure.
+#
+# Matthew's note on the first version of this figure: PC1 IS
+# correlated with size, it's just that this correlation is lost once
+# TOR/PKA-disrupting mutants are included alongside WT. So PC1 is the
+# TOR/PKA-mediated route from size to transcription, and PC2 is the
+# separate, not-yet-explained size-dependency. strain_info identifies
+# which samples are WT vs mutant, so this can actually be tested
+# rather than asserted.
 pca_samples <- read_tsv(file.path(tables_dir, "PCA_samples_AC.txt"),
                         show_col_types = FALSE) %>%
   filter(!is.na(mean_cell_volume))
 
-pc_vol_cor <- pca_samples %>%
-  summarise(
-    cor_PC1_vol = cor(PC1, mean_cell_volume, method = "spearman"),
-    cor_PC2_vol = cor(PC2, mean_cell_volume, method = "spearman")
+# TOR/PKA-disrupting mutants specifically (per strain_info): AID-Bcy1
+# (depletes PKA's regulatory subunit -> PKA hyperactive), TPK1-3_AS
+# (analog-sensitive PKA catalytic subunit), TOR1-L2134M
+# (rapamycin-resistant TOR1), Sch9(2d3E) and Sch9(2d3E)_Tod6-mNG
+# (constitutively active TORC1 effector), Gtr2(s23L)-Gtr1(q65L)
+# (hyperactive Rag GTPases upstream of TORC1). Hog1-AID and Pkc1-AID
+# are excluded from this set - they perturb osmotic stress / cell
+# wall integrity signalling, not TOR/PKA specifically, so lumping
+# them in would answer a different question than the one Matthew
+# raised.
+tor_pka_mutants <- c("AID-Bcy1", "TPK1-3_AS", "TOR1-L2134M",
+                     "Sch9(2d3E)", "Sch9(2d3E)_Tod6-mNG",
+                     "Gtr2(s23L)-Gtr1(q65L)")
+
+# FIX (per Matthew, Slack): the red low-PC1 points in the original
+# version of this figure are NOT untreated WT - they are WT-background
+# cells treated with a chemical TOR inhibitor (Torin or Rapamycin, in
+# any combination, e.g. "Torin+PhIAA", "Torin_OD 0.1"). Classifying
+# strain_group purely off strain_info == "WT" silently folded these
+# into the WT group, which is what produced the artificially weak/
+# contaminated WT-only correlation. Genuinely untreated WT is the
+# OD 0.1 / OD 0.3 timecourse, matching what Matthew described: "the WT
+# untreated cells are basically just the red dots that move gradually
+# between 0.1 and below 0 and show a clear size dependency."
+#
+# strain_info_condition_easy was tried first but only labels the plain
+# "Torin"/"Rapa" conditions as "TORC1 inhib." - combined conditions like
+# "Torin+PhIAA" and "Torin_OD 0.1"/"Torin_OD 0.3" keep their own literal
+# label instead, so relying on that field silently left those samples
+# classified as WT (caught by the sanity-check print below). Matching
+# directly on `condition` with str_detect() catches every Torin/Rapa-
+# containing condition regardless of what else it's combined with.
+#
+# PhIAA-only, ATC, and 1NMPP1 conditions on WT are left classified as
+# WT: WT carries no AID tag, Tet-off construct, or analog-sensitive
+# kinase allele, so these drugs have no target in a WT background and
+# function as drug controls rather than TOR/PKA perturbations.
+pca_samples <- pca_samples %>%
+  mutate(
+    strain_group = case_when(
+      strain_info == "WT" &
+        str_detect(condition, "Torin|Rapa")           ~ "TOR/PKA mutant",  # chemical
+      strain_info == "WT"                              ~ "WT",
+      strain_info %in% tor_pka_mutants                  ~ "TOR/PKA mutant",  # genetic
+      TRUE                                              ~ "Other mutant"
+    )
   )
 
-cat("PC1 vs cell volume (Spearman r):", round(pc_vol_cor$cor_PC1_vol, 3), "\n")
-cat("PC2 vs cell volume (Spearman r):", round(pc_vol_cor$cor_PC2_vol, 3), "\n")
-cat("n samples:", nrow(pca_samples), "\n")
+cat("Samples by strain group:\n")
+print(table(pca_samples$strain_group))
+
+# Sanity check: confirm no chemically TOR-inhibited WT samples remain
+# classified as WT. Should print only OD 0.1/OD 0.3 (untreated) plus
+# PhIAA/ATC/1NMPP1 drug-control conditions - nothing containing Torin
+# or Rapa.
+cat("\nConditions retained under strain_group == 'WT':\n")
+pca_samples %>%
+  filter(strain_info == "WT", strain_group == "WT") %>%
+  distinct(condition, strain_info_condition_easy) %>%
+  print(n = Inf)
+
+# Correlations computed three ways: all samples (as before), WT only,
+# and TOR/PKA mutants only - this is the actual test of Matthew's
+# claim, not just a coloured scatter.
+compute_cor <- function(df) {
+  df %>%
+    summarise(
+      n           = n(),
+      cor_PC1_vol = cor(PC1, mean_cell_volume, method = "spearman"),
+      cor_PC2_vol = cor(PC2, mean_cell_volume, method = "spearman")
+    )
+}
+
+pc_vol_cor_all <- compute_cor(pca_samples) %>% mutate(group = "All samples")
+pc_vol_cor_wt  <- pca_samples %>% filter(strain_group == "WT") %>%
+  compute_cor() %>% mutate(group = "WT only")
+pc_vol_cor_mut <- pca_samples %>% filter(strain_group == "TOR/PKA mutant") %>%
+  compute_cor() %>% mutate(group = "TOR/PKA mutant only")
+
+pc_vol_cor <- bind_rows(pc_vol_cor_all, pc_vol_cor_wt, pc_vol_cor_mut) %>%
+  select(group, n, cor_PC1_vol, cor_PC2_vol)
+
+cat("\nPC1/PC2 vs cell volume correlation, by strain group:\n")
+print(pc_vol_cor)
+```
+
+```{r fisher-z-test}
+# Fisher r-to-z test: is the WT correlation significantly different
+# from the TOR/PKA-mutant correlation? Point estimates alone need a
+# formal test before they go in a figure caption as a claim rather
+# than an observation. n_wt and n_mut now reflect the corrected
+# strain_group split above.
+fisher_z_test <- function(r1, n1, r2, n2) {
+  z1 <- atanh(r1)
+  z2 <- atanh(r2)
+  se <- sqrt(1 / (n1 - 3) + 1 / (n2 - 3))
+  z  <- (z1 - z2) / se
+  p  <- 2 * (1 - pnorm(abs(z)))
+  tibble(z_statistic = z, p_value = p)
+}
+
+n_wt  <- pc_vol_cor %>% filter(group == "WT only") %>% pull(n)
+n_mut <- pc_vol_cor %>% filter(group == "TOR/PKA mutant only") %>% pull(n)
+
+r1_pc1 <- pc_vol_cor %>% filter(group == "WT only") %>% pull(cor_PC1_vol)
+r2_pc1 <- pc_vol_cor %>% filter(group == "TOR/PKA mutant only") %>% pull(cor_PC1_vol)
+r1_pc2 <- pc_vol_cor %>% filter(group == "WT only") %>% pull(cor_PC2_vol)
+r2_pc2 <- pc_vol_cor %>% filter(group == "TOR/PKA mutant only") %>% pull(cor_PC2_vol)
+
+fisher_pc1 <- fisher_z_test(r1_pc1, n_wt, r2_pc1, n_mut) %>%
+  mutate(comparison = "PC1: WT vs TOR/PKA mutant", .before = 1)
+fisher_pc2 <- fisher_z_test(r1_pc2, n_wt, r2_pc2, n_mut) %>%
+  mutate(comparison = "PC2: WT vs TOR/PKA mutant", .before = 1)
+
+fisher_results <- bind_rows(fisher_pc1, fisher_pc2)
+
+cat("\nFisher r-to-z test, WT vs TOR/PKA-mutant correlations:\n")
+print(fisher_results)
+
+cat("\nNote: Spearman correlations were used above (matching project\n",
+    "convention throughout), but Fisher's z formally applies to Pearson\n",
+    "r. Treat the p-values here as approximate - a rank-based permutation\n",
+    "test would be the more rigorous alternative if this comparison needs\n",
+    "to hold up to scrutiny (e.g. if Matthew or an examiner pushes on it).\n", sep = "")
+```
+
+```{r permutation-test}
+# Permutation test for the difference in Spearman correlations between
+# WT and TOR/PKA-mutant samples. More appropriate than Fisher's z here,
+# since it doesn't assume Pearson correlation and makes no distributional
+# assumption at all - just repeatedly reshuffles the WT/mutant labels
+# (keeping group sizes fixed at the corrected n_wt and n_mut) and asks
+# how often a reshuffled dataset produces as large a difference in r as
+# the real group split does.
+set.seed(42)
+n_perm <- 10000
+
+# Restrict to WT + TOR/PKA mutant only, matching the Fisher test scope
+# (excludes "Other mutant" - Hog1-AID/Pkc1-AID - which isn't part of
+# this specific comparison). Uses the corrected strain_group, so
+# chemically TOR-inhibited WT samples are already routed into the
+# TOR/PKA mutant group here.
+perm_data <- pca_samples %>%
+  filter(strain_group %in% c("WT", "TOR/PKA mutant"))
+
+permutation_test <- function(perm_data, pc_col) {
+  observed_wt  <- perm_data %>% filter(strain_group == "WT") %>%
+    summarise(r = cor(.data[[pc_col]], mean_cell_volume, method = "spearman")) %>% pull(r)
+  observed_mut <- perm_data %>% filter(strain_group == "TOR/PKA mutant") %>%
+    summarise(r = cor(.data[[pc_col]], mean_cell_volume, method = "spearman")) %>% pull(r)
+  observed_diff <- observed_wt - observed_mut
+
+  n_wt  <- sum(perm_data$strain_group == "WT")
+  n_tot <- nrow(perm_data)
+
+  perm_diffs <- map_dbl(seq_len(n_perm), function(i) {
+    shuffled_labels <- sample(perm_data$strain_group)
+    r_wt  <- cor(perm_data[[pc_col]][shuffled_labels == "WT"],
+                perm_data$mean_cell_volume[shuffled_labels == "WT"],
+                method = "spearman")
+    r_mut <- cor(perm_data[[pc_col]][shuffled_labels == "TOR/PKA mutant"],
+                perm_data$mean_cell_volume[shuffled_labels == "TOR/PKA mutant"],
+                method = "spearman")
+    r_wt - r_mut
+  })
+
+  p_value <- mean(abs(perm_diffs) >= abs(observed_diff))
+
+  tibble(
+    r_wt = observed_wt, r_mutant = observed_mut,
+    observed_diff = observed_diff, p_value = p_value
+  )
+}
+
+perm_pc1 <- permutation_test(perm_data, "PC1") %>% mutate(comparison = "PC1", .before = 1)
+perm_pc2 <- permutation_test(perm_data, "PC2") %>% mutate(comparison = "PC2", .before = 1)
+
+permutation_results <- bind_rows(perm_pc1, perm_pc2)
+
+cat("\nPermutation test (n =", n_perm, "shuffles), WT vs TOR/PKA-mutant",
+    "difference in Spearman r:\n")
+print(permutation_results)
 ```
 
 ```{r plot-pc1-vs-volume}
+# WT highlighted in a distinct colour per Matthew's request (this was
+# already correctly implemented - left unchanged); TOR/PKA mutants and
+# other mutants shown separately so the WT-specific relationship is
+# visible against the full-dataset noise. WT here now excludes
+# chemically TOR-inhibited samples, per the strain_group fix above.
+#
+# Label sizes increased throughout below (standing "labels bigger"
+# instruction) - this script previously had no explicit theme sizing
+# at all (bare theme_bw()), so it was the smallest-text figure in the
+# whole set.
+strain_colours <- c(
+  "WT"             = project_colours[["red"]],
+  "TOR/PKA mutant" = project_colours[["purple"]],
+  "Other mutant"   = project_colours[["grey"]]
+)
+
+axis_theme_big <- theme_bw(base_size = 20) +
+  theme(
+    axis.text       = element_text(size = 17, colour = "black"),
+    axis.title      = element_text(size = 19, colour = "black"),
+    plot.subtitle   = element_text(size = 15),
+    legend.text     = element_text(size = 16),
+    legend.title    = element_text(size = 18)
+  )
+
+wt_cor  <- pc_vol_cor %>% filter(group == "WT only") %>% pull(cor_PC1_vol)
+all_cor <- pc_vol_cor %>% filter(group == "All samples") %>% pull(cor_PC1_vol)
+
 p_pc1_vol <- ggplot(pca_samples, aes(x = mean_cell_volume, y = PC1)) +
-  geom_point(color = project_colours[["purple"]], alpha = 0.6, size = 2) +
-  geom_smooth(method = "lm", color = "black", se = FALSE, linewidth = 0.8) +
+  geom_point(aes(color = strain_group), alpha = 0.7, size = 3) +
+  geom_smooth(data = pca_samples %>% filter(strain_group == "WT"),
+             method = "lm", color = project_colours[["red"]],
+             se = FALSE, linewidth = 1) +
+  geom_smooth(method = "lm", color = "black", se = FALSE,
+             linewidth = 1, linetype = "dashed") +
+  scale_color_manual(values = strain_colours, name = "Strain") +
   labs(
-    title = "PC1 sample score against measured cell volume",
     subtitle = paste0(
-      "n = ", nrow(pca_samples), " samples | ",
-      "Spearman r = ", round(pc_vol_cor$cor_PC1_vol, 3)
+      "n = ", nrow(pca_samples), " samples  |  ",
+      "WT only: r = ", round(wt_cor, 3), "  |  ",
+      "All samples: r = ", round(all_cor, 3)
     ),
     x = "Mean cell volume (fL)",
     y = "PC1 sample score"
   ) +
-  theme_bw()
+  axis_theme_big
 
 print(p_pc1_vol)
 ```
 
 ```{r plot-pc2-vs-volume}
+wt_cor2  <- pc_vol_cor %>% filter(group == "WT only") %>% pull(cor_PC2_vol)
+all_cor2 <- pc_vol_cor %>% filter(group == "All samples") %>% pull(cor_PC2_vol)
+
 p_pc2_vol <- ggplot(pca_samples, aes(x = mean_cell_volume, y = PC2)) +
-  geom_point(color = project_colours[["blue"]], alpha = 0.6, size = 2) +
-  geom_smooth(method = "lm", color = "black", se = FALSE, linewidth = 0.8) +
+  geom_point(aes(color = strain_group), alpha = 0.7, size = 3) +
+  geom_smooth(method = "lm", color = "black", se = FALSE, linewidth = 1) +
+  scale_color_manual(values = strain_colours, name = "Strain") +
   labs(
-    title = "PC2 sample score against measured cell volume",
     subtitle = paste0(
-      "n = ", nrow(pca_samples), " samples | ",
-      "Spearman r = ", round(pc_vol_cor$cor_PC2_vol, 3)
+      "n = ", nrow(pca_samples), " samples  |  ",
+      "WT only: r = ", round(wt_cor2, 3), "  |  ",
+      "All samples: r = ", round(all_cor2, 3)
     ),
     x = "Mean cell volume (fL)",
     y = "PC2 sample score"
   ) +
-  theme_bw()
+  axis_theme_big
 
 print(p_pc2_vol)
 ```
 
 ```{r combined-panel}
-# Side-by-side panel is the version for the dissertation - shows PC1
-# and PC2 have opposite relationships with volume in one figure,
-# which is the actual point (PC2 tracks size, PC1 does not).
-p_combined <- p_pc1_vol + p_pc2_vol +
-  plot_layout(ncol = 2)
+# Side-by-side panel is the version for the dissertation. Updated
+# framing per Matthew: PC1 tracks volume in WT (solid red trend line)
+# but that relationship is diluted once TOR/PKA mutants are included
+# (dashed black trend line, all samples) - PC1 is the size-dependency
+# that runs through TOR/PKA signalling specifically. PC2 tracks
+# volume regardless of strain - the separate, unexplained axis.
+p_combined <- (p_pc1_vol + p_pc2_vol) +
+  plot_layout(ncol = 2, guides = "collect") &
+  theme(legend.position = "bottom")
 
 print(p_combined)
 ```
 
 ```{r save-outputs}
 write_tsv(pc_vol_cor, file.path(output_dir, "pc_vs_cell_volume_correlations.txt"))
+write_tsv(fisher_results, file.path(output_dir, "pc_vs_cell_volume_fisher_z_test.txt"))
+write_tsv(permutation_results, file.path(output_dir, "pc_vs_cell_volume_permutation_test.txt"))
 
+# Canvas sizes bumped alongside the label increases above.
 ggsave(file.path(figures_dir, "figure_pc1_vs_cell_volume.png"),
-       plot = p_pc1_vol, width = 6, height = 5, dpi = 300)
+       plot = p_pc1_vol, width = 9, height = 7, dpi = 300)
 ggsave(file.path(figures_dir, "figure_pc2_vs_cell_volume.png"),
-       plot = p_pc2_vol, width = 6, height = 5, dpi = 300)
+       plot = p_pc2_vol, width = 9, height = 7, dpi = 300)
 ggsave(file.path(figures_dir, "figure_pc1_pc2_vs_cell_volume_combined.png"),
-       plot = p_combined, width = 11, height = 5, dpi = 300)
+       plot = p_combined, width = 16, height = 8, dpi = 300)
 
 cat("Done - results saved to output_tables/ and figures/\n")
 ```
