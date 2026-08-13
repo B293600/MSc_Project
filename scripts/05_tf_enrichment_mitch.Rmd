@@ -33,7 +33,7 @@ pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
                       show_col_types = FALSE)
 
 mitch_input <- pca_genes %>%
-  select(gene_id, PC1, PC2) %>%
+  dplyr::select(gene_id, PC1, PC2) %>%
   column_to_rownames("gene_id")
 
 cat("PC input:", nrow(mitch_input), "genes x", ncol(mitch_input), "contrasts\n")
@@ -93,7 +93,7 @@ tf_cols_c <- colnames(table_c) %>%
   setdiff(c("gene_id", "Kmeans_clusters"))
 
 table_c_long <- table_c %>%
-  select(gene_id, all_of(tf_cols_c)) %>%
+  dplyr::select(gene_id, all_of(tf_cols_c)) %>%
   pivot_longer(-gene_id, names_to = "TF", values_to = "log2FC") %>%
   filter(!is.na(log2FC))
 
@@ -247,7 +247,7 @@ if (nrow(dot6_tod6_tf_e) == 0) {
       "genesets_e names directly if this is unexpected)\n", sep = "")
 } else {
   cat("Dot6_Tod6 gene set(s) found in Table E mitch results:\n")
-  print(dot6_tod6_tf_e %>% select(set, s.PC1, s.PC2, p.adjustMANOVA))
+  print(dot6_tod6_tf_e %>% dplyr::select(set, s.PC1, s.PC2, p.adjustMANOVA))
 
   not_significant <- dot6_tod6_tf_e %>% filter(p.adjustMANOVA >= 0.05)
   if (nrow(not_significant) > 0) {
@@ -300,7 +300,7 @@ if (nrow(dot6_tod6_tf_c) == 0) {
       sep = "")
 } else {
   cat("Dot6_Tod6 gene set(s) found in Table C mitch results:\n")
-  print(dot6_tod6_tf_c %>% select(set, s.PC1, s.PC2, p.adjustMANOVA))
+  print(dot6_tod6_tf_c %>% dplyr::select(set, s.PC1, s.PC2, p.adjustMANOVA))
 
   na_check <- dot6_tod6_tf_c %>% filter(is.na(s.PC1) | is.na(s.PC2))
   if (nrow(na_check) > 0) {
@@ -323,8 +323,18 @@ if (nrow(dot6_tod6_tf_c) == 0) {
 # 2D scatter of s.PC1 vs s.PC2 effect sizes - the key output for TF
 # enrichment, matching Adriana's original PC1 vs PC2 TF enrichment
 # scatter plot from the meeting. Colour = significance; outliers labelled.
+#
+# show_title / show_subtitle: added so the dissertation-facing Table E
+# output (Figure 14) can be produced with no title/subtitle baked into
+# the image - that text now lives in the Word caption instead, and the
+# in-plot subtitle previously named a specific lab collaborator, which
+# has no place in an anonymised submission. Diagnostic calls elsewhere
+# in this script (Table A, Table C, single-PC plots) keep their default
+# TRUE/TRUE behaviour since those are for review, not for the thesis.
 plot_tf_2d <- function(df, title, n_label = 12, force_label = character(0),
-                       overlay_df = NULL, overlay_source_label = "Literature (Adriana)") {
+                       overlay_df = NULL,
+                       overlay_source_label = "Literature-curated gene sets",
+                       show_title = TRUE, show_subtitle = TRUE) {
   if (nrow(df) == 0) {
     cat("No significant results for:", title, "\n")
     return(NULL)
@@ -382,7 +392,7 @@ plot_tf_2d <- function(df, title, n_label = 12, force_label = character(0),
     ) +
     scale_color_gradient(low = project_colours[["grey"]], high = project_colours[["red"]])
 
-  # Overlay: Adriana's literature-curated gene sets (RTG_targets,
+  # Overlay: literature-curated stress-signalling gene sets (RTG_targets,
   # GCN2_targets, SNF1_targets, Gis1_targets - see
   # 15_stress_signaling_with_rtg.Rmd), plotted on the same PC1/PC2 axes
   # as Table E's own direct-target gene sets, per Matthew's request to
@@ -410,8 +420,8 @@ plot_tf_2d <- function(df, title, n_label = 12, force_label = character(0),
 
   p +
     labs(
-      title = title,
-      subtitle = if (!is.null(overlay_df) && nrow(overlay_df) > 0) {
+      title = if (show_title) title else NULL,
+      subtitle = if (show_subtitle && !is.null(overlay_df) && nrow(overlay_df) > 0) {
         paste0("Diamond points (pink, italic labels) = ", overlay_source_label)
       } else NULL,
       x = "Effect size PC1 (s.PC1)",
@@ -478,21 +488,21 @@ plot_tf_single(mitch_tf_c, "s.PC2", "TF enrichment - Table C, PC2 top 20")
 ```
 
 ```{r load-stress-signaling-overlay}
-# Adriana's literature-curated gene sets (RTG_targets, GCN2_targets,
-# SNF1_targets, Gis1_targets - see 15_stress_signaling_with_rtg.Rmd,
-# sourced from her Phospho_Residues_StressSignaling.xlsx). Per
-# Matthew's request, shown as an overlay on the same Table E PC1/PC2
-# plot rather than as a separate comparison figure, so the two RTG
-# sources (this literature list vs. Table E's own RTG1_direct_activated/
-# RTG3_direct_activated ChIP-based columns) sit side by side on one
-# plot with different sources visually distinguished.
+# Literature-curated gene sets (RTG_targets, GCN2_targets, SNF1_targets,
+# Gis1_targets - see 15_stress_signaling_with_rtg.Rmd, sourced from
+# Phospho_Residues_StressSignaling.xlsx). Per Matthew's request, shown
+# as an overlay on the same Table E PC1/PC2 plot rather than as a
+# separate comparison figure, so the two RTG sources (this literature
+# list vs. Table E's own RTG1_direct_activated/RTG3_direct_activated
+# ChIP-based columns) sit side by side on one plot with different
+# sources visually distinguished.
 stress_signaling_path <- file.path(output_dir, "tf_mitch_stress_signaling_with_rtg.txt")
 
 if (file.exists(stress_signaling_path)) {
   stress_overlay <- read_tsv(stress_signaling_path, show_col_types = FALSE) %>%
     filter(p.adjustMANOVA < 0.05)
   cat("Stress signalling gene sets available for overlay (significant only):\n")
-  print(stress_overlay %>% select(set, s.PC1, s.PC2, p.adjustMANOVA))
+  print(stress_overlay %>% dplyr::select(set, s.PC1, s.PC2, p.adjustMANOVA))
 } else {
   cat("WARNING: tf_mitch_stress_signaling_with_rtg.txt not found - run ",
       "15_stress_signaling_with_rtg.Rmd first. Overlay will be skipped.\n", sep = "")
@@ -501,11 +511,15 @@ if (file.exists(stress_signaling_path)) {
 ```
 
 ```{r plots-table-e, fig.width=10, fig.height=9}
+# show_title/show_subtitle = FALSE here: this is the dissertation-facing
+# Table E plot (Figure 14). Title and subtitle are dropped so no working
+# title or collaborator name is baked into the image - the caption is
+# written directly in the Word document instead.
 plot_tf_2d(mitch_tf_e,     "TF enrichment - Table E direct targets (mitch 2D)",
            n_label = 20,
            force_label = c("Dot6_Tod6_direct_activated", "Dot6_Tod6_direct_repressed"),
            overlay_df = stress_overlay,
-           overlay_source_label = "Literature-curated (Adriana), not Table E direct targets")
+           show_title = FALSE, show_subtitle = FALSE)
 plot_tf_single(mitch_tf_e, "s.PC1", "TF enrichment - Table E, PC1 top 20")
 plot_tf_single(mitch_tf_e, "s.PC2", "TF enrichment - Table E, PC2 top 20")
 ```
@@ -533,11 +547,13 @@ save_plot(plot_tf_single(mitch_tf_c, "s.PC1", "TF enrichment - Table C, PC1"),
 save_plot(plot_tf_single(mitch_tf_c, "s.PC2", "TF enrichment - Table C, PC2"),
           "tf_mitch_tableC_pc2.png")
 
+# Figure 14 (dissertation): title/subtitle suppressed, per above -
+# no working title or collaborator name baked into the saved image.
 save_plot(plot_tf_2d(mitch_tf_e, "TF enrichment - Table E (mitch 2D)",
                      n_label = 20,
                      force_label = c("Dot6_Tod6_direct_activated", "Dot6_Tod6_direct_repressed"),
                      overlay_df = stress_overlay,
-                     overlay_source_label = "Literature-curated (Adriana), not Table E direct targets"),
+                     show_title = FALSE, show_subtitle = FALSE),
           "tf_mitch_tableE_2d.png")
 save_plot(plot_tf_single(mitch_tf_e, "s.PC1", "TF enrichment - Table E, PC1"),
           "tf_mitch_tableE_pc1.png")

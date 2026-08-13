@@ -77,7 +77,7 @@ pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
                       show_col_types = FALSE)
 
 pc_loadings <- pca_genes %>%
-  select(gene_id, PC1, PC2)
+  dplyr::select(gene_id, PC1, PC2)
 
 cat("PC1/PC2 loadings available for", nrow(pc_loadings), "genes\n")
 ```
@@ -95,7 +95,7 @@ run_correlation <- function(x, y, method = "pearson") {
 # Same logic as script 14's Part A: average EFG+H, exclude high-
 # confidence cell-cycle genes (EFG/H are cycling, not arrested, cells).
 occupancy_efgh <- occupancy_raw %>%
-  select(systematic_name, gene_name,
+  dplyr::select(systematic_name, gene_name,
          RPKM_mean_EFG, RPKM_mean_H, cell_cycle_high_confidence) %>%
   rename(gene_id = systematic_name) %>%
   distinct(gene_id, .keep_all = TRUE) %>%
@@ -147,7 +147,7 @@ first_timepoint_samples <- df_sc_final %>%
 
 tpm_reference <- df_sc_final %>%
   filter(sample %in% first_timepoint_samples$sample) %>%
-  select(gene_id, TPM) %>%
+  dplyr::select(gene_id, TPM) %>%
   distinct() %>%
   filter(!is.na(TPM), TPM > 0) %>%
   mutate(log2_tpm = log2(TPM + 1))
@@ -168,7 +168,7 @@ cat("Genes with TPM reference value:", nrow(tpm_reference), "\n")
 ## undefined; genes with a non-positive mean synthesis rate are
 ## dropped rather than silently becoming NA/NaN.
 synth_rate_mean <- occupancy_raw %>%
-  select(systematic_name, miller_synth_rate, neymotin_synth_rate) %>%
+  dplyr::select(systematic_name, miller_synth_rate, neymotin_synth_rate) %>%
   rename(gene_id = systematic_name) %>%
   distinct(gene_id, .keep_all = TRUE) %>%
   rowwise() %>%
@@ -237,11 +237,6 @@ p_grid16 <- ggplot(grid_results, aes(x = pc, y = predictor, fill = r)) +
     high = project_colours[["red"]], midpoint = 0
   ) +
   labs(
-    title = "RNAPII occupancy (EFG/H), TPM, and transcription rate vs PC1/PC2",
-    subtitle = str_wrap(
-      "Cell values: Pearson r on log2-transformed predictor (* = FDR < 0.05) | EFG/H average uses cell-cycle-excluded occupancy; TPM is the first-timepoint reference sample; transcription rate is the log2 Miller/Neymotin mean",
-      width = 70
-    ),
     x = NULL,
     y = NULL,
     fill = "r"
@@ -249,8 +244,6 @@ p_grid16 <- ggplot(grid_results, aes(x = pc, y = predictor, fill = r)) +
   theme_bw(base_size = 20) +
   theme(
     axis.text        = element_text(size = 18, colour = "black"),
-    plot.title       = element_text(size = 18, face = "bold"),
-    plot.subtitle    = element_text(size = 13),
     legend.text      = element_text(size = 15),
     legend.title     = element_text(size = 17)
   )
