@@ -1,0 +1,205 @@
+---
+title: "Functional Category Annotation Across GO Enrichment Plots (PC1/PC2)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+project_dir <- ".."
+load(file.path(project_dir, "project_functions.rda"))
+
+paths       <- setup_project_paths(project_dir)
+tables_dir  <- paths$tables_dir
+figures_dir <- paths$figures_dir
+output_dir  <- paths$output_dir
+```
+
+```{r libraries}
+library(tidyverse)
+library(patchwork)
+
+select <- dplyr::select
+
+# Shared colour palette for dissertation figures
+load(file.path(project_dir, "project_colours.rda"))
+```
+
+# Background
+
+RECONSTRUCTED from an earlier session after the categorised version of
+this script was lost. Per Matthew's suggestion (via Adriana): add
+functional category annotation (e.g. mitochondrial, amino acid
+biosynthesis) to GO enrichment plots, so a reader gets biological
+context at a glance, rather than plain uncoloured dots.
+
+Reads the four saved output tables from 01_go_clusterprofiler.Rmd
+(go_clusterprofiler_pc1_top10pct.txt, _pc1_bottom10pct.txt,
+_pc2_top10pct.txt, _pc2_bottom10pct.txt), applies a shared keyword
+classifier to each GO term's Description text, and re-plots with
+category as colour. This is pragmatic, imperfect keyword matching on
+free text, so category assignments are printed for manual review below
+- check these before trusting the figure, and add overrides if any
+term looks misclassified given known biology.
+
+```{r shared-category-function}
+# Shared GO term -> broad category classifier.
+#
+# UPDATED (per prior review of the first categorised batch):
+# - "ribonucleoprotein" and "nucleol" added to the ribosome biogenesis
+#   pattern - "ribonucleoprotein complex", "ribonucleoprotein complex
+#   biogenesis", and "nucleolus" were previously falling through to
+#   "Other / unclassified" despite clearly belonging with the ribosome
+#   biogenesis / translation cluster.
+# - "General / central metabolism" bucket added, catching broad
+#   catabolic/precursor-metabolite terms (carboxylic acid, organic
+#   acid, oxoacid, precursor metabolites, energy derivation) that
+#   don't cleanly match "carbohydrate" specifically but are clearly
+#   central/general metabolism rather than unclassified.
+categorise_go_term <- function(description) {
+  d <- str_to_lower(description)
+  case_when(
+    str_detect(d, "ribosom|translation|rrna|preribosome|rna processing|spliceosom|ribonucleoprotein|nucleol") ~ "Ribosome biogenesis / translation",
+    str_detect(d, "mitochondri|respirat|electron transport|oxidative phosphorylation|tricarboxylic|citrate cycle|cytochrome|proton.transport") ~ "Mitochondrial / respiration",
+    str_detect(d, "amino acid|sulfur|methionine|arginine|histidine|lysine biosynthe") ~ "Amino acid / sulfur metabolism",
+    str_detect(d, "carbohydrate|glucose|glycolysis|gluconeogenesis|hexose|lactate") ~ "Carbohydrate / glucose metabolism",
+    str_detect(d, "cell cycle|budding|cytokinesis|dna replication|chromosome segregation") ~ "Cell cycle",
+    str_detect(d, "stress|starvation|heat shock|osmotic|oxidative stress|autophagy") ~ "Stress response",
+    str_detect(d, "chromatin|transcription elongation|transcription initiation|histone|epigenetic") ~ "Chromatin / transcription regulation",
+    str_detect(d, "vacuol|lysosom|proteolysis|protein catabolic") ~ "Vacuolar / protein degradation",
+    str_detect(d, "lipid|fatty acid|steroid|ergosterol") ~ "Lipid / sterol metabolism",
+    str_detect(d, "carboxylic acid|organic acid|oxoacid|precursor metabolite|energy derivation") ~ "General / central metabolism",
+    TRUE ~ "Other / unclassified"
+  )
+}
+
+category_colours <- c(
+  "Ribosome biogenesis / translation"      = project_colours[["blue"]],
+  "Mitochondrial / respiration"            = project_colours[["red"]],
+  "Amino acid / sulfur metabolism"         = project_colours[["purple"]],
+  "Carbohydrate / glucose metabolism"      = "#e8a33d",
+  "Cell cycle"                             = "#3d9e5a",
+  "Stress response"                        = "#c94f7c",
+  "Chromatin / transcription regulation"   = "#5a5a9e",
+  "Vacuolar / protein degradation"         = "#8c6d31",
+  "Lipid / sterol metabolism"              = "#31a1a3",
+  "General / central metabolism"           = "#b0a19a",
+  "Other / unclassified"                   = "grey50"
+)
+```
+
+```{r load-saved-tables}
+go_pc1_top    <- read_tsv(file.path(output_dir, "go_clusterprofiler_pc1_top10pct.txt"), show_col_types = FALSE)
+go_pc1_bottom <- read_tsv(file.path(output_dir, "go_clusterprofiler_pc1_bottom10pct.txt"), show_col_types = FALSE)
+go_pc2_top    <- read_tsv(file.path(output_dir, "go_clusterprofiler_pc2_top10pct.txt"), show_col_types = FALSE)
+go_pc2_bottom <- read_tsv(file.path(output_dir, "go_clusterprofiler_pc2_bottom10pct.txt"), show_col_types = FALSE)
+
+cat("Loaded saved GO enrichment tables:",
+    nrow(go_pc1_top), "/", nrow(go_pc1_bottom), "/",
+    nrow(go_pc2_top), "/", nrow(go_pc2_bottom), "rows (PC1 top/bottom, PC2 top/bottom)\n")
+```
+
+```{r plot-function}
+# Single categorised panel: top 20 terms by adjusted p-value, coloured
+# by functional category, sized by gene count.
+#
+# CORRECTED (final approach): repeated attempts to merge panel A and
+# B's legends into one shared legend via patchwork's guides = "collect"
+# - both with scales added per-panel and with scales added once via
+# the `&` operator to the combined figure - produced broken/duplicated/
+# clipped legend rendering. Rather than keep fighting patchwork's
+# guide-collection behaviour, each panel now keeps its own complete,
+# self-contained legend on the right. This is slightly repetitive
+# (both panels' legends show broadly similar category colours) but is
+# guaranteed to render correctly, which repeated "collect" attempts
+# were not.
+plot_categorised_panel <- function(df, panel_label, direction_label, shared_categories, size_limits) {
+  df_top20 <- df %>%
+    arrange(p.adjust) %>%
+    slice_head(n = 20) %>%
+    mutate(
+      category           = categorise_go_term(Description),
+      category           = factor(category, levels = shared_categories),
+      Description_short  = truncate_wrap_description(Description),
+      Description_short  = fct_reorder(Description_short, -log10(p.adjust)),
+      neg_log10_padj     = -log10(p.adjust)
+    )
+
+  cat("\nCategory assignment for panel", panel_label, "-", direction_label, "(REVIEW):\n")
+  print(df_top20 %>% select(Description, category), n = Inf)
+
+  ggplot(df_top20, aes(x = neg_log10_padj, y = Description_short,
+                       size = Count, colour = category)) +
+    geom_point() +
+    scale_colour_manual(values = category_colours, name = "Functional category", drop = FALSE) +
+    scale_size_continuous(limits = size_limits, range = c(1, 8), name = "Count") +
+    labs(
+      tag = panel_label,
+      x   = expression(-log[10]("adjusted p-value")),
+      y   = direction_label
+    ) +
+    guides(colour = guide_legend(ncol = 1, order = 1),
+           size   = guide_legend(ncol = 1, order = 2)) +
+    theme_bw(base_size = 32) +
+    theme(
+      axis.text.y     = element_text(size = 28, colour = "black"),
+      axis.text.x     = element_text(size = 26, colour = "black"),
+      axis.title      = element_text(size = 30, colour = "black"),
+      axis.title.y    = element_text(size = 27, face = "italic", color = "grey40"),
+      plot.tag        = element_text(face = "bold", size = 36),
+      legend.text     = element_text(size = 26),
+      legend.title    = element_text(size = 28),
+      legend.position = "right"
+    )
+}
+
+make_combined_categorised_figure <- function(df_top, df_bottom, label_top, label_bottom) {
+  shared_size_limits <- range(c(df_top$Count, df_bottom$Count), na.rm = TRUE)
+
+  # Union of categories actually present in the top-20 terms of EITHER
+  # panel, in category_colours order - passed to both panels as
+  # identical factor levels, so at least the colour MAPPING (not the
+  # legend box itself) is consistent between A and B.
+  top20_categories <- function(df) {
+    df %>% arrange(p.adjust) %>% slice_head(n = 20) %>%
+      pull(Description) %>% categorise_go_term() %>% unique()
+  }
+  present_categories <- union(top20_categories(df_top), top20_categories(df_bottom))
+  shared_categories  <- names(category_colours)[names(category_colours) %in% present_categories]
+
+  p_top    <- plot_categorised_panel(df_top,    "A", label_top,    shared_categories, shared_size_limits)
+  p_bottom <- plot_categorised_panel(df_bottom, "B", label_bottom, shared_categories, shared_size_limits)
+
+  p_top / p_bottom
+}
+```
+
+```{r figure-9-pc1-categorised, fig.width=28, fig.height=32}
+fig9_categorised <- make_combined_categorised_figure(
+  go_pc1_top, go_pc1_bottom,
+  label_top    = "Top 10% PC1 (n = 462 genes) — active TOR/PKA signalling state",
+  label_bottom = "Bottom 10% PC1 (n = 462 genes) — TOR/PKA-inhibited state"
+)
+
+print(fig9_categorised)
+```
+
+```{r figure-10-pc2-categorised, fig.width=28, fig.height=32}
+fig10_categorised <- make_combined_categorised_figure(
+  go_pc2_top, go_pc2_bottom,
+  label_top    = "Top 10% PC2 (n = 462 genes) — upregulated in large cells",
+  label_bottom = "Bottom 10% PC2 (n = 462 genes) — upregulated in small cells"
+)
+
+print(fig10_categorised)
+```
+
+```{r save-outputs}
+ggsave(file.path(figures_dir, "figure9_go_clusterprofiler_pc1_categorised.png"),
+       plot = fig9_categorised, width = 28, height = 32, dpi = 300)
+ggsave(file.path(figures_dir, "figure10_go_clusterprofiler_pc2_categorised.png"),
+       plot = fig10_categorised, width = 28, height = 32, dpi = 300)
+
+cat("Done - categorised figures saved to figures/\n")
+```

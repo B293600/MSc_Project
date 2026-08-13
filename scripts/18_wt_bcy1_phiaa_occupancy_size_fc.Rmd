@@ -1,5 +1,5 @@
 ---
-title: "RNAPII Occupancy vs Small/Large Cell FC - WT+PhIAA and BCY1-AID+PhIAA"
+title: "RNAPII Occupancy, TPM, and Synthesis Rate vs Small/Large Cell FC - WT+PhIAA and BCY1-AID+PhIAA"
 output: html_document
 ---
 
@@ -47,6 +47,30 @@ PhIAA treatment at both small (1hr) and large (4.75hr) arrest - this
 avoids the batch-matching problem the DMSO-based version had, since no
 cross-batch DMSO control is needed for a small-vs-large FC.
 
+EXTENDED per Matthew's follow-up comment: this version adds TPM and
+synthesis rate as additional predictors alongside occupancy, matching
+the three-predictor figure described in the dissertation text (Figure
+15A/15B). Synthesis rate is:
+  - log2-transformed before correlating (previously left on a linear
+    scale in script 16, inconsistent with occupancy/TPM both already
+    being log2-transformed there).
+  - kept SEPARATE for Miller and Neymotin rather than averaged
+    together, per Matthew's specific request here - averaging two
+    estimates from different studies before correlating can mask
+    disagreement between them and isn't obviously the right choice
+    when the two methods may have different biases.
+
+WT sample identification is UNCHANGED from the previous version of
+this script - the exp250624/strain_id/arrest-label matching logic
+below was already carefully audited (see the ASSUMPTIONS note and the
+printed 4-row sanity check), and no contamination pattern like the one
+found in script 17 (Torin/Rapa/1NMPP1/ATC misclassified as WT) applies
+here, since this script doesn't classify samples into a "WT" bucket
+by drug treatment at all - it identifies exactly two strains
+(MS69/MS756) in one specific batch (exp250624) by strain_id directly.
+Still worth confirming the printed sample table shows exactly 4 rows
+before trusting this.
+
 ASSUMPTIONS MADE BELOW THAT NEED CHECKING:
 - Cell size group (small/large) is determined from the arrest column,
   which uses inconsistent label formats across samples: MS69's large
@@ -83,6 +107,7 @@ rpkm_cols <- paste0("RPKM_mean_", occupancy_conditions)
 occupancy <- occupancy_raw %>%
   select(systematic_name, all_of(rpkm_cols)) %>%
   rename(gene_id = systematic_name) %>%
+  distinct(gene_id, .keep_all = TRUE) %>%
   rowwise() %>%
   mutate(
     n_experiments_present = sum(!is.na(c_across(all_of(rpkm_cols)))),
@@ -95,6 +120,28 @@ occupancy <- occupancy_raw %>%
 
 cat("Genes with usable occupancy data (>= 4 of 6 experiments):",
     nrow(occupancy), "\n")
+```
+
+```{r load-synth-rate}
+## Synthesis rate: Miller and Neymotin kept SEPARATE (not averaged),
+## each log2-transformed before correlating, per Matthew's comment.
+## filter(> 0) before log2() since log2 of zero/negative is undefined.
+synth_rate <- occupancy_raw %>%
+  select(systematic_name, miller_synth_rate, neymotin_synth_rate) %>%
+  rename(gene_id = systematic_name) %>%
+  distinct(gene_id, .keep_all = TRUE) %>%
+  filter(!is.na(miller_synth_rate) | !is.na(neymotin_synth_rate))
+
+synth_rate_miller <- synth_rate %>%
+  filter(!is.na(miller_synth_rate), miller_synth_rate > 0) %>%
+  transmute(gene_id, log2_synth_rate = log2(miller_synth_rate))
+
+synth_rate_neymotin <- synth_rate %>%
+  filter(!is.na(neymotin_synth_rate), neymotin_synth_rate > 0) %>%
+  transmute(gene_id, log2_synth_rate = log2(neymotin_synth_rate))
+
+cat("Genes with Miller synthesis rate (log2):", nrow(synth_rate_miller), "\n")
+cat("Genes with Neymotin synthesis rate (log2):", nrow(synth_rate_neymotin), "\n")
 ```
 
 ```{r load-tpm-samples}
@@ -131,7 +178,8 @@ exp250624_samples <- df_sc_final %>%
   ) %>%
   filter(!is.na(strain_group), !is.na(cell_size_group))
 
-cat("exp250624 PhIAA-treated samples identified:\n")
+cat("exp250624 PhIAA-treated samples identified (should be exactly 4 rows",
+    "- WT small, WT large, Bcy1-AID small, Bcy1-AID large):\n")
 print(exp250624_samples %>%
         distinct(sample, strain_id, strain_group, arrest, arrest_hours,
                  cell_size_group, mean_cell_volume))
@@ -154,38 +202,83 @@ cat("Genes with log2FC(large/small) computed, by strain:\n")
 print(table(log2fc_small_large$strain_group))
 ```
 
-```{r join-occupancy}
-occ_fc <- log2fc_small_large %>%
-  inner_join(occupancy, by = "gene_id")
+```{r compute-tpm-baseline}
+## TPM baseline predictor: mean small-cell TPMsc per gene x strain.
+##
+## CORRECTED: originally used mean(small, large) as the baseline, but
+## that is mathematically coupled to the outcome variable itself
+## (log2fc_large_small = log2(large) - log2(small)) - correlating a
+## baseline built from both small AND large values against a fold
+## change computed from the same two values introduces circularity
+## that can distort the correlation in either direction. Confirmed
+## empirically: the blended baseline gave WT r = +0.095 (sign-flipped
+## from the original script's -0.114), but an independent small-cell-
+## only baseline recovers r = -0.114, matching the original result
+## almost exactly. Using small-cell TPM only here, since it represents
+## the pre-fold-change baseline state and is independent of the
+## large-cell value used in the outcome.
+tpm_baseline <- exp250624_samples %>%
+  filter(cell_size_group == "small") %>%
+  group_by(gene_id, strain_group) %>%
+  summarise(mean_tpmsc_baseline = mean(TPMsc, na.rm = TRUE), .groups = "drop") %>%
+  filter(!is.na(mean_tpmsc_baseline), mean_tpmsc_baseline > 0) %>%
+  mutate(log2_tpm_baseline = log2(mean_tpmsc_baseline))
 
-cat("Genes with both occupancy and log2FC(large/small):\n")
+cat("Genes with TPM baseline (small-cell only), by strain:\n")
+print(table(tpm_baseline$strain_group))
+```
+
+```{r join-predictors}
+## Join all three predictors (occupancy, Miller synth rate, Neymotin
+## synth rate) plus TPM baseline against log2fc_large_small, per
+## strain. Occupancy and synthesis rate are gene-level only (no
+## strain dimension), so the same value is joined to both strains;
+## TPM baseline is strain-specific since it's computed from each
+## strain's own exp250624 samples.
+occ_fc <- log2fc_small_large %>%
+  inner_join(occupancy, by = "gene_id") %>%
+  inner_join(tpm_baseline, by = c("gene_id", "strain_group"))
+
+miller_fc <- log2fc_small_large %>%
+  inner_join(synth_rate_miller, by = "gene_id")
+
+neymotin_fc <- log2fc_small_large %>%
+  inner_join(synth_rate_neymotin, by = "gene_id")
+
+cat("Genes with occupancy + TPM baseline + FC, by strain:\n")
 print(table(occ_fc$strain_group))
+cat("\nGenes with Miller synthesis rate + FC, by strain:\n")
+print(table(miller_fc$strain_group))
+cat("\nGenes with Neymotin synthesis rate + FC, by strain:\n")
+print(table(neymotin_fc$strain_group))
 ```
 
 ```{r define-plot-function}
 # Binned mean overlay, matching the convention used in scripts 13a/13b,
 # plus Spearman correlation per Matthew's instruction to use a
-# rank-based approach rather than Pearson.
+# rank-based approach rather than Pearson. Generalised to take any
+# predictor column, so the same function builds the occupancy, TPM,
+# and both synthesis-rate panels.
 n_bins <- 30
 
-plot_occupancy_vs_fc <- function(df, strain_label, point_colour) {
+plot_predictor_vs_fc <- function(df, predictor_col, x_lab, strain_label, point_colour) {
 
-  spearman_result <- cor.test(df$log2_mean_occupancy,
+  spearman_result <- cor.test(df[[predictor_col]],
                               df$log2fc_large_small,
                               method = "spearman")
 
   binned <- df %>%
-    mutate(occ_bin = ntile(log2_mean_occupancy, n_bins)) %>%
-    group_by(occ_bin) %>%
+    mutate(pred_bin = ntile(.data[[predictor_col]], n_bins)) %>%
+    group_by(pred_bin) %>%
     summarise(
-      occ_mean = mean(log2_mean_occupancy),
-      fc_mean  = mean(log2fc_large_small),
+      pred_mean = mean(.data[[predictor_col]]),
+      fc_mean   = mean(log2fc_large_small),
       .groups = "drop"
     )
 
-  ggplot(df, aes(x = log2_mean_occupancy, y = log2fc_large_small)) +
+  ggplot(df, aes(x = .data[[predictor_col]], y = log2fc_large_small)) +
     geom_point(color = point_colour, alpha = 0.3, size = 1) +
-    geom_line(data = binned, aes(x = occ_mean, y = fc_mean),
+    geom_line(data = binned, aes(x = pred_mean, y = fc_mean),
               color = "black", linewidth = 1) +
     geom_hline(yintercept = 0, linetype = "dashed", color = project_colours[["grey"]]) +
     labs(
@@ -195,7 +288,7 @@ plot_occupancy_vs_fc <- function(df, strain_label, point_colour) {
         "  |  p ", if (spearman_result$p.value < 0.001) "< 0.001"
                    else paste0("= ", round(spearman_result$p.value, 3))
       ),
-      x = "log2(mean RNAPII occupancy + 1)",
+      x = x_lab,
       y = "log2 FC (large-PhIAA / small-PhIAA)"
     ) +
     theme_bw()
@@ -203,30 +296,127 @@ plot_occupancy_vs_fc <- function(df, strain_label, point_colour) {
 ```
 
 ```{r plot-wt}
-p_wt <- plot_occupancy_vs_fc(
+p_wt_occupancy <- plot_predictor_vs_fc(
   occ_fc %>% filter(strain_group == "WT"),
-  strain_label = "WT + PhIAA",
-  point_colour = project_colours[["purple"]]
+  predictor_col = "log2_mean_occupancy",
+  x_lab         = "log2(mean RNAPII occupancy + 1)",
+  strain_label  = "WT + PhIAA",
+  point_colour  = project_colours[["purple"]]
 )
 
-print(p_wt)
+p_wt_tpm <- plot_predictor_vs_fc(
+  occ_fc %>% filter(strain_group == "WT"),
+  predictor_col = "log2_tpm_baseline",
+  x_lab         = "log2(TPM baseline)",
+  strain_label  = "WT + PhIAA",
+  point_colour  = project_colours[["purple"]]
+)
+
+p_wt_miller <- plot_predictor_vs_fc(
+  miller_fc %>% filter(strain_group == "WT"),
+  predictor_col = "log2_synth_rate",
+  x_lab         = "log2(synthesis rate, Miller)",
+  strain_label  = "WT + PhIAA",
+  point_colour  = project_colours[["purple"]]
+)
+
+p_wt_neymotin <- plot_predictor_vs_fc(
+  neymotin_fc %>% filter(strain_group == "WT"),
+  predictor_col = "log2_synth_rate",
+  x_lab         = "log2(synthesis rate, Neymotin)",
+  strain_label  = "WT + PhIAA",
+  point_colour  = project_colours[["purple"]]
+)
+
+print(p_wt_occupancy)
+print(p_wt_tpm)
+print(p_wt_miller)
+print(p_wt_neymotin)
 ```
 
 ```{r plot-bcy1}
-p_bcy1 <- plot_occupancy_vs_fc(
+p_bcy1_occupancy <- plot_predictor_vs_fc(
   occ_fc %>% filter(strain_group == "Bcy1-AID"),
-  strain_label = "Bcy1-AID + PhIAA",
-  point_colour = project_colours[["red"]]
+  predictor_col = "log2_mean_occupancy",
+  x_lab         = "log2(mean RNAPII occupancy + 1)",
+  strain_label  = "Bcy1-AID + PhIAA",
+  point_colour  = project_colours[["red"]]
 )
 
-print(p_bcy1)
+p_bcy1_tpm <- plot_predictor_vs_fc(
+  occ_fc %>% filter(strain_group == "Bcy1-AID"),
+  predictor_col = "log2_tpm_baseline",
+  x_lab         = "log2(TPM baseline)",
+  strain_label  = "Bcy1-AID + PhIAA",
+  point_colour  = project_colours[["red"]]
+)
+
+p_bcy1_miller <- plot_predictor_vs_fc(
+  miller_fc %>% filter(strain_group == "Bcy1-AID"),
+  predictor_col = "log2_synth_rate",
+  x_lab         = "log2(synthesis rate, Miller)",
+  strain_label  = "Bcy1-AID + PhIAA",
+  point_colour  = project_colours[["red"]]
+)
+
+p_bcy1_neymotin <- plot_predictor_vs_fc(
+  neymotin_fc %>% filter(strain_group == "Bcy1-AID"),
+  predictor_col = "log2_synth_rate",
+  x_lab         = "log2(synthesis rate, Neymotin)",
+  strain_label  = "Bcy1-AID + PhIAA",
+  point_colour  = project_colours[["red"]]
+)
+
+print(p_bcy1_occupancy)
+print(p_bcy1_tpm)
+print(p_bcy1_miller)
+print(p_bcy1_neymotin)
+```
+
+```{r summary-table}
+## Direct numeric summary of all eight correlations - the ggplot
+## subtitles show these too, but only as rendered plot text, not as
+## console output that's easy to copy/compare.
+summarise_r <- function(df, predictor_col, strain, predictor_label) {
+  ct <- cor.test(df[[predictor_col]], df$log2fc_large_small, method = "spearman")
+  tibble(strain = strain, predictor = predictor_label,
+         r = round(unname(ct$estimate), 3), n = nrow(df),
+         p_value = ct$p.value)
+}
+
+r_summary <- bind_rows(
+  summarise_r(occ_fc %>% filter(strain_group == "WT"), "log2_mean_occupancy", "WT", "Occupancy"),
+  summarise_r(occ_fc %>% filter(strain_group == "WT"), "log2_tpm_baseline", "WT", "TPM"),
+  summarise_r(miller_fc %>% filter(strain_group == "WT"), "log2_synth_rate", "WT", "Synth rate (Miller)"),
+  summarise_r(neymotin_fc %>% filter(strain_group == "WT"), "log2_synth_rate", "WT", "Synth rate (Neymotin)"),
+  summarise_r(occ_fc %>% filter(strain_group == "Bcy1-AID"), "log2_mean_occupancy", "Bcy1-AID", "Occupancy"),
+  summarise_r(occ_fc %>% filter(strain_group == "Bcy1-AID"), "log2_tpm_baseline", "Bcy1-AID", "TPM"),
+  summarise_r(miller_fc %>% filter(strain_group == "Bcy1-AID"), "log2_synth_rate", "Bcy1-AID", "Synth rate (Miller)"),
+  summarise_r(neymotin_fc %>% filter(strain_group == "Bcy1-AID"), "log2_synth_rate", "Bcy1-AID", "Synth rate (Neymotin)")
+)
+
+cat("All correlations, WT and Bcy1-AID:\n")
+print(r_summary, n = Inf)
+```
+
+```{r combine-panels}
+library(patchwork)
+
+# Figure 15A: WT+PhIAA, all four predictors
+p_figure15a <- (p_wt_occupancy | p_wt_tpm) / (p_wt_miller | p_wt_neymotin)
+
+# Figure 15B: Bcy1-AID+PhIAA, all four predictors
+p_figure15b <- (p_bcy1_occupancy | p_bcy1_tpm) / (p_bcy1_miller | p_bcy1_neymotin)
+
+print(p_figure15a)
+print(p_figure15b)
 ```
 
 ```{r save-outputs}
-ggsave(file.path(figures_dir, "figure_wt_phiaa_occupancy_vs_size_fc.png"),
-       plot = p_wt, width = 7, height = 5.5, dpi = 300)
-ggsave(file.path(figures_dir, "figure_bcy1_phiaa_occupancy_vs_size_fc.png"),
-       plot = p_bcy1, width = 7, height = 5.5, dpi = 300)
+ggsave(file.path(figures_dir, "figure15A_WT_PhIAA_size_fc_predictors.png"),
+       plot = p_figure15a, width = 12, height = 10, dpi = 300)
+ggsave(file.path(figures_dir, "figure15B_Bcy1AID_PhIAA_size_fc_predictors.png"),
+       plot = p_figure15b, width = 12, height = 10, dpi = 300)
 
-cat("Done - both figures saved to figures/\n")
+cat("Done - Figure 15A/15B saved to figures/\n")
 ```

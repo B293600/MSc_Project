@@ -59,14 +59,22 @@ tor_pka_mutants <- c("AID-Bcy1", "TPK1-3_AS", "TOR1-L2134M",
 
 # FIX (per Matthew, Slack): the red low-PC1 points in the original
 # version of this figure are NOT untreated WT - they are WT-background
-# cells treated with a chemical TOR inhibitor (Torin or Rapamycin, in
-# any combination, e.g. "Torin+PhIAA", "Torin_OD 0.1"). Classifying
-# strain_group purely off strain_info == "WT" silently folded these
-# into the WT group, which is what produced the artificially weak/
-# contaminated WT-only correlation. Genuinely untreated WT is the
-# OD 0.1 / OD 0.3 timecourse, matching what Matthew described: "the WT
-# untreated cells are basically just the red dots that move gradually
-# between 0.1 and below 0 and show a clear size dependency."
+# cells treated with a chemical TOR/PKA inhibitor (Torin, Rapamycin, or
+# 1NMPP1, in any combination, e.g. "Torin+PhIAA", "Torin_OD 0.1").
+# Classifying strain_group purely off strain_info == "WT" silently
+# folded these into the WT group, which is what produced the
+# artificially weak/contaminated WT-only correlation. Genuinely
+# untreated WT is the OD 0.1 / OD 0.3 timecourse, matching what
+# Matthew described: "the WT untreated cells are basically just the
+# red dots that move gradually between 0.1 and below 0 and show a
+# clear size dependency."
+#
+# 1NMPP1 was initially assumed to be a safe drug control on the
+# reasoning that WT carries no analog-sensitive kinase allele for it to
+# target - Matthew corrected this after seeing the two remaining
+# low-PC1 red dots were 1NMPP1-treated, so it evidently does have an
+# effect in this WT background (off-target or otherwise) and is
+# excluded here on the same basis as Torin/Rapa.
 #
 # strain_info_condition_easy was tried first but only labels the plain
 # "Torin"/"Rapa" conditions as "TORC1 inhib." - combined conditions like
@@ -76,15 +84,32 @@ tor_pka_mutants <- c("AID-Bcy1", "TPK1-3_AS", "TOR1-L2134M",
 # directly on `condition` with str_detect() catches every Torin/Rapa-
 # containing condition regardless of what else it's combined with.
 #
-# PhIAA-only, ATC, and 1NMPP1 conditions on WT are left classified as
-# WT: WT carries no AID tag, Tet-off construct, or analog-sensitive
-# kinase allele, so these drugs have no target in a WT background and
-# function as drug controls rather than TOR/PKA perturbations.
+# PhIAA-only condition on WT is left classified as WT: WT carries no
+# AID tag, so PhIAA has no target in a WT background and functions as
+# a drug control. Confirmed by diagnostic plot - PhIAA-treated WT
+# points sit tightly on the same trend as untreated WT (OD 0.1/OD 0.3)
+# at every volume cluster, with no visible deviation.
+#
+# ATC-treated WT is NOT left as WT, and is NOT routed to TOR/PKA mutant
+# either, since ATC is not a TOR/PKA perturbation and there is no basis
+# to assume it belongs in that group. Diagnostic plot showed ATC-treated
+# WT sitting clearly off the untreated trend at higher cell volumes
+# (PC1 ~0.04-0.06 versus ~0.00-0.02 for DMSO/OD 0.1/OD 0.3/PhIAA at the
+# same volume), the same kind of off-trend pattern that flagged Torin,
+# Rapa, and 1NMPP1 as contaminating earlier. Since the underlying cause
+# isn't established (worth asking Matthew directly, since ATC is
+# presumably a Tet-off system component and WT shouldn't carry that
+# construct), ATC-treated WT samples are excluded from the group
+# comparison entirely rather than being force-classified either way.
+#
+# 1NMPP1 is NOT left as WT - see note above.
 pca_samples <- pca_samples %>%
   mutate(
     strain_group = case_when(
       strain_info == "WT" &
-        str_detect(condition, "Torin|Rapa")           ~ "TOR/PKA mutant",  # chemical
+        str_detect(condition, "Torin|Rapa|1NMPP1")     ~ "TOR/PKA mutant",  # chemical
+      strain_info == "WT" &
+        condition == "ATC"                             ~ "Excluded (unconfirmed)",
       strain_info == "WT"                              ~ "WT",
       strain_info %in% tor_pka_mutants                  ~ "TOR/PKA mutant",  # genetic
       TRUE                                              ~ "Other mutant"
@@ -94,19 +119,20 @@ pca_samples <- pca_samples %>%
 cat("Samples by strain group:\n")
 print(table(pca_samples$strain_group))
 
-# Sanity check: confirm no chemically TOR-inhibited WT samples remain
-# classified as WT. Should print only OD 0.1/OD 0.3 (untreated) plus
-# PhIAA/ATC/1NMPP1 drug-control conditions - nothing containing Torin
-# or Rapa.
+# Sanity check: confirm no chemically TOR-inhibited or ATC-treated WT
+# samples remain classified as WT. Should print only OD 0.1/OD 0.3
+# (untreated) plus PhIAA (drug control) - nothing containing Torin,
+# Rapa, 1NMPP1, or ATC.
 cat("\nConditions retained under strain_group == 'WT':\n")
 pca_samples %>%
   filter(strain_info == "WT", strain_group == "WT") %>%
   distinct(condition, strain_info_condition_easy) %>%
   print(n = Inf)
 
-# Correlations computed three ways: all samples (as before), WT only,
-# and TOR/PKA mutants only - this is the actual test of Matthew's
-# claim, not just a coloured scatter.
+# Correlations computed three ways: all samples (excluding the 2
+# unconfirmed ATC-treated WT points, consistent with what's plotted),
+# WT only, and TOR/PKA mutants only - this is the actual test of
+# Matthew's claim, not just a coloured scatter.
 compute_cor <- function(df) {
   df %>%
     summarise(
@@ -116,10 +142,13 @@ compute_cor <- function(df) {
     )
 }
 
-pc_vol_cor_all <- compute_cor(pca_samples) %>% mutate(group = "All samples")
-pc_vol_cor_wt  <- pca_samples %>% filter(strain_group == "WT") %>%
+pca_samples_analysis <- pca_samples %>%
+  filter(strain_group != "Excluded (unconfirmed)")
+
+pc_vol_cor_all <- compute_cor(pca_samples_analysis) %>% mutate(group = "All samples")
+pc_vol_cor_wt  <- pca_samples_analysis %>% filter(strain_group == "WT") %>%
   compute_cor() %>% mutate(group = "WT only")
-pc_vol_cor_mut <- pca_samples %>% filter(strain_group == "TOR/PKA mutant") %>%
+pc_vol_cor_mut <- pca_samples_analysis %>% filter(strain_group == "TOR/PKA mutant") %>%
   compute_cor() %>% mutate(group = "TOR/PKA mutant only")
 
 pc_vol_cor <- bind_rows(pc_vol_cor_all, pc_vol_cor_wt, pc_vol_cor_mut) %>%
@@ -234,6 +263,12 @@ print(permutation_results)
 # visible against the full-dataset noise. WT here now excludes
 # chemically TOR-inhibited samples, per the strain_group fix above.
 #
+# ATC-treated WT samples (strain_group == "Excluded (unconfirmed)")
+# are dropped here via pca_samples_analysis (defined above), rather
+# than left in pca_samples where they'd have no entry in
+# strain_colours below - scale_color_manual would otherwise silently
+# drop them with a ggplot warning instead of a deliberate exclusion.
+#
 # Label sizes increased throughout below (standing "labels bigger"
 # instruction) - this script previously had no explicit theme sizing
 # at all (bare theme_bw()), so it was the smallest-text figure in the
@@ -256,9 +291,9 @@ axis_theme_big <- theme_bw(base_size = 20) +
 wt_cor  <- pc_vol_cor %>% filter(group == "WT only") %>% pull(cor_PC1_vol)
 all_cor <- pc_vol_cor %>% filter(group == "All samples") %>% pull(cor_PC1_vol)
 
-p_pc1_vol <- ggplot(pca_samples, aes(x = mean_cell_volume, y = PC1)) +
+p_pc1_vol <- ggplot(pca_samples_analysis, aes(x = mean_cell_volume, y = PC1)) +
   geom_point(aes(color = strain_group), alpha = 0.7, size = 3) +
-  geom_smooth(data = pca_samples %>% filter(strain_group == "WT"),
+  geom_smooth(data = pca_samples_analysis %>% filter(strain_group == "WT"),
              method = "lm", color = project_colours[["red"]],
              se = FALSE, linewidth = 1) +
   geom_smooth(method = "lm", color = "black", se = FALSE,
@@ -266,7 +301,7 @@ p_pc1_vol <- ggplot(pca_samples, aes(x = mean_cell_volume, y = PC1)) +
   scale_color_manual(values = strain_colours, name = "Strain") +
   labs(
     subtitle = paste0(
-      "n = ", nrow(pca_samples), " samples  |  ",
+      "n = ", nrow(pca_samples_analysis), " samples  |  ",
       "WT only: r = ", round(wt_cor, 3), "  |  ",
       "All samples: r = ", round(all_cor, 3)
     ),
@@ -282,13 +317,13 @@ print(p_pc1_vol)
 wt_cor2  <- pc_vol_cor %>% filter(group == "WT only") %>% pull(cor_PC2_vol)
 all_cor2 <- pc_vol_cor %>% filter(group == "All samples") %>% pull(cor_PC2_vol)
 
-p_pc2_vol <- ggplot(pca_samples, aes(x = mean_cell_volume, y = PC2)) +
+p_pc2_vol <- ggplot(pca_samples_analysis, aes(x = mean_cell_volume, y = PC2)) +
   geom_point(aes(color = strain_group), alpha = 0.7, size = 3) +
   geom_smooth(method = "lm", color = "black", se = FALSE, linewidth = 1) +
   scale_color_manual(values = strain_colours, name = "Strain") +
   labs(
     subtitle = paste0(
-      "n = ", nrow(pca_samples), " samples  |  ",
+      "n = ", nrow(pca_samples_analysis), " samples  |  ",
       "WT only: r = ", round(wt_cor2, 3), "  |  ",
       "All samples: r = ", round(all_cor2, 3)
     ),

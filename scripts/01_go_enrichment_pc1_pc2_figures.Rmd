@@ -98,7 +98,12 @@ ego_pc2_bottom <- run_go_enrichment(pc2_genes$bottom, all_genes_universe, "PC2 b
 # Single-panel dot plot: top 20 terms by adjusted p-value.
 # panel_label: "A" or "B" for patchwork assembly.
 # direction_label: short biological description for y-axis title.
-plot_single_panel <- function(ego, panel_label, direction_label) {
+#
+# CORRECTED: label sizes increased throughout (axis text, axis titles,
+# panel tag, legend) per request - previous sizes were tuned for a
+# side-by-side layout and looked small once printed/viewed at normal
+# scale.
+plot_single_panel <- function(ego, panel_label, direction_label, size_limits) {
   df <- as.data.frame(ego)
   if (nrow(df) == 0) return(NULL)
 
@@ -114,30 +119,53 @@ plot_single_panel <- function(ego, panel_label, direction_label) {
   ggplot(df_top20, aes(x = neg_log10_padj, y = Description_short,
                        size = Count)) +
     geom_point(color = project_colours[["pink"]]) +
+    # CORRECTED: explicit shared limits/breaks so panel A and panel B
+    # use the identical size scale - previously each panel picked its
+    # own Count range automatically, and since the two ranges differ,
+    # patchwork's guides = "collect" couldn't merge them into one
+    # legend and instead showed two separate ones, with the second
+    # running off the edge of the combined image.
+    scale_size_continuous(limits = size_limits, range = c(1, 8)) +
     labs(
       tag  = panel_label,
       x    = expression(-log[10]("adjusted p-value")),
       y    = direction_label,
       size = "Gene count"
     ) +
-    theme_bw() +
+    theme_bw(base_size = 22) +
     theme(
-      axis.text.y  = element_text(size = 8),
-      axis.title.y = element_text(size = 8, face = "italic",
+      axis.text.y  = element_text(size = 19, colour = "black"),
+      axis.text.x  = element_text(size = 18, colour = "black"),
+      axis.title   = element_text(size = 22, colour = "black"),
+      axis.title.y = element_text(size = 19, face = "italic",
                                   color = "grey40"),
-      plot.tag     = element_text(face = "bold", size = 12)
+      plot.tag     = element_text(face = "bold", size = 26),
+      legend.text  = element_text(size = 17),
+      legend.title = element_text(size = 19)
     )
 }
 
-# Combine top and bottom panels (A left, B right) into one figure via
-# patchwork, with a shared legend. Returns a plot object ready for ggsave.
+# Combine top and bottom panels (A above, B below) into one figure via
+# patchwork, with a shared legend. Stacked vertically (rather than
+# side-by-side) so the combined figure fills roughly one page when
+# printed, per request. Returns a plot object ready for ggsave.
+#
+# CORRECTED: computes shared size_limits across BOTH panels' Count
+# values before plotting either one, so scale_size_continuous() above
+# gets the same range in both calls and guides = "collect" can
+# actually merge them into a single legend instead of duplicating it.
 make_combined_figure <- function(ego_top, ego_bottom,
                                  label_top, label_bottom
                                  ) {
-  p_top    <- plot_single_panel(ego_top,    "A", label_top)
-  p_bottom <- plot_single_panel(ego_bottom, "B", label_bottom)
+  df_top    <- as.data.frame(ego_top)
+  df_bottom <- as.data.frame(ego_bottom)
+  all_counts <- c(df_top$Count, df_bottom$Count)
+  shared_size_limits <- range(all_counts, na.rm = TRUE)
 
- combined <- ((p_top | p_bottom) +
+  p_top    <- plot_single_panel(ego_top,    "A", label_top,    shared_size_limits)
+  p_bottom <- plot_single_panel(ego_bottom, "B", label_bottom, shared_size_limits)
+
+ combined <- ((p_top / p_bottom) +
                plot_layout(guides = "collect")) &
             theme(legend.position = "bottom")
 
@@ -145,10 +173,10 @@ make_combined_figure <- function(ego_top, ego_bottom,
 }
 ```
 
-```{r figure-9-pc1, fig.width=10, fig.height=18}
+```{r figure-9-pc1, fig.width=10, fig.height=24}
 # Figure 9: PC1, TOR/PKA signalling axis.
-# Panel A (left): top 10%, active TOR/PKA signalling.
-# Panel B (right): bottom 10%, TOR/PKA inhibited.
+# Panel A (top): top 10%, active TOR/PKA signalling.
+# Panel B (bottom): bottom 10%, TOR/PKA inhibited.
 fig9 <- make_combined_figure(
   ego_top    = ego_pc1_top,
   ego_bottom = ego_pc1_bottom,
@@ -166,8 +194,10 @@ print(fig9)
 
 ```
 
-```{r figure-10-pc2, fig.width=10, fig.height=18}
+```{r figure-10-pc2, fig.width=10, fig.height=24}
 # Figure 10: PC2, cell-size axis (large vs small cells)
+# Panel A (top): top 10%, large cells.
+# Panel B (bottom): bottom 10%, small cells.
 fig10 <- make_combined_figure(
   ego_top    = ego_pc2_top,
   ego_bottom = ego_pc2_bottom,
@@ -196,15 +226,17 @@ write_tsv(as.data.frame(ego_pc2_top),
 write_tsv(as.data.frame(ego_pc2_bottom),
           file.path(output_dir, "go_clusterprofiler_pc2_bottom10pct.txt"))
 
-# Save combined figures (wide layout)
+# Save combined figures - now tall/stacked (A above B) rather than
+# wide/side-by-side, so width/height swapped to suit a portrait,
+# roughly one-page layout when printed.
 if (!is.null(fig9)) {
   ggsave(file.path(figures_dir, "figure9_go_clusterprofiler_pc1.png"),
-         plot = fig9, width = 18, height = 10, dpi = 300)
+         plot = fig9, width = 10, height = 24, dpi = 300)
 }
 
 if (!is.null(fig10)) {
   ggsave(file.path(figures_dir, "figure10_go_clusterprofiler_pc2.png"),
-         plot = fig10, width = 18, height = 10, dpi = 300)
+         plot = fig10, width = 10, height = 24, dpi = 300)
 }
 
 cat("Done - results saved to output_tables/ and figures/\n")

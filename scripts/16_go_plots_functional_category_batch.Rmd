@@ -53,6 +53,13 @@ script's convention. `rank_occupancy` was dropped in an earlier
 revision (highly correlated with the log2 metric, so redundant) and
 stays dropped here.
 
+CORRECTED: the synthesis rate predictor was previously excluded from
+the "log2-transformed predictor" convention stated above - occupancy
+and TPM were both log2-transformed before correlating, but
+`mean_synth_rate` was correlated raw/untransformed. Fixed below so all
+three predictors are actually treated consistently, as the script's
+own stated methodology requires.
+
 ```{r load-occupancy-raw}
 occupancy_path <- file.path(
   tables_dir,
@@ -151,6 +158,15 @@ cat("Genes with TPM reference value:", nrow(tpm_reference), "\n")
 ```{r load-synth-rate}
 ## Transcription rate: mean of Miller and Neymotin synthesis-rate
 ## estimates, same definition as script 14/Figure 18.
+##
+## CORRECTED: mean_synth_rate is now log2-transformed before use, to
+## match the "log2-transformed predictor" convention already applied
+## to occupancy (log2_occupancy_efgh) and TPM (log2_tpm) above - it
+## was previously left on its raw/linear scale, inconsistent with the
+## script's own stated methodology. filter(mean_synth_rate > 0) added
+## before the log transform since log2() of zero/negative values is
+## undefined; genes with a non-positive mean synthesis rate are
+## dropped rather than silently becoming NA/NaN.
 synth_rate_mean <- occupancy_raw %>%
   select(systematic_name, miller_synth_rate, neymotin_synth_rate) %>%
   rename(gene_id = systematic_name) %>%
@@ -159,7 +175,8 @@ synth_rate_mean <- occupancy_raw %>%
   mutate(mean_synth_rate = mean(c(miller_synth_rate, neymotin_synth_rate),
                                 na.rm = TRUE)) %>%
   ungroup() %>%
-  filter(is.finite(mean_synth_rate))
+  filter(is.finite(mean_synth_rate), mean_synth_rate > 0) %>%
+  mutate(log2_synth_rate = log2(mean_synth_rate))
 
 cat("Genes with mean synthesis rate:", nrow(synth_rate_mean), "\n")
 ```
@@ -175,14 +192,14 @@ tpm_results <- bind_rows(
   mutate(predictor = "TPM (first timepoint)", n_genes = nrow(tpm_pc))
 
 synth_results <- bind_rows(
-  run_correlation(synth_pc$mean_synth_rate, synth_pc$PC1, method = "pearson") %>% mutate(pc = "PC1"),
-  run_correlation(synth_pc$mean_synth_rate, synth_pc$PC2, method = "pearson") %>% mutate(pc = "PC2")
+  run_correlation(synth_pc$log2_synth_rate, synth_pc$PC1, method = "pearson") %>% mutate(pc = "PC1"),
+  run_correlation(synth_pc$log2_synth_rate, synth_pc$PC2, method = "pearson") %>% mutate(pc = "PC2")
 ) %>%
   mutate(predictor = "Transcription rate (Miller/Neymotin)", n_genes = nrow(synth_pc))
 
 cat("TPM - correlation with PC1/PC2:\n")
 print(tpm_results)
-cat("\nTranscription rate - correlation with PC1/PC2:\n")
+cat("\nTranscription rate (log2) - correlation with PC1/PC2:\n")
 print(synth_results)
 ```
 
@@ -222,7 +239,7 @@ p_grid16 <- ggplot(grid_results, aes(x = pc, y = predictor, fill = r)) +
   labs(
     title = "RNAPII occupancy (EFG/H), TPM, and transcription rate vs PC1/PC2",
     subtitle = str_wrap(
-      "Cell values: Pearson r on log2-transformed predictor (* = FDR < 0.05) | EFG/H average uses cell-cycle-excluded occupancy; TPM is the first-timepoint reference sample; transcription rate is the Miller/Neymotin mean",
+      "Cell values: Pearson r on log2-transformed predictor (* = FDR < 0.05) | EFG/H average uses cell-cycle-excluded occupancy; TPM is the first-timepoint reference sample; transcription rate is the log2 Miller/Neymotin mean",
       width = 70
     ),
     x = NULL,
