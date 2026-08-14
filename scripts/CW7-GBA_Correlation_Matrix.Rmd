@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup}
 rm(list=ls())
-setwd("/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis/scripts")
+setwd(".")  # run from the scripts/ directory
 library(tidyverse)
 library(ggplot2)
 library(patchwork)
@@ -47,7 +47,7 @@ df_alalam <- read_tsv("../tables/df_alalam_gba.txt",
 df_he2018 <- read_tsv("../tables/df_he2018_gba.txt",
                       show_col_types = FALSE)
 
-## Yuyang in-house RNA-seq -- AID depletion in small and large cells
+## In-house RNA-seq -- AID depletion in small and large cells
 ## Factors: Not1, Pab1, Xrn1, eIF4E, eIF4G
 ## log2FC PhIAA_1hr vs DMSO_1hr
 ## NOTE: requires CW13 to be run first
@@ -60,7 +60,7 @@ cat("Chappleboim:", nrow(df_chappleboim), "genes\n")
 cat("Audebert:", nrow(df_audebert), "genes\n")
 cat("Alalam:", nrow(df_alalam), "genes\n")
 cat("He2018:", nrow(df_he2018), "genes\n")
-cat("Yuyang:", nrow(df_yuyang), "genes\n")
+cat("In-house RNA-seq:", nrow(df_yuyang), "genes\n")
 ```
 
 ```{r process_eif4g}
@@ -143,16 +143,16 @@ cat("Genes with eIF4G FC data:", nrow(df_eif4g), "\n")
 ##   log2FC_pat1D          -- pat1Δ, He et al. 2018 (steady-state)
 ##   log2FC_lsm1D          -- lsm1Δ, He et al. 2018 (steady-state)
 ##   log2FC_dhh1D          -- dhh1Δ, He et al. 2018 (steady-state)
-##   log2FC_Not1_large_YM  -- Not1-AID FC large cells, Yuyang RNA-seq
-##   log2FC_Not1_small_YM  -- Not1-AID FC small cells, Yuyang RNA-seq
-##   log2FC_Pab1_large_YM  -- Pab1-AID FC large cells, Yuyang RNA-seq
-##   log2FC_Pab1_small_YM  -- Pab1-AID FC small cells, Yuyang RNA-seq
-##   log2FC_Xrn1_large_YM  -- Xrn1-AID FC large cells, Yuyang RNA-seq
-##   log2FC_Xrn1_small_YM  -- Xrn1-AID FC small cells, Yuyang RNA-seq
-##   log2FC_eIF4E_large_YM -- eIF4E-AID FC large cells, Yuyang RNA-seq
-##   log2FC_eIF4E_small_YM -- eIF4E-AID FC small cells, Yuyang RNA-seq
-##   log2FC_eIF4G_large_YM -- eIF4G-AID FC large cells, Yuyang RNA-seq
-##   log2FC_eIF4G_small_YM -- eIF4G-AID FC small cells, Yuyang RNA-seq
+##   log2FC_Not1_large_YM  -- Not1-AID FC large cells, in-house RNA-seq
+##   log2FC_Not1_small_YM  -- Not1-AID FC small cells, in-house RNA-seq
+##   log2FC_Pab1_large_YM  -- Pab1-AID FC large cells, in-house RNA-seq
+##   log2FC_Pab1_small_YM  -- Pab1-AID FC small cells, in-house RNA-seq
+##   log2FC_Xrn1_large_YM  -- Xrn1-AID FC large cells, in-house RNA-seq
+##   log2FC_Xrn1_small_YM  -- Xrn1-AID FC small cells, in-house RNA-seq
+##   log2FC_eIF4E_large_YM -- eIF4E-AID FC large cells, in-house RNA-seq
+##   log2FC_eIF4E_small_YM -- eIF4E-AID FC small cells, in-house RNA-seq
+##   log2FC_eIF4G_large_YM -- eIF4G-AID FC large cells, in-house RNA-seq
+##   log2FC_eIF4G_small_YM -- eIF4G-AID FC small cells, in-house RNA-seq
 ##   eIF4G_dep_fc_small    -- eIF4G-AID FC in small cells (EU pulse-chase)
 ##   eIF4G_dep_fc_large    -- eIF4G-AID FC in large cells (EU pulse-chase)
 ##   eIF4G_dep_fc_mean     -- eIF4G-AID FC mean (EU pulse-chase)
@@ -424,44 +424,141 @@ cat("Saved GBA_correlation_matrix_full.png\n")
 ```
 
 ```{r plot_fc_subset}
-## Subset: only correlations with WT_hl_fc
-cor_fc <- cor_results %>%
-  dplyr::filter(var1 == "WT_hl_fc",
-                var2 != "WT_hl_fc") %>%
-  dplyr::arrange(R) %>%
-  dplyr::mutate(label2 = factor(label2, levels = label2))
+## Figure 4, restructured into two panels: decay-rate measurements
+## (acute AID depletion, SLAM-seq, EU pulse-chase - minimal
+## transcriptional-compensation confound, genuinely probing decay
+## kinetics) vs RNA-level measurements (steady-state deletion mutants -
+## chronic, confounded by transcriptional buffering, measuring RNA
+## level rather than decay per se).
+##
+## The in-house (_YM) variables are grouped with RNA-level measurements,
+## not decay-rate: they are standard total RNA-seq after AID depletion
+## (same assay type as Vijjamarri/He et al.), not SLAM-seq or EU
+## pulse-chase, so they measure RNA level rather than decay rate
+## directly. Supported empirically: the sanity_check_eif4g_xrn1_
+## disagreement chunk below shows the in-house Xrn1 and eIF4G
+## measurements disagree in SIGN with the more direct Chappleboim/EU
+## pulse-chase measurements of the same factors.
+##
+## Dropped entirely (not real pathway evidence):
+##   WT_small_hl, WT_large_hl - raw components WT_hl_fc is computed
+##     FROM, not a decay pathway signature.
+##   TE_vijjamarri - baseline translation efficiency, not a
+##     perturbation fold-change like the other variables here.
 
-p_fc_bar <- ggplot(cor_fc, aes(x = R, y = label2, fill = R)) +
-  geom_col(width = 0.6) +
-  geom_text(aes(label = paste0("R = ", round(R, 3),
-                               "  (n = ", format(n, big.mark = ","), ")"),
-                x     = ifelse(R >= 0, R + 0.005, R - 0.005),
-                hjust = ifelse(R >= 0, 0, 1)),
-            size = 3.5, colour = "black") +
-  geom_vline(xintercept = 0, colour = "black", linewidth = 0.5) +
-  scale_fill_gradient2(low      = "#ffa8cb",
-                       mid      = "white",
-                       high     = "#4575b4",
-                       midpoint = 0,
-                       limits   = c(-0.5, 0.5),
-                       guide    = "none") +
-  coord_cartesian(xlim = c(-0.4, 0.4)) +
-  labs(x = "Spearman R with half-life FC (large/small)",
-       y = NULL) +
-  theme_classic(base_size = 14) +
-  theme(
-    axis.text       = element_text(size = 10, colour = "black"),
-    axis.title      = element_text(size = 12, colour = "black"),
-    plot.background = element_rect(fill = "white", colour = NA),
-    plot.margin     = margin(10, 20, 10, 10))
+decay_rate_vars <- c(
+  "log2FC_not1_60", "log2FC_xrn1_60", "log2FC_ccr4_60",
+  "log2FC_pop2_60", "log2FC_dcp2_chapp_60",           # Chappleboim, AID 60min
+  "log2FC_pop2ccr4_hl", "log2FC_dcp2_hl",              # Audebert, SLAM-seq HL
+  "log2FC_upf3_hl",                                     # Alalam, SLAM-seq HL
+  "eIF4G_dep_fc_small", "eIF4G_dep_fc_large", "eIF4G_dep_fc_mean"  # EU pulse-chase
+)
 
-p_fc_bar
-ggsave("../figures/GBA_correlation_with_hl_fc.png",
-       plot   = p_fc_bar,
+rna_level_vars <- c(
+  "log2FC_dcp2D", "log2FC_xrn1D_vij",                  # Vijjamarri, deletion
+  "log2FC_pat1D", "log2FC_lsm1D", "log2FC_dhh1D",       # He et al. 2018, deletion
+  "log2FC_Not1_large_YM", "log2FC_Not1_small_YM",
+  "log2FC_Pab1_large_YM", "log2FC_Pab1_small_YM",
+  "log2FC_Xrn1_large_YM", "log2FC_Xrn1_small_YM",
+  "log2FC_eIF4E_large_YM", "log2FC_eIF4E_small_YM",
+  "log2FC_eIF4G_large_YM", "log2FC_eIF4G_small_YM"     # in-house, AID depletion (_YM)
+)
+
+cor_fc_all <- cor_results %>%
+  dplyr::filter(var1 == "WT_hl_fc", var2 != "WT_hl_fc")
+
+make_fc_bar <- function(vars, df, bar_title) {
+  df_panel <- df %>%
+    dplyr::filter(var2 %in% vars) %>%
+    dplyr::arrange(R) %>%
+    dplyr::mutate(label2 = factor(label2, levels = label2))
+
+  ggplot(df_panel, aes(x = R, y = label2, fill = R)) +
+    geom_col(width = 0.6) +
+    geom_text(aes(label = paste0("R = ", round(R, 3),
+                                 "  (n = ", format(n, big.mark = ","), ")"),
+                  x     = ifelse(R >= 0, R + 0.01, R - 0.01),
+                  hjust = ifelse(R >= 0, 0, 1)),
+              size = 6, colour = "black") +
+    geom_vline(xintercept = 0, colour = "black", linewidth = 0.6) +
+    scale_fill_gradient2(low      = "#ffa8cb",
+                         mid      = "white",
+                         high     = "#4575b4",
+                         midpoint = 0,
+                         limits   = c(-0.5, 0.5),
+                         guide    = "none") +
+    # clip = "off" stops the R/n labels being invisibly cut where they
+    # extend past xlim. xlim widened to leave physical room for the
+    # longest label text next to the most extreme bars.
+    coord_cartesian(xlim = c(-0.65, 0.65), clip = "off") +
+    labs(title = bar_title,
+         x = "Spearman R with half-life FC (large/small)",
+         y = NULL) +
+    theme_classic(base_size = 26) +
+    theme(
+      plot.title      = element_text(size = 32, face = "bold"),
+      axis.text       = element_text(size = 20, colour = "black"),
+      axis.title      = element_text(size = 24, colour = "black"),
+      # extra right margin for labels on the widest positive bars,
+      # extra left margin so the value labels on negative bars (which
+      # extend further left, toward the axis-label region) have a
+      # buffer against the long dataset names and don't collide
+      plot.margin     = margin(10, 90, 10, 120))
+}
+
+p_fc_bar_decay <- make_fc_bar(decay_rate_vars, cor_fc_all,
+                              "Decay-rate measurements (acute AID depletion, SLAM-seq, EU pulse-chase)")
+
+p_fc_bar_rnalevel <- make_fc_bar(rna_level_vars, cor_fc_all,
+                                 "RNA-level measurements (steady-state deletion mutants, in-house AID depletion RNA-seq)")
+
+print(p_fc_bar_decay)
+ggsave("../figures/GBA_correlation_with_hl_fc_decay_rate.png",
+       plot   = p_fc_bar_decay,
        width  = 12,
-       height = 14,
+       height = 12,
        dpi    = 150)
-cat("Saved GBA_correlation_with_hl_fc.png\n")
+cat("Saved GBA_correlation_with_hl_fc_decay_rate.png\n")
+
+print(p_fc_bar_rnalevel)
+ggsave("../figures/GBA_correlation_with_hl_fc_rna_level.png",
+       plot   = p_fc_bar_rnalevel,
+       width  = 12,
+       height = 12,
+       dpi    = 150)
+cat("Saved GBA_correlation_with_hl_fc_rna_level.png\n")
+
+## Combined Figure 3 -- both panels laid out and rendered together as
+## one image, rather than two separately-sized standalone PNGs placed
+## side-by-side afterward. Placing two independently-sized ggplot PNGs
+## next to each other in Word scales each one down without reflowing
+## its internal text, so titles and R-value labels get clipped - this
+## combines them with patchwork BEFORE rendering, so ggplot lays out
+## all text correctly for the final combined width in one pass.
+##
+## Panel titles shortened here (vs the long standalone titles above)
+## since a combined figure needs more compact in-plot titles - the
+## full method description already lives in the external figure
+## caption, so it doesn't need repeating in the plot title too.
+p_fc_bar_decay_combined <- p_fc_bar_decay +
+  labs(title = "Decay-rate measurements")
+
+p_fc_bar_rnalevel_combined <- p_fc_bar_rnalevel +
+  labs(title = "RNA-level measurements")
+
+p_figure3 <- p_fc_bar_decay_combined / p_fc_bar_rnalevel_combined
+
+print(p_figure3)
+## Sized to approximate a slightly-less-than-A4 page (A4 = 8.27 x
+## 11.69 in) at print-quality resolution, so labels stay clearly
+## legible when the figure is placed at close to full page width in
+## the dissertation rather than shrunk to fit a column.
+ggsave("../figures/Figure3_GBA_correlation_with_hl_fc.png",
+       plot   = p_figure3,
+       width  = 15,
+       height = 17,
+       dpi    = 300)
+cat("Saved Figure3_GBA_correlation_with_hl_fc.png\n")
 ```
 
 ```{r eif4g_scatter}
@@ -480,6 +577,8 @@ p_eif4g_small <- scatter_binned_gba(
   point_col = col_small,
   xlim      = c(-3, 1),
   ylim      = c(-2.5, 2.5)) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey40") +
   labs(tag = "A") +
   theme(axis.title = element_text(size = 14, colour = "black"),
         axis.text  = element_text(size = 12, colour = "black"))
@@ -493,6 +592,8 @@ p_eif4g_large <- scatter_binned_gba(
   point_col = col_large,
   xlim      = c(-3, 1),
   ylim      = c(-2.5, 2.5)) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey40") +
   labs(tag = "B") +
   theme(axis.title = element_text(size = 14, colour = "black"),
         axis.text  = element_text(size = 12, colour = "black"))
@@ -506,6 +607,8 @@ p_eif4g_mean <- scatter_binned_gba(
   point_col = "grey50",
   xlim      = c(-3, 1),
   ylim      = c(-2.5, 2.5)) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "grey40") +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey40") +
   labs(tag = "C") +
   theme(axis.title = element_text(size = 14, colour = "black"),
         axis.text  = element_text(size = 12, colour = "black"))
@@ -519,6 +622,108 @@ ggsave("../figures/GBA_eIF4G_vs_hl_fc.png",
        height = 6,
        dpi    = 150)
 cat("Saved GBA_eIF4G_vs_hl_fc.png\n")
+```
+
+```{r eif4g_size_collapse_cumfreq}
+## Direct illustration: WT small vs large cells have visibly different
+## half-life distributions, but that difference is lost (distributions
+## collapse together) once eIF4G is depleted. This is the headline
+## figure for the eIF4G section - shows the WT difference is
+## eIF4G-dependent, not just correlated with it.
+##
+## Uses log2(half-life) rather than raw half-life for the x-axis, since
+## half-lives are right-skewed; log2 puts small/large comparisons on a
+## symmetric, more visually interpretable scale, consistent with how
+## FC values are already log2 throughout this project.
+
+df_collapse <- df_eif4g %>%
+  transmute(
+    gene_id,
+    WT_small_log2hl   = log2(MS1039_small_hl_wt),
+    WT_large_log2hl   = log2(MS1039_large_hl_wt),
+    eIF4G_small_log2hl = log2(MS908_small_hl),
+    eIF4G_large_log2hl = log2(MS908_large_hl)
+  )
+
+make_size_cumfreq <- function(df, small_col, large_col, condition_label) {
+
+  df_lines <- df %>%
+    dplyr::select(gene_id, all_of(c(small_col, large_col))) %>%
+    pivot_longer(-gene_id, names_to = "size", values_to = "log2hl") %>%
+    mutate(size = if_else(size == small_col, "Small cells", "Large cells"),
+           size = factor(size, levels = c("Small cells", "Large cells"))) %>%
+    filter(is.finite(log2hl)) %>%
+    group_by(size) %>%
+    arrange(log2hl) %>%
+    mutate(cumfreq = seq_along(log2hl) / n()) %>%
+    ungroup()
+
+  # Wilcoxon rank-sum test: are small and large cell half-lives
+  # significantly different under this condition? Note: with n in the
+  # thousands, this will likely be significant in both WT and eIF4G
+  # panels even if the eIF4G difference is much smaller - p-value alone
+  # doesn't distinguish "big shift" from "small but real shift". Report
+  # the median difference alongside it, since that's the number that
+  # should actually shrink under eIF4G depletion if the collapse claim
+  # holds.
+  small_vals <- df_lines %>% filter(size == "Small cells") %>% pull(log2hl)
+  large_vals <- df_lines %>% filter(size == "Large cells") %>% pull(log2hl)
+  w <- wilcox.test(small_vals, large_vals, alternative = "two.sided")
+  p_label <- if (w$p.value < 0.001) "p < 0.001" else paste0("p = ", round(w$p.value, 3))
+
+  median_diff <- median(large_vals) - median(small_vals)
+
+  ggplot(df_lines, aes(x = log2hl, y = cumfreq, colour = size)) +
+    geom_line(linewidth = 1) +
+    scale_colour_manual(values = c("Small cells" = col_small, "Large cells" = col_large)) +
+    labs(
+      title    = condition_label,
+      subtitle = paste0("n = ", length(small_vals), " genes  |  Wilcoxon ", p_label,
+                        "  |  median diff (large\u2212small) = ", round(median_diff, 2)),
+      x        = "log2(half-life)",
+      y        = "Cumulative frequency",
+      colour   = NULL
+    ) +
+    theme_bw() +
+    theme(legend.position = "bottom")
+}
+
+p_collapse_wt <- make_size_cumfreq(df_collapse, "WT_small_log2hl", "WT_large_log2hl",
+                                   "WT") +
+  labs(tag = "A")
+
+p_collapse_eif4g <- make_size_cumfreq(df_collapse, "eIF4G_small_log2hl", "eIF4G_large_log2hl",
+                                      "eIF4G depleted") +
+  labs(tag = "B")
+
+# Print the median differences directly for the Results text - the
+# subtitle on each panel shows this too, but it's easy to miss the
+# actual magnitude of the shrinkage just glancing at the figure.
+# NOTE: this is the difference of independent medians (median of large
+# minus median of small, each computed on its own non-missing values),
+# matching exactly what make_size_cumfreq() computes for the panel
+# subtitles above - NOT the median of per-gene paired differences,
+# which is a different (and not directly comparable) statistic.
+median_diff_wt <- median(df_collapse$WT_large_log2hl, na.rm = TRUE) -
+  median(df_collapse$WT_small_log2hl, na.rm = TRUE)
+median_diff_eif4g <- median(df_collapse$eIF4G_large_log2hl, na.rm = TRUE) -
+  median(df_collapse$eIF4G_small_log2hl, na.rm = TRUE)
+cat("\nMedian log2(half-life) difference (large - small):\n")
+cat("  WT:            ", round(median_diff_wt, 3), "\n")
+cat("  eIF4G depleted:", round(median_diff_eif4g, 3), "\n")
+cat("  Shrinkage:     ", round(100 * (1 - median_diff_eif4g / median_diff_wt), 1),
+    "% reduction\n")
+
+p_collapse_panel <- p_collapse_wt | p_collapse_eif4g
+
+print(p_collapse_panel)
+
+ggsave("../figures/GBA_eIF4G_size_collapse_cumfreq.png",
+       plot   = p_collapse_panel,
+       width  = 12,
+       height = 6,
+       dpi    = 150)
+cat("Saved GBA_eIF4G_size_collapse_cumfreq.png\n")
 ```
 
 ```{r sanity_check}
@@ -552,13 +757,13 @@ cat("Saved GBA_xrn1_dataset_comparison.png\n")
 ```
 
 ```{r sanity_check_yuyang}
-## Sanity check: Yuyang vs Chappleboim for same factors
+## Sanity check: in-house RNA-seq vs Chappleboim for same factors
 
 xrn1_ym_r <- cor_results %>%
   dplyr::filter(var1 == "log2FC_Xrn1_small_YM",
                 var2 == "log2FC_xrn1_60")
 
-cat("Xrn1-AID Yuyang small vs Chappleboim 60 min R:",
+cat("Xrn1-AID in-house small vs Chappleboim 60 min R:",
     round(xrn1_ym_r$R, 3), "(n =", xrn1_ym_r$n, ")\n")
 
 p_xrn1_ym <- scatter_binned_gba(
@@ -578,7 +783,7 @@ not1_ym_r <- cor_results %>%
   dplyr::filter(var1 == "log2FC_Not1_small_YM",
                 var2 == "log2FC_not1_60")
 
-cat("Not1-AID Yuyang small vs Chappleboim 60 min R:",
+cat("Not1-AID in-house small vs Chappleboim 60 min R:",
     round(not1_ym_r$R, 3), "(n =", not1_ym_r$n, ")\n")
 
 p_not1_ym <- scatter_binned_gba(
@@ -608,10 +813,125 @@ ggsave("../figures/GBA_sanity_checks.png",
 cat("Saved GBA_sanity_checks.png\n")
 ```
 
-```{r eif4g_vs_te}
-## eIF4G depletion FC vs translation efficiency
+```{r sanity_check_eif4g_xrn1_disagreement}
+## Follow-up sanity check, triggered by Figure 4: two factors show
+## opposite-sign correlations with WT_hl_fc depending on which dataset
+## measured them, checked directly against each other here (the chunk
+## above only checked in-house-small vs Chappleboim for Xrn1/Not1, not
+## in-house-large, and didn't check eIF4G at all).
+##
+## Xrn1: Chappleboim 60min AID gives R = +0.133 with WT_hl_fc (the most
+##       consistent positive external decay-pathway signal in the whole
+##       analysis). The in-house Xrn1-AID data gives R = -0.009 (small
+##       cells) and R = -0.211 (large cells) - the large-cell value is
+##       the single most negative bar in the RNA-level panel.
+## eIF4G: EU pulse-chase gives the headline opposing-correlation result
+##       (small R = +0.184, large R = -0.154). The in-house eIF4G-AID
+##       data gives small R = +0.055, large R = +0.207 - large cells is
+##       POSITIVE, the opposite sign from the EU pulse-chase large-cell
+##       result. Both EU pulse-chase eIF4G points sit in the decay-rate
+##       panel; both in-house eIF4G points sit in the RNA-level panel -
+##       worth flagging in the caption that this factor is measured by
+##       both panels and the two disagree in sign for large cells.
+##
+## This chunk checks whether the two measurements of the SAME factor
+## actually agree with each other directly (not just via their separate
+## correlations with WT_hl_fc, which can look different even when the
+## underlying data agree reasonably well, or vice versa).
+
+xrn1_large_ym_r <- cor_results %>%
+  dplyr::filter(var1 == "log2FC_Xrn1_large_YM", var2 == "log2FC_xrn1_60")
+
+eif4g_small_cross_r <- cor_results %>%
+  dplyr::filter(var1 == "log2FC_eIF4G_small_YM", var2 == "eIF4G_dep_fc_small")
+
+eif4g_large_cross_r <- cor_results %>%
+  dplyr::filter(var1 == "log2FC_eIF4G_large_YM", var2 == "eIF4G_dep_fc_large")
+
+cat("Direct cross-dataset agreement checks (same factor, two methods):\n")
+cat("  Xrn1-AID, large cells: in-house vs Chappleboim  R =",
+    round(xrn1_large_ym_r$R, 3), "(n =", xrn1_large_ym_r$n, ")\n")
+cat("  eIF4G-AID, small cells: in-house (RNA-seq) vs EU pulse-chase  R =",
+    round(eif4g_small_cross_r$R, 3), "(n =", eif4g_small_cross_r$n, ")\n")
+cat("  eIF4G-AID, large cells: in-house (RNA-seq) vs EU pulse-chase  R =",
+    round(eif4g_large_cross_r$R, 3), "(n =", eif4g_large_cross_r$n, ")\n")
+
+cat("\nFor reference, side-by-side correlations with WT_hl_fc (the",
+    "numbers driving the panel-A/panel-B discrepancy):\n")
+cor_results %>%
+  dplyr::filter(var1 == "WT_hl_fc",
+                var2 %in% c("log2FC_xrn1_60", "log2FC_Xrn1_small_YM",
+                           "log2FC_Xrn1_large_YM",
+                           "eIF4G_dep_fc_small", "eIF4G_dep_fc_large",
+                           "log2FC_eIF4G_small_YM", "log2FC_eIF4G_large_YM")) %>%
+  dplyr::select(var2, R, n) %>%
+  print(n = Inf)
+
+p_xrn1_large_cross <- scatter_binned_gba(
+  df_wide,
+  x_col     = "log2FC_Xrn1_large_YM",
+  y_col     = "log2FC_xrn1_60",
+  x_lab     = "log2 FC after Xrn1-AID depletion, large cells (YM)",
+  y_lab     = "log2 FC after XRN1-AID depletion 60 min (Chappleboim)",
+  point_col = col_large,
+  xlim      = c(-5, 5),
+  ylim      = c(-1, 3)) +
+  labs(tag = "A") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_eif4g_small_cross <- scatter_binned_gba(
+  df_wide,
+  x_col     = "log2FC_eIF4G_small_YM",
+  y_col     = "eIF4G_dep_fc_small",
+  x_lab     = "log2 FC after eIF4G-AID depletion, small cells (YM, RNA-seq)",
+  y_lab     = "log2 FC after eIF4G-AID depletion, small cells (EU pulse-chase)",
+  point_col = col_small,
+  xlim      = c(-5, 5),
+  ylim      = c(-3, 1)) +
+  labs(tag = "B") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_eif4g_large_cross <- scatter_binned_gba(
+  df_wide,
+  x_col     = "log2FC_eIF4G_large_YM",
+  y_col     = "eIF4G_dep_fc_large",
+  x_lab     = "log2 FC after eIF4G-AID depletion, large cells (YM, RNA-seq)",
+  y_lab     = "log2 FC after eIF4G-AID depletion, large cells (EU pulse-chase)",
+  point_col = col_large,
+  xlim      = c(-5, 5),
+  ylim      = c(-3, 1)) +
+  labs(tag = "C") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_disagreement_panel <- p_xrn1_large_cross | p_eif4g_small_cross | p_eif4g_large_cross
+
+print(p_disagreement_panel)
+ggsave("../figures/GBA_yuyang_disagreement_check.png",
+       plot   = p_disagreement_panel,
+       width  = 22,
+       height = 7,
+       dpi    = 150)
+cat("Saved GBA_yuyang_disagreement_check.png\n")
+
+cat("\nINTERPRETATION GUIDE:\n")
+cat("- If the direct cross-dataset R (top of this chunk) is reasonably",
+    "positive, the two datasets broadly agree at the individual-gene",
+    "level even though their separate correlations with WT_hl_fc",
+    "differ in sign - likely a real difference in how each dataset",
+    "relates to the size effect, not one dataset being wrong.\n")
+cat("- If the direct cross-dataset R is near zero or negative, that's a",
+    "stronger signal that at least one dataset has a real issue (batch",
+    "effect, mislabelled samples, processing bug) worth investigating.\n")
+```
+
+```{r figure8_eif4g_vs_te}
+## Figure 8, panels A/B -- eIF4G depletion FC vs translation efficiency
 ## Tests whether genes most affected by eIF4G depletion have higher TE
-## TE: rRNA-depleted monosome+polysome, size-separated (Yuyang)
+## (would suggest codon-optimality confounds the eIF4G-sensitivity signal)
+## TE: rRNA-depleted monosome+polysome, size-separated (in-house)
 
 df_TE <- read_csv("../tables/translation_efficiency.csv",
                   show_col_types = FALSE) %>%
@@ -663,14 +983,93 @@ p_te_large <- scatter_binned_gba(
   labs(tag = "B") +
   theme(axis.title = element_text(size = 14, colour = "black"),
         axis.text  = element_text(size = 12, colour = "black"))
+```
 
-p_eif4g_te_panel <- p_te_small | p_te_large
+```{r figure8_wt_size_fc_vs_te}
+## Figure 8, panels C/D -- WT half-life fold change (large/small) vs
+## translation efficiency. This is the direct codon-optimality test: does
+## TE predict the size-dependent stability effect itself, independent of
+## eIF4G? The panels above (A/B) test something different -- whether
+## eIF4G-SENSITIVE genes are TE-biased, not whether the underlying size
+## effect tracks with TE. Both questions matter for ruling out
+## codon-optimality as a confound.
+##
+## Uses the full df_wide/TE join (not restricted to the eIF4G-filtered
+## gene set used for A/B above), so n differs between the two rows --
+## reported separately below and in the panel captions.
+## Depends on df_TE from the eif4g_vs_te chunk above -- run that chunk
+## first.
 
-p_eif4g_te_panel
-ggsave("../figures/GBA_eIF4G_vs_TE.png",
-       plot   = p_eif4g_te_panel,
+df_size_te <- df_wide %>%
+  dplyr::select(gene_id, WT_hl_fc) %>%
+  inner_join(df_TE, by = "gene_id") %>%
+  filter(!is.na(WT_hl_fc), !is.na(TE_small), !is.na(TE_large),
+         is.finite(WT_hl_fc), is.finite(TE_small), is.finite(TE_large),
+         TE_small > 0, TE_large > 0)
+
+cat("Genes for WT size FC vs TE plot:", nrow(df_size_te), "\n")
+
+r_size_small <- cor(df_size_te$WT_hl_fc,
+                    log2(df_size_te$TE_small),
+                    method = "spearman", use = "complete.obs")
+r_size_large <- cor(df_size_te$WT_hl_fc,
+                    log2(df_size_te$TE_large),
+                    method = "spearman", use = "complete.obs")
+
+cat("WT_hl_fc vs TE small R:", round(r_size_small, 3), "\n")
+cat("WT_hl_fc vs TE large R:", round(r_size_large, 3), "\n")
+
+## Axis trimming for display only -- the unfiltered gene set includes a
+## handful of genes with extreme TE_large values, likely low-read-count
+## artefacts. Spearman R is rank-based and computed on the full data;
+## this trim only clips what's plotted so the panel isn't crushed by
+## a few outliers.
+
+te_small_xlim <- quantile(log2(df_size_te$TE_small), c(0.01, 0.99), na.rm = TRUE)
+te_large_xlim <- quantile(log2(df_size_te$TE_large), c(0.01, 0.99), na.rm = TRUE)
+
+p_te_size_small <- scatter_binned_gba(
+  df_size_te %>% mutate(TE_small_log2 = log2(TE_small)),
+  x_col     = "TE_small_log2",
+  y_col     = "WT_hl_fc",
+  x_lab     = "Translation efficiency, small cells (log2)",
+  y_lab     = "log2 half-life FC (large/small)",
+  point_col = col_small,
+  xlim      = te_small_xlim,
+  ylim      = c(-2.5, 2.5)) +
+  labs(tag = "C") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+
+p_te_size_large <- scatter_binned_gba(
+  df_size_te %>% mutate(TE_large_log2 = log2(TE_large)),
+  x_col     = "TE_large_log2",
+  y_col     = "WT_hl_fc",
+  x_lab     = "Translation efficiency, large cells (log2)",
+  y_lab     = "log2 half-life FC (large/small)",
+  point_col = col_large,
+  xlim      = te_large_xlim,
+  ylim      = c(-2.5, 2.5)) +
+  labs(tag = "D") +
+  theme(axis.title = element_text(size = 14, colour = "black"),
+        axis.text  = element_text(size = 12, colour = "black"))
+```
+
+```{r figure8_combined}
+## Figure 8, combined -- 2x2 panel.
+## Top row (A/B): eIF4G-depletion sensitivity vs TE.
+## Bottom row (C/D): the size-dependent stability effect itself vs TE.
+## Both rows near-zero R would argue against codon-optimality as a
+## confound for either the eIF4G mechanism or the size effect directly --
+## that interpretive claim belongs in Discussion, not here.
+
+p_figure8 <- (p_te_small | p_te_large) / (p_te_size_small | p_te_size_large)
+
+p_figure8
+ggsave("../figures/Figure8_eIF4G_TE_size_effect.png",
+       plot   = p_figure8,
        width  = 12,
-       height = 6,
+       height = 12,
        dpi    = 150)
-cat("Saved GBA_eIF4G_vs_TE.png\n")
+cat("Saved Figure8_eIF4G_TE_size_effect.png\n")
 ```

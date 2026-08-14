@@ -14,7 +14,6 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_knit$set(root.dir = "/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis")
 library(tidyverse)
 library(patchwork)
 
@@ -39,7 +38,7 @@ df_alalam <- read_tsv("tables/df_alalam_gba.txt",
                       show_col_types = FALSE) %>%
   dplyr::rename(gene_id = name)
 
-# Yuyang RNA-seq -- eIF4E small cells and Pab1 large cells FC
+# In-house RNA-seq -- eIF4E small cells and Pab1 large cells FC
 # NOTE: requires CW13 to be run first
 df_yuyang <- read_tsv("tables/df_yuyang_gba.txt",
                       show_col_types = FALSE)
@@ -126,6 +125,8 @@ print(wilcox_results, width = Inf)
 ```
 
 ```{r plot-function}
+# Larger label sizes throughout (axis text/title, legend, p-value
+# annotation, panel tags) for readability.
 make_cumfreq <- function(df, flag_col, grp_label, grp_col, p_label, n_sensitive) {
 
   df_sens <- df %>%
@@ -150,19 +151,21 @@ make_cumfreq <- function(df, flag_col, grp_label, grp_col, p_label, n_sensitive)
       values = c(setNames(grp_col, sens_label), "Background" = "grey50"),
       name = NULL) +
     scale_linewidth_manual(
-      values = c(setNames(1.2, sens_label), "Background" = 0.8),
+      values = c(setNames(1.4, sens_label), "Background" = 1.0),
       guide = "none") +
     annotate("text", x = -Inf, y = 0.75, hjust = -0.1,
-             label = p_label, size = 5, colour = "black") +
+             label = p_label, size = 7, colour = "black") +
     labs(x     = "log2 half-life FC (large / small cells)",
          y     = "Cumulative frequency") +
-    theme_classic(base_size = 14) +
+    theme_classic(base_size = 20) +
     theme(
-      axis.text            = element_text(size = 12, colour = "black"),
-      axis.title           = element_text(size = 13, colour = "black"),
+      axis.text            = element_text(size = 16, colour = "black"),
+      axis.title           = element_text(size = 18, colour = "black"),
+      plot.tag             = element_text(size = 24, face = "bold", colour = "black"),
+      plot.tag.position     = "topleft",
       legend.position      = c(0.05, 0.95),
       legend.justification = c(0, 1),
-      legend.text          = element_text(size = 11),
+      legend.text          = element_text(size = 14),
       plot.background      = element_rect(fill = "white", colour = NA))
 }
 ```
@@ -189,13 +192,13 @@ p_panel <- p_not1 | p_xrn1 | p_nmd
 p_panel
 ggsave("figures/CW12_cumfreq_distributions.png", p_panel,
        width  = 18,
-       height = 8,
+       height = 6,
        dpi    = 150)
 cat("Saved figures/CW12_cumfreq_distributions.png\n")
 ```
 
 ```{r plot-eif4e-pab1}
-# Figure 6: in-house RNA-seq sensitivity groups (Yuyang)
+# Figure 6: in-house RNA-seq sensitivity groups
 p_eif4e <- make_cumfreq(df_plot, "eif4e_sensitive",
                          "eIF4E", col_eif4e,
                          wilcox_results$p_label[wilcox_results$group == "eIF4E"],
@@ -213,7 +216,7 @@ p_panel2 <- p_eif4e | p_pab1
 p_panel2
 ggsave("figures/CW12_cumfreq_eIF4E_Pab1.png", p_panel2,
        width  = 12,
-       height = 8,
+       height = 6,
        dpi    = 150)
 cat("Saved figures/CW12_cumfreq_eIF4E_Pab1.png\n")
 ```

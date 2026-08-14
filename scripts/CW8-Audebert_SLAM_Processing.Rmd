@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup}
 rm(list=ls())
-setwd("/Users/caitlinwaterworth/Library/CloudStorage/OneDrive-UniversityofBath/YM_combined_analysis/EU_combined_analysis/scripts")
+setwd(".")  # run from the scripts/ directory
 library(tidyverse)
 library(nls.multstart)
 library(broom)

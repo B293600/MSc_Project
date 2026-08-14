@@ -39,7 +39,7 @@ df_TE %>% dplyr::select(starts_with("TPMsc")) %>% summary()
 ## translation_efficiency.csv:
 ## TE_WT_PP -- mean of Arava 2003, Park 2011 HP, Park 2011 LP (polysome profiling, mean-normalised)
 ## TE_WT_RS -- mean of Gerashchenko 2012, Sen et al. (ribo-seq, mean-normalised)
-## TE_rRNAdep_MandP/P_small/large_YM -- Swaffer lab size-separated polysome profiling
+## TE_rRNAdep_MandP/P_small/large_YM -- in-house size-separated polysome profiling
 ## TPMsc_input/MandP/P_small/large_YM -- used for filtering only
 ## TE_polyA columns excluded -- near-zero correlation with rRNAdep; input fraction unclear
 ##

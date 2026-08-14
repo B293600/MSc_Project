@@ -69,7 +69,7 @@ walk(fitting_strategies, function(fs) {
                     rep_x = "MS96",
                     rep_y = "MS1039",
                     type  = "halflife")
-  ## print suppressed -- RStudio preview causing file permission error on OneDrive
+  ## print suppressed -- avoids a file permission error on save
   save_pair(p, paste0("../figures/replicate_halflife_", fs, ".png"))
 })
 ```
@@ -83,7 +83,7 @@ walk(fitting_strategies, function(fs) {
                     rep_x = "MS96",
                     rep_y = "MS1039",
                     type  = "fc")
-  ## print suppressed -- RStudio preview causing file permission error on OneDrive
+  ## print suppressed -- avoids a file permission error on save
   save_single(p, paste0("../figures/replicate_fc_", fs, ".png"))
 })
 ```
