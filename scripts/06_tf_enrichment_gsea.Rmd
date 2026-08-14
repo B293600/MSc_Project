@@ -6,13 +6,11 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# TF enrichment via GSEA, cross-checking script 05 (mitch). Key
-# differences: uses the full ranked PC1/PC2 gene list rather than a
-# discrete cutoff, gene sets from Mahendrawada et al. 2025 Tables A/C/E,
-# fgsea rather than mitch, and produces NES output directly comparable
-# to script 03 (GO GSEA) for cross-method consistency.
+# TF enrichment via GSEA, cross-checking script 05 (mitch). Uses the
+# full ranked PC1/PC2 gene list rather than a discrete cutoff, gene
+# sets from Mahendrawada et al. 2025 Tables A/C/E, and fgsea.
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -39,12 +37,9 @@ load(file.path(project_dir, "project_colours.rda"))
 ```
 
 ```{r establish-pc-directions}
-# Establish biological direction of PC1/PC2 by correlating sample-level
-# PC scores with mean cell volume. PC1 vs volume: Spearman r = -0.216,
-# so PC1 reflects TOR/PKA signalling state rather than cell size
-# (positive NES = active signalling, negative = inhibited). PC2 vs
-# volume: Spearman r = +0.795, so PC2 is the primary cell size axis
-# (positive NES = upregulated in large cells, negative = small cells).
+# Correlate sample-level PC scores with mean cell volume to establish
+# direction: PC1 reflects TOR/PKA signalling state; PC2 is the primary
+# cell size axis.
 pca_samples <- read_tsv(file.path(tables_dir, "PCA_samples_AC.txt"),
                         show_col_types = FALSE)
 
@@ -92,10 +87,9 @@ cat("PC2 ranked list:", length(ranked_pc2), "genes\n")
 ```
 
 ```{r build-tf-genesets}
-# TF gene sets from Mahendrawada et al. 2025 Supp Table 3, as per
-# scripts 05 and 07: Table A is binding (TF binds gene = 1), Table C is
-# activated (log2FC < 0) / repressed (log2FC > 0) on TF depletion, and
-# Table E is direct targets (bound + regulated).
+# TF gene sets from Mahendrawada et al. 2025 Supp Table 3: Table A is
+# binding, Table C is activated/repressed on TF depletion, Table E is
+# direct targets (bound + regulated).
 supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
 table_a   <- read_excel(supp_path, sheet = "Table-S3a")
 table_c   <- read_excel(supp_path, sheet = "Table-S3c")
@@ -173,14 +167,9 @@ cat("PCA genes in Table E targets:", length(intersect(pca_ids, unlist(genesets_t
 ```
 
 ```{r run-gsea-function}
-# fgsea wrapper - runs GSEA for one ranked list and one collection of
-# gene sets, returns a tidy results table. minSize/maxSize filter gene
-# sets by size, matching the minGSSize used in scripts 03 and 05.
-# max_size raised to 3500 (from the clusterProfiler-matching default of
-# 500) so that large double-mutant gene sets such as Dot6_Tod6
-# (~1600-3000 genes, since it reflects two TFs deleted together rather
-# than one) aren't silently excluded before testing.
-# nPermSimple = 1000 is standard; seed set for reproducibility.
+# fgsea wrapper - runs GSEA for one ranked list and one gene set
+# collection. max_size raised to 3500 so large double-mutant gene sets
+# (e.g. Dot6_Tod6, ~1600-3000 genes) aren't excluded before testing.
 run_fgsea <- function(ranked_list, genesets, label,
                       min_size = 5, max_size = 3500,
                       n_perm = 1000) {

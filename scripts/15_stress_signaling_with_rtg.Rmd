@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -28,24 +28,14 @@ load(file.path(project_dir, "project_colours.rda"))
 
 # Background
 
-Follow-up to Adriana's question (Slack): are retrograde pathway (RTG)
-targets or GCN2 targets enriched on PC1/PC2? GCN2_targets was already
-tested in the original stress signalling mitch script, alongside
-SNF1_targets and Gis1_targets. RTG_targets was built by
-00b_add_stress_signaling_genesets.R but deliberately excluded from
-testing at the time ("Restricted to GCN2, SNF1, and Gis1 targets only
-(as requested)"). This script adds RTG_targets to the test, alongside
-re-confirming GCN2_targets, SNF1_targets, and Gis1_targets.
+Follow-up question: are retrograde pathway (RTG) targets or GCN2
+targets enriched on PC1/PC2? GCN2_targets, SNF1_targets, and
+Gis1_targets were already tested; this adds RTG_targets.
 
-NOTE: the RTG targets sheet in Phospho_Residues_StressSignaling.xlsx
-lists IDH1 with gene_id "YLR304C", which is actually the systematic
-name for ACO1 (correctly listed on the row above). IDH1's real
-systematic name is YNL009W. This looks like a copy-paste error in the
-source spreadsheet - flagged to Adriana, but not corrected here
-automatically, since the correct fix (YNL009W vs simply dropping the
-duplicate) should be confirmed with her rather than assumed. As a
-result RTG_targets currently contains 6 unique systematic IDs, not 7,
-because YLR304C is duplicated under two gene names.
+NOTE: the RTG targets sheet lists IDH1 with gene_id "YLR304C", which
+is actually ACO1's systematic name (IDH1's real name is YNL009W).
+Likely a copy-paste error in the source spreadsheet, not corrected
+here. RTG_targets contains 6 unique IDs, not 7, as a result.
 
 ```{r load-pca}
 # PC scores: PC1/PC2 only (PC4+ confirmed as noise)
@@ -61,14 +51,7 @@ cat("PC input:", nrow(mitch_input), "genes x", ncol(mitch_input), "contrasts\n")
 
 ```{r load-genesets}
 # Stress signaling gene sets built by 00b_add_stress_signaling_genesets.R.
-# Now testing GCN2, SNF1, Gis1, AND RTG targets - RTG added per Adriana's
-# request. GCN2_regulators and Tod6_Dot6_lit remain available in the
-# .rda but are not tested here: GCN2_regulators has only 4 genes (below
-# the pipeline's minsetsize = 5), and Tod6/Dot6 literature targets are
-# already covered via the Table A/C/E Dot6_Tod6 gene sets built from
-# Huber et al. 2011 (see script 05/07/09), so re-testing the literature
-# list here would be redundant with that more directly regulation-based
-# gene set.
+# Now testing GCN2, SNF1, Gis1, AND RTG targets.
 load(file.path(tables_dir, "stress_signaling_genesets.rda"))
 
 genesets_stress <- stress_signaling_genesets[
@@ -89,10 +72,7 @@ for (nm in names(genesets_stress)) {
 ```
 
 ```{r check-gene-overlap}
-# Sanity check: confirm reasonable overlap between PCA genes and gene set
-# members before running enrichment - same check as the original stress
-# signalling script, repeated here since RTG_targets is a new addition
-# and could plausibly fail to overlap if its gene IDs are malformed.
+# Sanity check: overlap between PCA genes and gene set members
 pca_gene_ids <- rownames(mitch_input)
 
 cat("Genes in PCA:", length(pca_gene_ids), "\n\n")
@@ -105,11 +85,8 @@ for (nm in names(genesets_stress)) {
 ```
 
 ```{r run-mitch}
-# mitch enrichment, matching the original stress signalling script's
-# approach (priority = "effect", minsetsize = 5). RTG_targets has only
-# 6 unique genes after the ID issue above - right at/near the
-# minsetsize threshold, so check the console output below to confirm
-# it wasn't silently dropped.
+# mitch enrichment (priority = "effect", minsetsize = 5). RTG_targets
+# has only 6 genes - near the minsetsize threshold, check it isn't dropped.
 cat("Running mitch: stress signaling gene sets (incl. RTG_targets)\n")
 
 mitch_stress <- mitch_calc(
@@ -131,10 +108,8 @@ cat("\nSignificant gene sets (FDR < 0.05):", n_sig, "of",
     nrow(mitch_stress_result), "\n")
 
 if (!"RTG_targets" %in% mitch_stress_result$set) {
-  cat("\nWARNING: RTG_targets not present in mitch output - likely",
-      "dropped for having fewer unique genes than minsetsize (5) after",
-      "removing the duplicate YLR304C ID and/or after intersecting with",
-      "the PCA gene universe. Check the overlap count printed above.\n")
+  cat("\nWARNING: RTG_targets not present in mitch output - check overlap",
+      "count above and the minsetsize threshold.\n")
 }
 ```
 
@@ -167,11 +142,9 @@ p_stress_2d <- plot_stress_2d(
 print(p_stress_2d)
 ```
 
-```{r summarise-for-adriana}
-# Plain-English summary of the answer to Adriana's question, printed
-# directly so it can be copied into a Slack reply without re-deriving
-# it from the table above.
-cat("=== Summary for Adriana ===\n\n")
+```{r summarise-results}
+# Plain-English summary of the RTG/GCN2 question
+cat("=== Summary ===\n\n")
 
 for (nm in c("GCN2_targets", "RTG_targets")) {
   row <- mitch_stress_result %>% filter(set == nm)

@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -34,13 +34,9 @@ load(file.path(project_dir, "project_colours.rda"))
 # Part 1: GO enrichment using expression-volume slope (GSEA)
 
 Independent of the PC1/PC2-based GO enrichment (scripts 01-04), this uses
-the per-gene Spearman rho (log2 expression vs mean cell volume) calculated
-directly from the raw TPM data as the ranking metric, rather than a PCA
-loading. Since this rho was already shown to correlate strongly with PC2
-loading (Spearman r = 0.79), the expectation is that this GSEA should
-reproduce the same broad pattern as the PC2 GO GSEA (script 03) - ribosome
-biogenesis/translation at one end, respiration/mitochondrial terms at the
-other - as a further independent check.
+the per-gene Spearman rho (expression vs cell volume) as the GSEA ranking
+metric instead of a PCA loading, as a further check on the PC2 GSEA
+results (script 03).
 
 ```{r load-slope-data}
 gene_volume_reg <- read_tsv(
@@ -53,11 +49,8 @@ cat("Genes with expression-volume regression results:",
 ```
 
 ```{r build-ranked-list-slope}
-# Ranked list for GSEA: spearman_rho used as the ranking statistic
-# (rather than lm_slope) for consistency with the Spearman-based
-# approach used throughout the rest of the pipeline (PC1/PC2 vs
-# volume correlations, mitch effect sizes). Genes with NA rho (fewer
-# than min_samples in the earlier script) are dropped.
+# Ranked list for GSEA: spearman_rho used as the ranking statistic.
+# Genes with NA rho are dropped.
 ranked_slope <- gene_volume_reg %>%
   filter(!is.na(spearman_rho)) %>%
   arrange(desc(spearman_rho)) %>%
@@ -69,11 +62,7 @@ cat("Ranked list for GSEA:", length(ranked_slope), "genes, range [",
 ```
 
 ```{r run-gsea-slope}
-# gseGO on the slope/rho-ranked list, same parameters as script 03 (GO
-# GSEA on PC1/PC2) for direct comparability of NES and gene set sizes.
-# NOTE: gseGO handles GO hierarchy correctly via GOSemSim/GO.db under
-# the hood, so gene set sizes here are not affected by the flat
-# annotation issue found in Part 2 below (see build-go-genesets note).
+# gseGO on the slope/rho-ranked list, same parameters as script 03
 set.seed(42)
 gsea_slope <- gseGO(
   geneList      = ranked_slope,
@@ -93,8 +82,7 @@ cat("GSEA (slope-ranked) - enriched terms:",
 ```
 
 ```{r plot-gsea-slope, fig.width=10, fig.height=18}
-# Same two-panel positive/negative NES layout as script 03, for direct
-# visual comparison against the PC2 GSEA figure.
+# Same two-panel positive/negative NES layout as script 03
 plot_gsea_panel <- function(gsea_result, sign, panel_label, direction_label,
                             n_top = 20) {
   df <- as.data.frame(gsea_result)
@@ -155,10 +143,7 @@ if (!is.null(p_pos) & !is.null(p_neg)) {
 ```
 
 ```{r compare-slope-vs-pc2-gsea}
-# Direct term-by-term comparison: does the slope-ranked GSEA reproduce
-# the same top terms as the PC2 GSEA (script 03)? Loads script 03's
-# saved output rather than re-running gseGO on PC2, to compare against
-# what is actually reported in the dissertation.
+# Compare top terms between slope-ranked GSEA and PC2 GSEA (script 03)
 go_gsea_pc2_path <- file.path(output_dir, "go_gsea_pc2.txt")
 
 if (file.exists(go_gsea_pc2_path)) {
@@ -195,41 +180,19 @@ cat("Part 1 done.\n")
 
 # Part 2: Do TF and GO enrichment results corroborate each other?
 
-Tests whether the genes annotated to specific top GO terms from the
-PC1/PC2 analysis (e.g. ribosome biogenesis) are themselves enriched for
-being direct targets of the top TFs from the same analysis (e.g. IFH1).
-If GO and TF enrichment are truly converging on the same biology - rather
-than two separate analyses that happen to point the same direction in
-aggregate - there should be significant gene-level overlap, tested here
-by hypergeometric test (equivalent to a one-sided Fisher's exact test for
-2x2 contingency tables).
-
-GO terms are matched by exact GO ID rather than fuzzy string matching on
-term labels, to avoid accidentally including related child/parent terms.
+Tests whether genes in top GO terms from the PC1/PC2 analysis overlap
+with direct targets of the top TFs from the same analysis, using a
+hypergeometric test. GO terms are matched by exact GO ID.
 
 ```{r rebuild-go-genesets}
-# Rebuild GO gene sets exactly as in script 04/09, restricted to BP
-# terms. Kept as GO ID -> gene vector (not label -> gene vector) so
-# terms can be selected by exact GO ID below, independent of how the
-# term label happens to be formatted.
+# Rebuild GO gene sets (BP terms), keyed by GO ID rather than label.
 #
-# IMPORTANT LIMITATION: AnnotationDbi::select() returns only DIRECT
-# gene-to-GO-term annotations, with no GO hierarchy propagation (child
-# terms are not rolled up into parent terms). This was found to
-# understate broad "umbrella" GO terms - "cellular respiration"
-# (GO:0045333) returned only 14 genes here, implausibly small for a
-# term meant to span aerobic/anaerobic respiration, electron transport,
-# and oxidative phosphorylation collectively (by contrast, gseGO() in
-# Part 1 above handles hierarchy correctly via GOSemSim/GO.db, and
-# separately-sized related terms such as "aerobic respiration" and
-# "oxidative phosphorylation" appear there as expected). "Cellular
-# respiration" was therefore DROPPED from the Part 2 overlap test
-# below - ribosome biogenesis, cytoplasmic translation, and
-# tricarboxylic acid cycle gene set sizes (201, 141, 30) were checked
-# and look reasonable, so the flat-annotation approach is retained for
-# those three terms only. If a broader respiration-related term is
-# needed later, use clusterProfiler::enrichGO() directly (which
-# expands the hierarchy correctly) rather than this flat lookup.
+# LIMITATION: AnnotationDbi::select() returns only direct gene-to-GO
+# annotations, no hierarchy propagation. This understates broad
+# "umbrella" terms like "cellular respiration" (only 14 genes) - that
+# term is dropped from the Part 2 overlap test below. Ribosome
+# biogenesis, cytoplasmic translation, and TCA cycle set sizes were
+# checked and look reasonable.
 build_go_genesets_by_id <- function(ontology) {
   go_map <- AnnotationDbi::select(
     org.Sc.sgd.db,
@@ -261,14 +224,9 @@ go_id_to_term <- AnnotationDbi::select(
 ```
 
 ```{r select-top-go-terms}
-# Target GO:BP terms selected by exact GO ID: ribosome biogenesis and
-# cytoplasmic translation (PC1-positive/IFH1-CBF1-SFP1 axis), and
-# tricarboxylic acid cycle (PC2-positive/RTG1-RTG3 axis).
-#
-# "cellular respiration" (GO:0045333) was tested and dropped - see
-# note in build-go-genesets above. The TCA cycle term alone is
-# sufficient to demonstrate RTG1/RTG3 target overlap with mitochondrial
-# metabolism; it does not depend on the respiration term being correct.
+# Target GO:BP terms: ribosome biogenesis, cytoplasmic translation
+# (PC1 axis), tricarboxylic acid cycle (PC2 axis). "Cellular
+# respiration" tested and dropped (see note above).
 target_go_ids <- c(
   "ribosome biogenesis"       = "GO:0042254",
   "cytoplasmic translation"   = "GO:0002181",
@@ -289,9 +247,7 @@ cat("GO term verification (check term_name matches go_label_intended,",
     "and gene_set_size looks reasonable):\n")
 print(matched_go_check, n = Inf)
 
-# stop early with a clear error if any target GO ID wasn't found, or if
-# a gene set looks implausibly small (< 15 genes) given known biology -
-# the same check that caught the cellular respiration issue previously
+# stop early if any target GO ID wasn't found or looks implausibly small
 if (any(!matched_go_check$id_found_in_genesets)) {
   stop("One or more target GO IDs not found in go_genesets_bp_by_id - ",
        "check target_go_ids against current GO.db annotations before proceeding.")
@@ -306,9 +262,8 @@ if (any(matched_go_check$gene_set_size < 15, na.rm = TRUE)) {
 ```
 
 ```{r rebuild-tf-genesets-table-e}
-# Rebuild Table E direct-target gene sets exactly as in script 05,
-# restricted to the headline TFs identified there: CBF1, IFH1, SFP1
-# (PC1-positive) and ERT1, RTG1, RTG3 (PC2-positive).
+# Rebuild Table E direct-target gene sets for CBF1, IFH1, SFP1
+# (PC1) and ERT1, RTG1, RTG3 (PC2).
 supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
 table_e   <- read_excel(supp_path, sheet = "Table-S3e")
 
@@ -350,11 +305,8 @@ if (length(available_tf_sets) < length(target_tf_sets)) {
 ```
 
 ```{r hypergeometric-overlap-test}
-# Hypergeometric test for overlap between each GO term's member genes
-# and each TF's direct target genes, restricted to the common gene
-# universe (PCA genes) so the background is consistent with the rest
-# of the pipeline. For gene sets A (size a) and B (size b) drawn from
-# a universe of size N with observed overlap k:
+# Hypergeometric test for overlap between GO term genes and TF targets,
+# background = PCA gene universe.
 # P(overlap >= k) = phyper(k - 1, a, N - a, b, lower.tail = FALSE)
 pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
                       show_col_types = FALSE)
@@ -412,15 +364,7 @@ print(overlap_results %>% dplyr::select(-overlap_genes), n = Inf)
 ```
 
 ```{r plot-overlap-heatmap, fig.width=9, fig.height=4.5}
-# Heatmap of fold enrichment across the 3 GO terms x N TF combinations,
-# with significance marked - visual summary of whether GO and TF
-# enrichment corroborate each other at the gene level, not just in
-# aggregate direction.
-#
-# No title/subtitle baked into the plot - this is the dissertation
-# figure (Figure 15), and the caption (including the "cell values:
-# overlap count, fill: fold enrichment" explanation previously in the
-# subtitle) now lives in the Word document instead.
+# Heatmap of fold enrichment across GO terms x TFs, significance marked
 overlap_results_plot <- overlap_results %>%
   mutate(sig_label = if_else(p_adjust < 0.05, "*", ""))
 
@@ -444,11 +388,7 @@ print(p_overlap)
 ```
 
 ```{r annotate-overlap-genes-with-names}
-# Add gene names alongside systematic IDs for the significant overlap
-# gene lists, for citing specific genes by recognisable symbol in the
-# Results/Discussion rather than systematic ORF names only. Uses
-# gene_name from PCA_genes_AC.txt, already loaded as pca_genes above
-# and confirmed to carry both gene_id and gene_name columns.
+# Add gene names alongside systematic IDs for the overlap gene lists
 gene_id_to_name <- pca_genes %>%
   dplyr::select(gene_id, any_of("gene_name")) %>%
   distinct()
@@ -488,7 +428,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -516,13 +456,9 @@ load(file.path(project_dir, "project_colours.rda"))
 # Part 1: GO enrichment using expression-volume slope (GSEA)
 
 Independent of the PC1/PC2-based GO enrichment (scripts 01-04), this uses
-the per-gene Spearman rho (log2 expression vs mean cell volume) calculated
-directly from the raw TPM data as the ranking metric, rather than a PCA
-loading. Since this rho was already shown to correlate strongly with PC2
-loading (Spearman r = 0.79), the expectation is that this GSEA should
-reproduce the same broad pattern as the PC2 GO GSEA (script 03) - ribosome
-biogenesis/translation at one end, respiration/mitochondrial terms at the
-other - as a further independent check.
+the per-gene Spearman rho (expression vs cell volume) as the GSEA ranking
+metric instead of a PCA loading, as a further check on the PC2 GSEA
+results (script 03).
 
 ```{r load-slope-data}
 gene_volume_reg <- read_tsv(
@@ -535,11 +471,8 @@ cat("Genes with expression-volume regression results:",
 ```
 
 ```{r build-ranked-list-slope}
-# Ranked list for GSEA: spearman_rho used as the ranking statistic
-# (rather than lm_slope) for consistency with the Spearman-based
-# approach used throughout the rest of the pipeline (PC1/PC2 vs
-# volume correlations, mitch effect sizes). Genes with NA rho (fewer
-# than min_samples in the earlier script) are dropped.
+# Ranked list for GSEA: spearman_rho used as the ranking statistic.
+# Genes with NA rho are dropped.
 ranked_slope <- gene_volume_reg %>%
   dplyr::filter(!is.na(spearman_rho)) %>%
   arrange(desc(spearman_rho)) %>%
@@ -551,11 +484,7 @@ cat("Ranked list for GSEA:", length(ranked_slope), "genes, range [",
 ```
 
 ```{r run-gsea-slope}
-# gseGO on the slope/rho-ranked list, same parameters as script 03 (GO
-# GSEA on PC1/PC2) for direct comparability of NES and gene set sizes.
-# NOTE: gseGO handles GO hierarchy correctly via GOSemSim/GO.db under
-# the hood, so gene set sizes here are not affected by the flat
-# annotation issue found in Part 2 below (see build-go-genesets note).
+# gseGO on the slope/rho-ranked list, same parameters as script 03
 set.seed(42)
 gsea_slope <- gseGO(
   geneList      = ranked_slope,
@@ -575,8 +504,7 @@ cat("GSEA (slope-ranked) - enriched terms:",
 ```
 
 ```{r plot-gsea-slope, fig.width=10, fig.height=18}
-# Same two-panel positive/negative NES layout as script 03, for direct
-# visual comparison against the PC2 GSEA figure.
+# Same two-panel positive/negative NES layout as script 03
 plot_gsea_panel <- function(gsea_result, sign, panel_label, direction_label,
                             n_top = 20) {
   df <- as.data.frame(gsea_result)
@@ -637,10 +565,7 @@ if (!is.null(p_pos) & !is.null(p_neg)) {
 ```
 
 ```{r compare-slope-vs-pc2-gsea}
-# Direct term-by-term comparison: does the slope-ranked GSEA reproduce
-# the same top terms as the PC2 GSEA (script 03)? Loads script 03's
-# saved output rather than re-running gseGO on PC2, to compare against
-# what is actually reported in the dissertation.
+# Compare top terms between slope-ranked GSEA and PC2 GSEA (script 03)
 go_gsea_pc2_path <- file.path(output_dir, "go_gsea_pc2.txt")
 
 if (file.exists(go_gsea_pc2_path)) {
@@ -677,41 +602,19 @@ cat("Part 1 done.\n")
 
 # Part 2: Do TF and GO enrichment results corroborate each other?
 
-Tests whether the genes annotated to specific top GO terms from the
-PC1/PC2 analysis (e.g. ribosome biogenesis) are themselves enriched for
-being direct targets of the top TFs from the same analysis (e.g. IFH1).
-If GO and TF enrichment are truly converging on the same biology - rather
-than two separate analyses that happen to point the same direction in
-aggregate - there should be significant gene-level overlap, tested here
-by hypergeometric test (equivalent to a one-sided Fisher's exact test for
-2x2 contingency tables).
-
-GO terms are matched by exact GO ID rather than fuzzy string matching on
-term labels, to avoid accidentally including related child/parent terms.
+Tests whether genes in top GO terms from the PC1/PC2 analysis overlap
+with direct targets of the top TFs from the same analysis, using a
+hypergeometric test. GO terms are matched by exact GO ID.
 
 ```{r rebuild-go-genesets}
-# Rebuild GO gene sets exactly as in script 04/09, restricted to BP
-# terms. Kept as GO ID -> gene vector (not label -> gene vector) so
-# terms can be selected by exact GO ID below, independent of how the
-# term label happens to be formatted.
+# Rebuild GO gene sets (BP terms), keyed by GO ID rather than label.
 #
-# IMPORTANT LIMITATION: AnnotationDbi::select() returns only DIRECT
-# gene-to-GO-term annotations, with no GO hierarchy propagation (child
-# terms are not rolled up into parent terms). This was found to
-# understate broad "umbrella" GO terms - "cellular respiration"
-# (GO:0045333) returned only 14 genes here, implausibly small for a
-# term meant to span aerobic/anaerobic respiration, electron transport,
-# and oxidative phosphorylation collectively (by contrast, gseGO() in
-# Part 1 above handles hierarchy correctly via GOSemSim/GO.db, and
-# separately-sized related terms such as "aerobic respiration" and
-# "oxidative phosphorylation" appear there as expected). "Cellular
-# respiration" was therefore DROPPED from the Part 2 overlap test
-# below - ribosome biogenesis, cytoplasmic translation, and
-# tricarboxylic acid cycle gene set sizes (201, 141, 30) were checked
-# and look reasonable, so the flat-annotation approach is retained for
-# those three terms only. If a broader respiration-related term is
-# needed later, use clusterProfiler::enrichGO() directly (which
-# expands the hierarchy correctly) rather than this flat lookup.
+# LIMITATION: AnnotationDbi::select() returns only direct gene-to-GO
+# annotations, no hierarchy propagation. This understates broad
+# "umbrella" terms like "cellular respiration" (only 14 genes) - that
+# term is dropped from the Part 2 overlap test below. Ribosome
+# biogenesis, cytoplasmic translation, and TCA cycle set sizes were
+# checked and look reasonable.
 build_go_genesets_by_id <- function(ontology) {
   go_map <- AnnotationDbi::select(
     org.Sc.sgd.db,
@@ -743,14 +646,9 @@ go_id_to_term <- AnnotationDbi::select(
 ```
 
 ```{r select-top-go-terms}
-# Target GO:BP terms selected by exact GO ID: ribosome biogenesis and
-# cytoplasmic translation (PC1-positive/IFH1-CBF1-SFP1 axis), and
-# tricarboxylic acid cycle (PC2-positive/RTG1-RTG3 axis).
-#
-# "cellular respiration" (GO:0045333) was tested and dropped - see
-# note in build-go-genesets above. The TCA cycle term alone is
-# sufficient to demonstrate RTG1/RTG3 target overlap with mitochondrial
-# metabolism; it does not depend on the respiration term being correct.
+# Target GO:BP terms: ribosome biogenesis, cytoplasmic translation
+# (PC1 axis), tricarboxylic acid cycle (PC2 axis). "Cellular
+# respiration" tested and dropped (see note above).
 target_go_ids <- c(
   "ribosome biogenesis"       = "GO:0042254",
   "cytoplasmic translation"   = "GO:0002181",
@@ -771,9 +669,7 @@ cat("GO term verification (check term_name matches go_label_intended,",
     "and gene_set_size looks reasonable):\n")
 print(matched_go_check, n = Inf)
 
-# stop early with a clear error if any target GO ID wasn't found, or if
-# a gene set looks implausibly small (< 15 genes) given known biology -
-# the same check that caught the cellular respiration issue previously
+# stop early if any target GO ID wasn't found or looks implausibly small
 if (any(!matched_go_check$id_found_in_genesets)) {
   stop("One or more target GO IDs not found in go_genesets_bp_by_id - ",
        "check target_go_ids against current GO.db annotations before proceeding.")
@@ -788,9 +684,8 @@ if (any(matched_go_check$gene_set_size < 15, na.rm = TRUE)) {
 ```
 
 ```{r rebuild-tf-genesets-table-e}
-# Rebuild Table E direct-target gene sets exactly as in script 05,
-# restricted to the headline TFs identified there: CBF1, IFH1, SFP1
-# (PC1-positive) and ERT1, RTG1, RTG3 (PC2-positive).
+# Rebuild Table E direct-target gene sets for CBF1, IFH1, SFP1
+# (PC1) and ERT1, RTG1, RTG3 (PC2).
 supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
 table_e   <- read_excel(supp_path, sheet = "Table-S3e")
 
@@ -832,11 +727,8 @@ if (length(available_tf_sets) < length(target_tf_sets)) {
 ```
 
 ```{r hypergeometric-overlap-test}
-# Hypergeometric test for overlap between each GO term's member genes
-# and each TF's direct target genes, restricted to the common gene
-# universe (PCA genes) so the background is consistent with the rest
-# of the pipeline. For gene sets A (size a) and B (size b) drawn from
-# a universe of size N with observed overlap k:
+# Hypergeometric test for overlap between GO term genes and TF targets,
+# background = PCA gene universe.
 # P(overlap >= k) = phyper(k - 1, a, N - a, b, lower.tail = FALSE)
 pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
                       show_col_types = FALSE)
@@ -894,15 +786,7 @@ print(overlap_results %>% dplyr::select(-overlap_genes), n = Inf)
 ```
 
 ```{r plot-overlap-heatmap, fig.width=9, fig.height=4.5}
-# Heatmap of fold enrichment across the 3 GO terms x N TF combinations,
-# with significance marked - visual summary of whether GO and TF
-# enrichment corroborate each other at the gene level, not just in
-# aggregate direction.
-#
-# No title/subtitle baked into the plot - this is the dissertation
-# figure (Figure 15), and the caption (including the "cell values:
-# overlap count, fill: fold enrichment" explanation previously in the
-# subtitle) now lives in the Word document instead.
+# Heatmap of fold enrichment across GO terms x TFs, significance marked
 overlap_results_plot <- overlap_results %>%
   mutate(sig_label = if_else(p_adjust < 0.05, "*", ""))
 
@@ -926,11 +810,7 @@ print(p_overlap)
 ```
 
 ```{r annotate-overlap-genes-with-names}
-# Add gene names alongside systematic IDs for the significant overlap
-# gene lists, for citing specific genes by recognisable symbol in the
-# Results/Discussion rather than systematic ORF names only. Uses
-# gene_name from PCA_genes_AC.txt, already loaded as pca_genes above
-# and confirmed to carry both gene_id and gene_name columns.
+# Add gene names alongside systematic IDs for the overlap gene lists
 gene_id_to_name <- pca_genes %>%
   dplyr::select(gene_id, any_of("gene_name")) %>%
   distinct()
@@ -966,8 +846,7 @@ if (nrow(sig_overlaps) > 0) {
 write_tsv(overlap_results %>% dplyr::select(-overlap_genes),
           file.path(output_dir, "go_tf_overlap_corroboration.txt"))
 
-# Save the overlapping gene lists separately (long format, with names),
-# since the main summary table above has the list-column removed
+# Save overlap gene lists separately (long format, with names)
 overlap_genes_long <- overlap_results %>%
   dplyr::select(go_term, tf_set, overlap_genes) %>%
   tidyr::unnest(overlap_genes) %>%
@@ -977,13 +856,7 @@ overlap_genes_long <- overlap_results %>%
 write_tsv(overlap_genes_long,
           file.path(output_dir, "go_tf_overlap_gene_lists.txt"))
 
-# width/height/dpi explicitly set here (not just relying on chunk
-# fig.width/fig.height, which only controls the RMarkdown-rendered
-# preview, not the saved file) - this is the actual dissertation
-# figure. If the previous save still looked clipped despite matching
-# numbers here, check that this chunk actually re-ran (e.g. delete the
-# old PNG from figures/ first) rather than an old cached file being
-# re-uploaded.
+# width/height/dpi set explicitly for the saved file (not just the chunk preview)
 ggsave(file.path(figures_dir, "figure_go_tf_overlap_heatmap.png"),
        plot = p_overlap, width = 9, height = 4.5, dpi = 300)
 

@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -25,84 +25,31 @@ load(file.path(project_dir, "project_colours.rda"))
 ```
 
 ```{r load-pca-samples}
-# Sample-level PCA scores (93 samples), joined against mean cell
-# volume per sample. This is the direct validation that PC1 and PC2
-# mean what scripts 03/06/09 assume they mean - those scripts only
-# ever compute cor_PC1_vol / cor_PC2_vol as a subtitle number, with
-# no standalone figure showing the relationship. This script produces
-# that figure.
-#
-# Matthew's note on the first version of this figure: PC1 IS
-# correlated with size, it's just that this correlation is lost once
-# TOR/PKA-disrupting mutants are included alongside WT. So PC1 is the
-# TOR/PKA-mediated route from size to transcription, and PC2 is the
-# separate, not-yet-explained size-dependency. strain_info identifies
-# which samples are WT vs mutant, so this can actually be tested
-# rather than asserted.
+# Sample-level PCA scores (93 samples), joined against mean cell volume
+# per sample - the direct validation behind cor_PC1_vol/cor_PC2_vol used
+# elsewhere (scripts 03/06/09). PC1 correlates with size in WT, but this
+# is lost once TOR/PKA-disrupting mutants are included - PC1 is the
+# TOR/PKA-mediated route from size to transcription, PC2 is a separate,
+# unexplained size-dependency. strain_info distinguishes WT vs mutant.
 pca_samples <- read_tsv(file.path(tables_dir, "PCA_samples_AC.txt"),
                         show_col_types = FALSE) %>%
   filter(!is.na(mean_cell_volume))
 
-# TOR/PKA-disrupting mutants specifically (per strain_info): AID-Bcy1
-# (depletes PKA's regulatory subunit -> PKA hyperactive), TPK1-3_AS
-# (analog-sensitive PKA catalytic subunit), TOR1-L2134M
-# (rapamycin-resistant TOR1), Sch9(2d3E) and Sch9(2d3E)_Tod6-mNG
-# (constitutively active TORC1 effector), Gtr2(s23L)-Gtr1(q65L)
-# (hyperactive Rag GTPases upstream of TORC1). Hog1-AID and Pkc1-AID
-# are excluded from this set - they perturb osmotic stress / cell
-# wall integrity signalling, not TOR/PKA specifically, so lumping
-# them in would answer a different question than the one Matthew
-# raised.
+# TOR/PKA-disrupting mutants (per strain_info): AID-Bcy1, TPK1-3_AS,
+# TOR1-L2134M, Sch9(2d3E), Sch9(2d3E)_Tod6-mNG, Gtr2(s23L)-Gtr1(q65L).
+# Hog1-AID and Pkc1-AID excluded - they perturb osmotic/cell wall
+# signalling, not TOR/PKA.
 tor_pka_mutants <- c("AID-Bcy1", "TPK1-3_AS", "TOR1-L2134M",
                      "Sch9(2d3E)", "Sch9(2d3E)_Tod6-mNG",
                      "Gtr2(s23L)-Gtr1(q65L)")
 
-# FIX (per Matthew, Slack): the red low-PC1 points in the original
-# version of this figure are NOT untreated WT - they are WT-background
-# cells treated with a chemical TOR/PKA inhibitor (Torin, Rapamycin, or
-# 1NMPP1, in any combination, e.g. "Torin+PhIAA", "Torin_OD 0.1").
-# Classifying strain_group purely off strain_info == "WT" silently
-# folded these into the WT group, which is what produced the
-# artificially weak/contaminated WT-only correlation. Genuinely
-# untreated WT is the OD 0.1 / OD 0.3 timecourse, matching what
-# Matthew described: "the WT untreated cells are basically just the
-# red dots that move gradually between 0.1 and below 0 and show a
-# clear size dependency."
-#
-# 1NMPP1 was initially assumed to be a safe drug control on the
-# reasoning that WT carries no analog-sensitive kinase allele for it to
-# target - Matthew corrected this after seeing the two remaining
-# low-PC1 red dots were 1NMPP1-treated, so it evidently does have an
-# effect in this WT background (off-target or otherwise) and is
-# excluded here on the same basis as Torin/Rapa.
-#
-# strain_info_condition_easy was tried first but only labels the plain
-# "Torin"/"Rapa" conditions as "TORC1 inhib." - combined conditions like
-# "Torin+PhIAA" and "Torin_OD 0.1"/"Torin_OD 0.3" keep their own literal
-# label instead, so relying on that field silently left those samples
-# classified as WT (caught by the sanity-check print below). Matching
-# directly on `condition` with str_detect() catches every Torin/Rapa-
-# containing condition regardless of what else it's combined with.
-#
-# PhIAA-only condition on WT is left classified as WT: WT carries no
-# AID tag, so PhIAA has no target in a WT background and functions as
-# a drug control. Confirmed by diagnostic plot - PhIAA-treated WT
-# points sit tightly on the same trend as untreated WT (OD 0.1/OD 0.3)
-# at every volume cluster, with no visible deviation.
-#
-# ATC-treated WT is NOT left as WT, and is NOT routed to TOR/PKA mutant
-# either, since ATC is not a TOR/PKA perturbation and there is no basis
-# to assume it belongs in that group. Diagnostic plot showed ATC-treated
-# WT sitting clearly off the untreated trend at higher cell volumes
-# (PC1 ~0.04-0.06 versus ~0.00-0.02 for DMSO/OD 0.1/OD 0.3/PhIAA at the
-# same volume), the same kind of off-trend pattern that flagged Torin,
-# Rapa, and 1NMPP1 as contaminating earlier. Since the underlying cause
-# isn't established (worth asking Matthew directly, since ATC is
-# presumably a Tet-off system component and WT shouldn't carry that
-# construct), ATC-treated WT samples are excluded from the group
-# comparison entirely rather than being force-classified either way.
-#
-# 1NMPP1 is NOT left as WT - see note above.
+# WT-background cells chemically treated with a TOR/PKA inhibitor
+# (Torin, Rapamycin, 1NMPP1, in any combination) are reclassified out
+# of "WT" - matched via str_detect() on `condition` so combined
+# conditions (e.g. "Torin+PhIAA") are also caught. PhIAA-only WT stays
+# WT (no AID tag, so it's a drug control). ATC-treated WT is excluded
+# entirely (off-trend in diagnostics, cause unconfirmed) rather than
+# classified either way.
 pca_samples <- pca_samples %>%
   mutate(
     strain_group = case_when(
@@ -119,20 +66,17 @@ pca_samples <- pca_samples %>%
 cat("Samples by strain group:\n")
 print(table(pca_samples$strain_group))
 
-# Sanity check: confirm no chemically TOR-inhibited or ATC-treated WT
-# samples remain classified as WT. Should print only OD 0.1/OD 0.3
-# (untreated) plus PhIAA (drug control) - nothing containing Torin,
-# Rapa, 1NMPP1, or ATC.
+# Sanity check: no chemically TOR-inhibited or ATC-treated WT remains
+# classified as WT (should show only OD 0.1/OD 0.3 and PhIAA)
 cat("\nConditions retained under strain_group == 'WT':\n")
 pca_samples %>%
   filter(strain_info == "WT", strain_group == "WT") %>%
   distinct(condition, strain_info_condition_easy) %>%
   print(n = Inf)
 
-# Correlations computed three ways: all samples (excluding the 2
-# unconfirmed ATC-treated WT points, consistent with what's plotted),
-# WT only, and TOR/PKA mutants only - this is the actual test of
-# Matthew's claim, not just a coloured scatter.
+# Correlations computed three ways: all samples, WT only, TOR/PKA
+# mutants only - tests whether PC1's size correlation depends on
+# TOR/PKA state.
 compute_cor <- function(df) {
   df %>%
     summarise(
@@ -160,10 +104,7 @@ print(pc_vol_cor)
 
 ```{r fisher-z-test}
 # Fisher r-to-z test: is the WT correlation significantly different
-# from the TOR/PKA-mutant correlation? Point estimates alone need a
-# formal test before they go in a figure caption as a claim rather
-# than an observation. n_wt and n_mut now reflect the corrected
-# strain_group split above.
+# from the TOR/PKA-mutant correlation?
 fisher_z_test <- function(r1, n1, r2, n2) {
   z1 <- atanh(r1)
   z2 <- atanh(r2)
@@ -191,29 +132,19 @@ fisher_results <- bind_rows(fisher_pc1, fisher_pc2)
 cat("\nFisher r-to-z test, WT vs TOR/PKA-mutant correlations:\n")
 print(fisher_results)
 
-cat("\nNote: Spearman correlations were used above (matching project\n",
-    "convention throughout), but Fisher's z formally applies to Pearson\n",
-    "r. Treat the p-values here as approximate - a rank-based permutation\n",
-    "test would be the more rigorous alternative if this comparison needs\n",
-    "to hold up to scrutiny (e.g. if Matthew or an examiner pushes on it).\n", sep = "")
+cat("\nNote: Spearman correlations were used above, but Fisher's z\n",
+    "formally applies to Pearson r. Treat p-values here as approximate.\n", sep = "")
 ```
 
 ```{r permutation-test}
 # Permutation test for the difference in Spearman correlations between
-# WT and TOR/PKA-mutant samples. More appropriate than Fisher's z here,
-# since it doesn't assume Pearson correlation and makes no distributional
-# assumption at all - just repeatedly reshuffles the WT/mutant labels
-# (keeping group sizes fixed at the corrected n_wt and n_mut) and asks
-# how often a reshuffled dataset produces as large a difference in r as
-# the real group split does.
+# WT and TOR/PKA-mutant samples - no distributional assumptions,
+# reshuffles group labels and compares to the observed difference.
 set.seed(42)
 n_perm <- 10000
 
 # Restrict to WT + TOR/PKA mutant only, matching the Fisher test scope
-# (excludes "Other mutant" - Hog1-AID/Pkc1-AID - which isn't part of
-# this specific comparison). Uses the corrected strain_group, so
-# chemically TOR-inhibited WT samples are already routed into the
-# TOR/PKA mutant group here.
+# (excludes "Other mutant")
 perm_data <- pca_samples %>%
   filter(strain_group %in% c("WT", "TOR/PKA mutant"))
 
@@ -257,22 +188,9 @@ print(permutation_results)
 ```
 
 ```{r plot-pc1-vs-volume}
-# WT highlighted in a distinct colour per Matthew's request (this was
-# already correctly implemented - left unchanged); TOR/PKA mutants and
-# other mutants shown separately so the WT-specific relationship is
-# visible against the full-dataset noise. WT here now excludes
-# chemically TOR-inhibited samples, per the strain_group fix above.
-#
-# ATC-treated WT samples (strain_group == "Excluded (unconfirmed)")
-# are dropped here via pca_samples_analysis (defined above), rather
-# than left in pca_samples where they'd have no entry in
-# strain_colours below - scale_color_manual would otherwise silently
-# drop them with a ggplot warning instead of a deliberate exclusion.
-#
-# Label sizes increased throughout below (standing "labels bigger"
-# instruction) - this script previously had no explicit theme sizing
-# at all (bare theme_bw()), so it was the smallest-text figure in the
-# whole set.
+# WT highlighted separately from TOR/PKA and other mutants. ATC-treated
+# WT samples are dropped via pca_samples_analysis (no colour mapping,
+# so they're excluded deliberately rather than dropped silently).
 strain_colours <- c(
   "WT"             = project_colours[["red"]],
   "TOR/PKA mutant" = project_colours[["purple"]],
@@ -336,12 +254,9 @@ print(p_pc2_vol)
 ```
 
 ```{r combined-panel}
-# Side-by-side panel is the version for the dissertation. Updated
-# framing per Matthew: PC1 tracks volume in WT (solid red trend line)
-# but that relationship is diluted once TOR/PKA mutants are included
-# (dashed black trend line, all samples) - PC1 is the size-dependency
-# that runs through TOR/PKA signalling specifically. PC2 tracks
-# volume regardless of strain - the separate, unexplained axis.
+# Side-by-side panel for the dissertation: PC1 tracks volume in WT
+# (solid red trend) but is diluted with TOR/PKA mutants included
+# (dashed black, all samples). PC2 tracks volume regardless of strain.
 p_combined <- (p_pc1_vol + p_pc2_vol) +
   plot_layout(ncol = 2, guides = "collect") &
   theme(legend.position = "bottom")
@@ -354,7 +269,6 @@ write_tsv(pc_vol_cor, file.path(output_dir, "pc_vs_cell_volume_correlations.txt"
 write_tsv(fisher_results, file.path(output_dir, "pc_vs_cell_volume_fisher_z_test.txt"))
 write_tsv(permutation_results, file.path(output_dir, "pc_vs_cell_volume_permutation_test.txt"))
 
-# Canvas sizes bumped alongside the label increases above.
 ggsave(file.path(figures_dir, "figure_pc1_vs_cell_volume.png"),
        plot = p_pc1_vol, width = 9, height = 7, dpi = 300)
 ggsave(file.path(figures_dir, "figure_pc2_vs_cell_volume.png"),

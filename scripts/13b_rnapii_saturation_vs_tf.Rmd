@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -29,39 +29,17 @@ load(file.path(project_dir, "project_colours.rda"))
 # Background
 
 Follow-up to the RNAPII occupancy vs PC1/PC2 analysis (script 11). The
-binned-mean trend of log2(occupancy) vs PC1 rises steadily up to roughly
-PC1 ~ 7, then turns over and declines for the highest-PC1 genes - the
-visual signature of promoter saturation (occupancy failing to keep pace
-with transcriptional demand at the very top of the PC1 axis). This script:
+binned-mean trend of log2(occupancy) vs PC1 rises then declines at the
+highest-PC1 genes - the signature of promoter saturation. This script:
 
-1. Defines the plateau/decline region explicitly from the binned-mean data
-   (rather than the coarser quartile-based definition used in script 11),
+1. Defines the plateau/decline region from the binned-mean data,
 2. Tests whether genes in that region are enriched among the direct
    targets of the TFs already identified as PC1/PC2 hits (CBF1, IFH1,
-   SFP1, ERT1, RTG1, RTG3), to check whether saturation is happening
-   specifically to the genes those TFs regulate.
+   SFP1, ERT1, RTG1, RTG3).
 
-DECISION POINT (Matthew): keep this figure as-is, OR attempt to flatten
-the residual turnover further by excluding a WIDER set of related TFs
-from the "excluding TF targets" comparison line, not just the original
-6. Matthew approved trying this - Part 2 below (new) extends the
-original robustness check with two biologically motivated additions:
-
-- FHL1: IFH1 has no DNA-binding domain of its own and is recruited to
-  ribosomal-protein gene promoters by FHL1 - excluding IFH1 targets
-  without also excluding FHL1 targets is arguably an incomplete
-  exclusion of the same regulatory unit.
-- Dot6/Tod6: TORC1/PKA-regulated REPRESSORS of the same ribosome-
-  biogenesis program that CBF1/IFH1/SFP1 activate, already established
-  elsewhere in this project (mitch Table E) as significant PC1 hits.
-
-FLAG: whether FHL1/Dot6/Tod6 columns actually exist in Table-S3e (and
-under what exact column names) is not yet confirmed - the
-list-available-tf-columns chunk below prints everything actually
-present so this can be checked before trusting the expanded exclusion.
-If any of the three aren't present, they're silently skipped (same
-`intersect()` pattern already used for the original 6) rather than
-erroring, so a partial match is still safe to run.
+Part 2 extends the exclusion set to FHL1 (IFH1's DNA-binding partner)
+and Dot6/Tod6 (repressors of the same programme), to see if excluding
+them flattens the residual turnover further.
 
 ```{r load-occupancy-pc}
 occ_pc <- read_tsv(file.path(output_dir, "rnapii_occupancy_pc_joined.txt"),
@@ -71,9 +49,7 @@ cat("Genes with occupancy + PC1/PC2:", nrow(occ_pc), "\n")
 ```
 
 ```{r identify-plateau-region}
-# Recreate the same 30-bin binned mean used in script 11's scatter plot,
-# to identify exactly where the trend turns over rather than eyeballing
-# it from the figure.
+# Recreate the 30-bin binned mean from script 11's scatter plot
 n_bins <- 30
 
 pc1_binned <- occ_pc %>%
@@ -90,9 +66,7 @@ pc1_binned <- occ_pc %>%
 cat("Binned mean occupancy across PC1 (bin 30 = highest PC1):\n")
 print(pc1_binned, n = Inf)
 
-# Peak bin = where occ_mean is maximised; plateau region defined as all
-# bins from the peak onward (inclusive), since occupancy stops rising
-# (and starts falling) there despite PC1 continuing to increase.
+# Peak bin = where occ_mean is maximised; plateau = bins from peak onward
 peak_bin <- pc1_binned$pc1_bin[which.max(pc1_binned$occ_mean)]
 plateau_pc1_threshold <- pc1_binned %>%
   filter(pc1_bin == peak_bin) %>%
@@ -105,14 +79,7 @@ cat("Bins", peak_bin, "to", n_bins, "(PC1 >=", round(plateau_pc1_threshold, 2),
 ```
 
 ```{r define-saturation-candidates-refined}
-# Refined saturation candidate definition: genes at or beyond the peak
-# PC1 bin (i.e. in the plateau/decline region), regardless of their
-# occupancy rank - unlike script 11's quartile-based definition, this
-# uses the actual empirical turnover point rather than an arbitrary
-# quartile split, and doesn't require low occupancy rank (the genes of
-# interest here are precisely those with high PC1 but occupancy that
-# hasn't risen to match - some may still have moderate/high absolute
-# occupancy, just not as high as the PC1 trend up to that point implies).
+# Genes at or beyond the peak PC1 bin (plateau/decline region)
 saturation_candidates_refined <- occ_pc %>%
   filter(PC1 >= plateau_pc1_threshold) %>%
   arrange(desc(PC1)) %>%
@@ -126,10 +93,7 @@ print(saturation_candidates_refined, n = 30)
 ```
 
 ```{r rebuild-tf-genesets}
-# Rebuild ALL Table E direct-target gene sets (not just the 6 headline
-# ones) - kept as the full set here so the expanded exclusion in Part 2
-# below can pull FHL1/Dot6/Tod6 out of the same object without a
-# second read of the spreadsheet.
+# Rebuild all Table E direct-target gene sets (not just the 6 headline)
 supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
 table_e   <- read_excel(supp_path, sheet = "Table-S3e")
 
@@ -166,10 +130,7 @@ cat("Original 6 target TF gene sets available:", length(available_tf_sets),
 ```
 
 ```{r list-available-tf-columns}
-# All raw TF column names actually present in Table-S3e, printed
-# before guessing at FHL1/Dot6/Tod6's exact naming below - CHECK this
-# output against the names used in the next chunk before trusting the
-# expanded exclusion.
+# All TF column names present in Table-S3e, for checking FHL1/Dot6/Tod6 naming
 cat("All TF columns present in Table-S3e:\n")
 print(sort(tf_cols_e))
 
@@ -178,12 +139,8 @@ print(sort(names(genesets_e)))
 ```
 
 ```{r robustness-check-peak-excluding-tf-targets}
-# Original robustness check (unchanged): is the PC1 plateau/turnover
-# point itself being pulled leftward by the IFH1/CBF1/SFP1 target
-# genes, since these are already known to sit at the extreme high end
-# of PC1? Recomputes the same 30-bin binned mean and peak-finding
-# logic as identify-plateau-region above, but on the subset of genes
-# that are NOT a direct target of any of the original 6 headline TFs.
+# Is the PC1 turnover point pulled leftward by the IFH1/CBF1/SFP1
+# target genes? Recompute peak on genes excluding the original 6 TFs.
 all_tf_target_genes <- unique(unlist(genesets_e[available_tf_sets]))
 
 occ_pc_no_tf <- occ_pc %>%
@@ -215,17 +172,11 @@ cat("With original 6 TF targets EXCLUDED  - peak at PC1 ~",
 ```
 
 ```{r robustness-check-expanded-tf-set}
-## PART 2 (NEW): expanded exclusion set, adding FHL1 (IFH1's obligate
-## DNA-binding partner) and Dot6/Tod6 (repressors of the same ribi
-## program, already established elsewhere in this project as
-## significant PC1 hits) to the original 6, per Matthew's approval to
-## try flattening the residual turnover further.
+## PART 2: expanded exclusion set, adding FHL1 and Dot6/Tod6 to the
+## original 6, to try flattening the residual turnover further.
 ##
-## Uses str_detect() rather than exact name matching, since the exact
-## column naming convention (e.g. "FHL1" vs "Fhl1", direction suffix
-## format) isn't confirmed - this is deliberately permissive so a
-## near-miss on naming still gets picked up, with the actual matched
-## names printed below for verification rather than trusted blindly.
+## Uses str_detect() rather than exact matching since column naming
+## isn't confirmed - matched names are printed below for verification.
 related_tf_patterns <- c("FHL1", "DOT6", "TOD6")
 
 related_tf_sets <- names(genesets_e)[
@@ -238,9 +189,7 @@ print(related_tf_sets)
 
 if (length(related_tf_sets) == 0) {
   cat("\nWARNING: none of FHL1/Dot6/Tod6 matched any column in Table-S3e.",
-      "Check the list-available-tf-columns output above for the actual",
-      "naming convention used - the expanded exclusion below will be",
-      "identical to the original 6-TF exclusion until this is fixed.\n")
+      "Check the list-available-tf-columns output above.\n")
 }
 
 expanded_tf_sets <- unique(c(available_tf_sets, related_tf_sets))
@@ -278,12 +227,9 @@ cat("With expanded TF targets EXCLUDED - peak at PC1 ~",
 ```
 
 ```{r quantify-flattening}
-## Quantitative flatness metric, not just eyeballing the plot: total
-## decline in binned-mean occupancy from the peak bin to the final bin
-## (bin 30). A smaller decline = a flatter curve. Compared across all
-## three versions (all genes, excluding original 6, excluding expanded
-## set) to give a single number for whether adding FHL1/Dot6/Tod6
-## actually helped, rather than relying on a visual read of the plot.
+## Flatness metric: decline in binned-mean occupancy from peak bin to
+## the final bin, compared across all genes / excluding original 6 /
+## excluding expanded set.
 compute_decline <- function(df_binned, peak_bin_val) {
   peak_occ  <- df_binned %>% filter(pc1_bin == peak_bin_val) %>% pull(occ_mean)
   final_occ <- df_binned %>% filter(pc1_bin == n_bins) %>% pull(occ_mean)
@@ -306,24 +252,15 @@ print(flatness_summary)
 
 if (decline_expanded < decline_orig6) {
   cat("\nExpanding the exclusion set REDUCED the residual decline",
-      "(curve got flatter) - supports the interpretation that the",
-      "remaining turnover is at least partly attributable to these",
-      "additional TFs' targets too.\n")
+      "(curve got flatter).\n")
 } else if (length(related_tf_sets) > 0) {
   cat("\nExpanding the exclusion set did NOT reduce the residual decline",
-      "- the turnover persists even excluding FHL1/Dot6/Tod6 targets,",
-      "suggesting it is not specific to this particular set of related",
-      "TFs. Worth deciding with Matthew whether to keep Figure 17 as the",
-      "original 6-TF version rather than the expanded one, since the",
-      "expansion didn't achieve the intended flattening.\n")
+      "- turnover persists even excluding FHL1/Dot6/Tod6 targets.\n")
 }
 ```
 
 ```{r plot-robustness-check-expanded, fig.width=10, fig.height=6}
-# Three-line comparison (was two) - all genes, excluding original 6,
-# excluding expanded set - so the flattening effect (or lack of one)
-# from adding FHL1/Dot6/Tod6 is directly visible rather than needing
-# to compare two separate plots.
+# Three-line comparison: all genes, excluding original 6, excluding expanded set
 binned_comparison_expanded <- bind_rows(
   pc1_binned                %>% mutate(gene_set = "All genes"),
   pc1_binned_no_tf          %>% mutate(gene_set = "Excluding original 6 TFs"),
@@ -368,16 +305,9 @@ write_tsv(saturation_candidates_refined,
 write_tsv(flatness_summary,
           file.path(output_dir, "rnapii_saturation_flatness_comparison.txt"))
 
-# Canvas widened (10x6 -> 13x7) to give the wrapped title room without
-# needing to shrink it back down.
+# Canvas widened for the wrapped title
 ggsave(file.path(figures_dir, "figure_rnapii_saturation_robustness_check_expanded.png"),
        plot = p_robustness_expanded, width = 13, height = 7, dpi = 300)
 
 cat("Done - results saved to output_tables/ and figures/\n")
-cat("\nNEXT STEP: run this script, check the list-available-tf-columns",
-    "output to confirm FHL1/Dot6/Tod6 were matched correctly, and check",
-    "flatness_summary to see whether the expansion actually helped -",
-    "if it did, this expanded version becomes Figure 17; if not, revert",
-    "to the original 6-TF version and keep Figure 17 as previously",
-    "built.\n")
 ```

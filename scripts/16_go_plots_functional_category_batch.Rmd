@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -28,37 +28,16 @@ load(file.path(project_dir, "project_colours.rda"))
 # Background
 
 Simplified rebuild of the original 13a occupancy-vs-PC1/PC2 grid.
+Conditions A/B/C are dropped (different nutrient condition from EFG/H).
+Three rows:
 
-Per the latest revision request, conditions A/B/C are dropped entirely
-(previously kept as individual rows in an earlier version of this
-script) - they are a different nutrient condition from EFG/H and were
-never meant to be pooled with it, and are not needed as a separate
-comparison here. The grid is now just three rows:
-
-1. EFG/H AVERAGE (cell-cycle genes excluded): reuses the same
-   `mean_occupancy_efgh` logic already built for script 14/Figure 18 -
-   average of EFG+H RPKM, with high-confidence cell-cycle genes
-   excluded (Matthew's stated reason: EFG/H are cycling, not arrested,
-   cells).
-2. TPM: script 14's "first timepoint" reference sample (condition "OD
-   0.1", arrest "1hr G1...", exp_group_3 "A", strain MS69) - the same
-   general-purpose TPM reference occupancy was already validated
-   against in script 14 Part C, NOT Figure 18's PhIAA/strain-specific
-   baseline. FLAG if a different TPM source is intended here.
+1. EFG/H AVERAGE (cell-cycle genes excluded).
+2. TPM: script 14's "first timepoint" reference sample (OD 0.1,
+   1hr G1 arrest, strain MS69).
 3. TRANSCRIPTION RATE: mean of Miller and Neymotin synthesis-rate
-   estimates, same definition as script 14/Figure 18.
+   estimates.
 
-Metric: Pearson r on log2-transformed predictor, matching the original
-script's convention. `rank_occupancy` was dropped in an earlier
-revision (highly correlated with the log2 metric, so redundant) and
-stays dropped here.
-
-CORRECTED: the synthesis rate predictor was previously excluded from
-the "log2-transformed predictor" convention stated above - occupancy
-and TPM were both log2-transformed before correlating, but
-`mean_synth_rate` was correlated raw/untransformed. Fixed below so all
-three predictors are actually treated consistently, as the script's
-own stated methodology requires.
+Metric: Pearson r on log2-transformed predictors throughout.
 
 ```{r load-occupancy-raw}
 occupancy_path <- file.path(
@@ -92,8 +71,7 @@ run_correlation <- function(x, y, method = "pearson") {
 # Part 1: EFG/H average (cell-cycle genes excluded)
 
 ```{r compute-efgh-average}
-# Same logic as script 14's Part A: average EFG+H, exclude high-
-# confidence cell-cycle genes (EFG/H are cycling, not arrested, cells).
+# Average EFG+H, exclude high-confidence cell-cycle genes
 occupancy_efgh <- occupancy_raw %>%
   dplyr::select(systematic_name, gene_name,
          RPKM_mean_EFG, RPKM_mean_H, cell_cycle_high_confidence) %>%
@@ -132,11 +110,8 @@ print(efgh_results)
 # Part 2: TPM and transcription rate
 
 ```{r load-tpm-reference}
-## TPM: reusing script 14's "first timepoint" reference sample (condition
-## "OD 0.1", arrest "1hr G1...", exp_group_3 "A", strain MS69) - the same
-## general-purpose TPM reference occupancy was already validated against
-## in script 14 Part C, NOT Figure 18's PhIAA/strain-specific baseline.
-## FLAG if a different TPM source is intended for Figure 16 specifically.
+## TPM: reusing script 14's "first timepoint" reference sample (OD 0.1,
+## 1hr G1 arrest, strain MS69)
 df_sc_final <- read_tsv(file.path(tables_dir, "df_sc_final.txt"),
                         show_col_types = FALSE)
 
@@ -157,16 +132,8 @@ cat("Genes with TPM reference value:", nrow(tpm_reference), "\n")
 
 ```{r load-synth-rate}
 ## Transcription rate: mean of Miller and Neymotin synthesis-rate
-## estimates, same definition as script 14/Figure 18.
-##
-## CORRECTED: mean_synth_rate is now log2-transformed before use, to
-## match the "log2-transformed predictor" convention already applied
-## to occupancy (log2_occupancy_efgh) and TPM (log2_tpm) above - it
-## was previously left on its raw/linear scale, inconsistent with the
-## script's own stated methodology. filter(mean_synth_rate > 0) added
-## before the log transform since log2() of zero/negative values is
-## undefined; genes with a non-positive mean synthesis rate are
-## dropped rather than silently becoming NA/NaN.
+## estimates, log2-transformed. filter(mean_synth_rate > 0) applied
+## first since log2() of zero/negative values is undefined.
 synth_rate_mean <- occupancy_raw %>%
   dplyr::select(systematic_name, miller_synth_rate, neymotin_synth_rate) %>%
   rename(gene_id = systematic_name) %>%
@@ -206,8 +173,7 @@ print(synth_results)
 # Combined grid (EFG/H average, TPM, transcription rate)
 
 ```{r build-simplified-grid, fig.width=10, fig.height=6}
-# A/B/C rows removed - grid_results is now only 3 predictors x 2 PCs
-# = 6 cells, down from 6 predictors x 2 PCs = 12.
+# 3 predictors x 2 PCs = 6 cells
 grid_results <- bind_rows(
   efgh_results,
   tpm_results,
@@ -226,9 +192,7 @@ grid_results <- bind_rows(
 cat("Figure 16 grid (log2 metric, Pearson):\n")
 print(grid_results, n = Inf)
 
-# Label sizes increased across the board - axis text/title, tile
-# labels, subtitle - previous version was noticeably small on a normal
-# screen without zooming in.
+# Larger label sizes for readability on screen
 p_grid16 <- ggplot(grid_results, aes(x = pc, y = predictor, fill = r)) +
   geom_tile(color = "white") +
   geom_text(aes(label = paste0(round(r, 2), sig_label)), size = 8) +

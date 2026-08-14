@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -30,11 +30,8 @@ load(file.path(project_dir, "project_colours.rda"))
 
 ```{r load-mitch-results}
 # Load mitch TF enrichment results from script 05, Table E (direct
-# targets: bound + regulated), the most stringent and interpretable
-# collection. Script 05 writes ONE combined file per table (not
-# separate activated/repressed files) - activated vs repressed is
-# encoded in the "set" column name as a "_direct_activated" /
-# "_direct_repressed" suffix, so both are extracted from that here.
+# targets: bound + regulated). Activated/repressed is encoded in the
+# "set" column name as a suffix, extracted here.
 df_e_all <- read_tsv(
   file.path(output_dir, "tf_mitch_tableE.txt"),
   show_col_types = FALSE
@@ -53,11 +50,8 @@ cat("Table E repressed sets:", sum(df_e_all$direction == "repressed"), "\n")
 ```
 
 ```{r select-top-tfs}
-# Select top 10 TFs to run GO enrichment on: top 5 by positive s.PC1
-# (active TOR/PKA signalling axis), top 5 by positive s.PC2 (large cell
-# axis), union of both, deduplicated. Using positive ends of each axis
-# as these showed the strongest and most interpretable signals in
-# script 05.
+# Select top 10 TFs: top 5 by positive s.PC1, top 5 by positive s.PC2,
+# union, deduplicated.
 top_pc1 <- df_e_all %>%
   arrange(desc(s.PC1)) %>%
   slice_head(n = 5) %>%
@@ -74,10 +68,9 @@ print(selected_tfs)
 ```
 
 ```{r load-table-e}
-# Load Table E to extract target gene lists per TF. Table E = direct
-# targets (TF both binds and regulates gene). Sign convention: log2FC
-# < 0 = activated, log2FC > 0 = repressed on TF depletion. Filtered to
-# common genes used in script 05.
+# Load Table E to extract target gene lists per TF (direct targets:
+# TF both binds and regulates gene). Filtered to common genes used in
+# script 05.
 pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
                       show_col_types = FALSE)
 table_a   <- read_excel(file.path(tables_dir, "Supp Table 3.xlsx"),
@@ -88,8 +81,7 @@ table_e   <- read_excel(file.path(tables_dir, "Supp Table 3.xlsx"),
 common_genes <- intersect(pca_genes$gene_id, table_a$gene_id)
 table_e <- table_e %>% filter(gene_id %in% common_genes)
 
-# Build target gene lists per TF (activated + repressed combined) for
-# selected TFs only - all regulated targets regardless of direction
+# Target gene lists per TF (activated + repressed combined), selected TFs only
 table_e_long <- table_e %>%
   pivot_longer(-gene_id, names_to = "TF", values_to = "log2FC") %>%
   filter(!is.na(log2FC), TF %in% selected_tfs)
@@ -104,9 +96,7 @@ print(map_int(tf_target_lists, length))
 ```
 
 ```{r run-go-enrichment}
-# Run enrichGO for each selected TF's target gene list. Background
-# universe = all common PCA genes (consistent with scripts 01 and 05).
-# Collect top 5 terms per TF for plotting.
+# Run enrichGO for each TF's target gene list. Background = common PCA genes.
 universe <- common_genes
 
 run_go_per_tf <- function(tf_name, gene_list, universe) {

@@ -1,18 +1,7 @@
 # 00b_add_stress_signaling_genesets.R
-# Builds TF/regulator target gene sets from Phospho_Residues_StressSignaling.xlsx
-# (GCN2, SNF1, Gis1, RTG, Tod6/Dot6), in the same named-list-of-gene-IDs format
-# used elsewhere in the pipeline (e.g. build_go_genesets(), genesets_a/c/e), so
-# they can be passed directly into mitch_calc() or fgsea() alongside the
-# existing Mahendrawada TF gene sets.
-#
-# Source: Phospho_Residues_StressSignaling.xlsx, sheets "GCN2 Targets",
-# "GCN2 Regulators", "SNF1 Targets", "RTG targets", "Gis1 Targets", "Tod6 Dot6".
-# Note: unlike Tables A/C/E, this data has no binding-vs-regulated distinction
-# and no log2FC magnitude - each sheet is a simple curated target gene list, so
-# gene sets are built as presence/absence (like Table A), not activated/repressed.
-#
-# Assumes this script sits in Adriana_analysis/scripts/, with tables/ as a
-# sibling folder containing the source Excel file.
+# Builds TF/regulator target gene sets (GCN2, SNF1, Gis1, RTG, Tod6/Dot6)
+# from Phospho_Residues_StressSignaling.xlsx, for use with mitch_calc()
+# or fgsea(). Presence/absence gene sets only (no FC data available).
 
 library(tidyverse)
 library(readxl)
@@ -24,12 +13,8 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 
 excel_path <- "../tables/Phospho_Residues_StressSignaling.xlsx"
 
-# RTG targets uses gene_id = systematic name, gene_name = common name, as
-# expected. SNF1 Targets, Gis1 Targets, and Tod6 Dot6 all have these two
-# columns swapped in the source file - corrected here rather than in the
-# Excel file itself, so the fix is visible and can be checked against the
-# original. (GCN2 Targets and GCN2 Regulators are also in the expected
-# systematic-first order.)
+# SNF1 Targets, Gis1 Targets, and Tod6 Dot6 have gene_id/gene_name
+# swapped in the source file - corrected here via swap_id_name.
 read_target_sheet <- function(sheet_name, swap_id_name = FALSE) {
   df <- read_excel(excel_path, sheet = sheet_name)
   
@@ -67,9 +52,7 @@ for (nm in names(stress_signaling_genesets)) {
   cat(" ", nm, ":", n, "genes", flag, "\n")
 }
 
-# Sanity check: gene ID format. If a set's IDs don't look like systematic
-# ORF names (e.g. "YGL184C"), it silently won't overlap with the PCA data
-# and mitch will drop it with no warning - catch that here instead.
+# Sanity check: gene ID format (should look like systematic ORF names)
 cat("\nGene ID format check (should all start with 'Y' and look systematic):\n")
 for (nm in names(stress_signaling_genesets)) {
   ids <- stress_signaling_genesets[[nm]]

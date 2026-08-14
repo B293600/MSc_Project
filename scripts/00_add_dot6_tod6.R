@@ -1,16 +1,11 @@
 # 00_add_dot6_tod6.R
-# Adds Dot6 and Tod6 gene sets to Supp Table 3 (Mahendrawada et al. format).
-# Table A (binding) uses YEASTRACT documented associations (simultaneous
-# binding + expression evidence). Table C (regulated) uses Huber et al. 2011
-# EMBO J mRNA-seq (sch9-as dot6 tod6 vs sch9-as FC). Table E (direct) is the
-# intersection of YEASTRACT targets and Huber 2011 regulated genes.
+# Adds Dot6/Tod6 gene sets to Supp Table 3.
+# Table A (binding): YEASTRACT documented associations.
+# Table C (regulated): Huber et al. 2011 mRNA-seq FC.
+# Table E (direct): intersection of the two.
 #
-# Source files: YEASTRACT exported gene lists for Dot6p and Tod6p, and the
-# Huber 2011 supplementary file (emboj2011221s2.xls).
-#
-# Assumes this script sits in Adriana_analysis/scripts/, with tables/
-# and figures/ as sibling folders (data/ was assumed but doesn't exist -
-# emboj2011221s2.xls actually lives in tables/, updated below).
+# Source files: YEASTRACT gene lists for Dot6p/Tod6p, Huber 2011
+# supplementary file (emboj2011221s2.xls).
 
 library(tidyverse)
 library(readxl)
@@ -111,11 +106,9 @@ cat("\nTable A additions:\n")
 cat("  Dot6 targets in Table A:", sum(table_a_updated$Dot6), "\n")
 cat("  Tod6 targets in Table A:", sum(table_a_updated$Tod6), "\n")
 
-# Table C: add combined Dot6_Tod6 fold-change column from Huber 2011
-# NOTE FOR ADRIANA: this is a double-mutant (dot6Δ tod6Δ) signal
-# standing in for two separate single-TF columns, since individual
-# dot6Δ / tod6Δ FC data wasn't available in Huber 2011 — bear this
-# in mind if attributing effects to Dot6 or Tod6 individually.
+# Table C: add combined Dot6_Tod6 FC column from Huber 2011.
+# Note: this is a double-mutant (dot6Δ tod6Δ) signal, not separate
+# single-TF data - Huber 2011 has no individual dot6Δ/tod6Δ FC.
 huber_fc <- huber %>%
   select(gene_id, Dot6_Tod6 = `sch9-as dot6 tod6`)
 

@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -21,9 +21,7 @@ library(tidyverse)
 library(clusterProfiler)
 library(org.Sc.sgd.db)   # S. cerevisiae annotation
 
-# org.Sc.sgd.db loads AnnotationDbi, which masks dplyr::select() -
-# pin select() back to the dplyr version explicitly to avoid
-# "unable to find an inherited method" errors on tibbles
+# org.Sc.sgd.db masks dplyr::select() - pin it back
 select <- dplyr::select
 
 # Shared colour palette for dissertation figures
@@ -31,10 +29,8 @@ load(file.path(project_dir, "project_colours.rda"))
 ```
 
 ```{r load-data}
-# PCA_genes_AC.txt holds gene-level PC scores (gene_id, PC1...PC93).
-# PC1-PC3 are confirmed the only biologically meaningful axes; PC1/PC2
-# match the stress-response pattern Adriana described (analogous to the
-# WT vs Torin/PhIAA-perturbed size-dependent trend). PC4 onward is noise.
+# Gene-level PC scores (gene_id, PC1...PC93). Only PC1/PC2 used here;
+# PC4 onward is noise.
 pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"), show_col_types = FALSE)
 
 pca_genes_long <- pca_genes %>%
@@ -43,9 +39,7 @@ pca_genes_long <- pca_genes %>%
 ```
 
 ```{r filter-top-bottom-10pct}
-# Take top/bottom 10% of PC1 and PC2 separately, per Adriana's original
-# approach (known limitation: a hard 10% cutoff can split genes with
-# near-identical scores - GSEA in script 03 addresses this instead)
+# Top/bottom 10% of PC1 and PC2 (GSEA in script 03 avoids this hard cutoff)
 get_top_bottom_10pct <- function(df, pc_name) {
   df_pc <- df %>% filter(PC == pc_name)
   n <- nrow(df_pc)
@@ -95,9 +89,7 @@ ego_pc2_bottom <- run_go_enrichment(pc2_genes$bottom, all_genes_universe, "PC2 b
 ```
 
 ```{r plot-function}
-# Plot top 20 terms by p-value, per Adriana's original plotting approach.
-# Long GO term names (e.g. some rRNA processing terms) can push the whole
-# plot off-canvas - truncate + wrap to avoid this
+# Plot top 20 terms by p-value (long GO names truncated + wrapped)
 plot_top20_terms <- function(ego, title) {
   df <- as.data.frame(ego)
   if (nrow(df) == 0) {

@@ -8,14 +8,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Implementation of the 2D annotation enrichment method from Cox & Mann
 # 2012, BMC Bioinformatics (doi: 10.1186/1471-2105-13-S16-S12). For each
-# annotation term (GO term or TF target gene set), tests whether member
-# genes show a significantly different joint distribution in PC1 x PC2
-# space compared to all other genes, using MANOVA on per-dimension
-# ranked data (a non-parametric generalisation of the Wilcoxon test to
-# 2D). Effect size is an (s.PC1, s.PC2) score pair, each bounded [-1, 1].
+# annotation term, tests whether member genes show a significantly
+# different joint distribution in PC1 x PC2 space, using MANOVA on
+# ranked data. Effect size is (s.PC1, s.PC2), each bounded [-1, 1].
 # FDR controlled by Benjamini-Hochberg.
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -61,12 +59,11 @@ cat("PC2 rank range:", range(pca_ranked$rank_PC2), "\n")
 ```
 
 ```{r cox-mann-function}
-# Core 2D annotation enrichment function, implementing Cox & Mann 2012:
-# split genes into group 1 (annotation term members) and group 2 (all
-# remaining genes), apply MANOVA to the pre-ranked PC1/PC2 values,
-# extract a p-value from the MANOVA Pillai test statistic, and calculate
-# s-scores as s = 2 * (mean_rank_group1 - mean_rank_group2) / n, bounded
-# [-1, 1] with positive meaning enriched at high PC score.
+# Core 2D annotation enrichment function (Cox & Mann 2012): split genes
+# into group 1 (annotation term members) and group 2 (rest), apply
+# MANOVA to ranked PC1/PC2 values, extract a p-value from the Pillai
+# test statistic, and calculate s-scores = 2*(mean_rank_g1 -
+# mean_rank_g2)/n, bounded [-1, 1].
 run_2d_enrichment_single <- function(gene_set, ranked_df, min_size = 5) {
   # filter gene set to genes present in PCA data
   members <- intersect(gene_set, ranked_df$gene_id)

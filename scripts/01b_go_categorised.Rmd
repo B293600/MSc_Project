@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -28,35 +28,18 @@ load(file.path(project_dir, "project_colours.rda"))
 
 # Background
 
-RECONSTRUCTED from an earlier session after the categorised version of
-this script was lost. Per Matthew's suggestion (via Adriana): add
-functional category annotation (e.g. mitochondrial, amino acid
-biosynthesis) to GO enrichment plots, so a reader gets biological
-context at a glance, rather than plain uncoloured dots.
+Reconstructed from an earlier session after the categorised version of
+this script was lost. Adds functional category annotation (e.g.
+mitochondrial, amino acid biosynthesis) to GO enrichment plots for
+biological context at a glance.
 
-Reads the four saved output tables from 01_go_clusterprofiler.Rmd
-(go_clusterprofiler_pc1_top10pct.txt, _pc1_bottom10pct.txt,
-_pc2_top10pct.txt, _pc2_bottom10pct.txt), applies a shared keyword
-classifier to each GO term's Description text, and re-plots with
-category as colour. This is pragmatic, imperfect keyword matching on
-free text, so category assignments are printed for manual review below
-- check these before trusting the figure, and add overrides if any
-term looks misclassified given known biology.
+Reads the four saved output tables from 01_go_clusterprofiler.Rmd,
+applies a keyword classifier to each GO term's Description text, and
+re-plots with category as colour. Keyword matching on free text is
+imperfect - category assignments are printed for manual review below.
 
 ```{r shared-category-function}
-# Shared GO term -> broad category classifier.
-#
-# UPDATED (per prior review of the first categorised batch):
-# - "ribonucleoprotein" and "nucleol" added to the ribosome biogenesis
-#   pattern - "ribonucleoprotein complex", "ribonucleoprotein complex
-#   biogenesis", and "nucleolus" were previously falling through to
-#   "Other / unclassified" despite clearly belonging with the ribosome
-#   biogenesis / translation cluster.
-# - "General / central metabolism" bucket added, catching broad
-#   catabolic/precursor-metabolite terms (carboxylic acid, organic
-#   acid, oxoacid, precursor metabolites, energy derivation) that
-#   don't cleanly match "carbohydrate" specifically but are clearly
-#   central/general metabolism rather than unclassified.
+# GO term -> broad category classifier
 categorise_go_term <- function(description) {
   d <- str_to_lower(description)
   case_when(
@@ -102,18 +85,9 @@ cat("Loaded saved GO enrichment tables:",
 
 ```{r plot-function}
 # Single categorised panel: top 20 terms by adjusted p-value, coloured
-# by functional category, sized by gene count.
-#
-# CORRECTED (final approach): repeated attempts to merge panel A and
-# B's legends into one shared legend via patchwork's guides = "collect"
-# - both with scales added per-panel and with scales added once via
-# the `&` operator to the combined figure - produced broken/duplicated/
-# clipped legend rendering. Rather than keep fighting patchwork's
-# guide-collection behaviour, each panel now keeps its own complete,
-# self-contained legend on the right. This is slightly repetitive
-# (both panels' legends show broadly similar category colours) but is
-# guaranteed to render correctly, which repeated "collect" attempts
-# were not.
+# by functional category, sized by gene count. Each panel keeps its
+# own self-contained legend (patchwork's guides = "collect" produced
+# broken/clipped legends here).
 plot_categorised_panel <- function(df, panel_label, direction_label, shared_categories, size_limits) {
   df_top20 <- df %>%
     arrange(p.adjust) %>%
@@ -157,10 +131,8 @@ plot_categorised_panel <- function(df, panel_label, direction_label, shared_cate
 make_combined_categorised_figure <- function(df_top, df_bottom, label_top, label_bottom) {
   shared_size_limits <- range(c(df_top$Count, df_bottom$Count), na.rm = TRUE)
 
-  # Union of categories actually present in the top-20 terms of EITHER
-  # panel, in category_colours order - passed to both panels as
-  # identical factor levels, so at least the colour MAPPING (not the
-  # legend box itself) is consistent between A and B.
+  # Union of categories present in either panel's top 20, in
+  # category_colours order, so colour mapping stays consistent.
   top20_categories <- function(df) {
     df %>% arrange(p.adjust) %>% slice_head(n = 20) %>%
       pull(Description) %>% categorise_go_term() %>% unique()

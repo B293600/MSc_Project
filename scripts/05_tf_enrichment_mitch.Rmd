@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -42,18 +42,14 @@ cat("PC input:", nrow(mitch_input), "genes x", ncol(mitch_input), "contrasts\n")
 ```{r load-supp-tables}
 # Mahendrawada et al. 2025 (Supp Table 3.xlsx). S3a: binary TF binding
 # matrix (genes x 178 TFs). S3c: log2FC after TF depletion, significant
-# genes only, plus Kmeans_clusters column. Sign convention (Adriana's
-# meeting notes): negative log2FC = gene repressed on TF depletion, so
-# the TF normally activates it; positive log2FC = gene induced on
-# depletion, so the TF normally represses it. S3e integrates S3a + S3c
-# for direct targets only (TF both binds and regulates the gene).
+# genes only, plus Kmeans_clusters column. Sign convention: negative
+# log2FC = gene repressed on TF depletion (TF normally activates it);
+# positive log2FC = gene induced on depletion (TF normally represses
+# it). S3e integrates S3a + S3c for direct targets only.
 #
-# Reads "Supp Table 3 updated.xlsx" (output of 00_add_dot6_tod6.R,
-# which appends Dot6/Tod6 gene sets), matching the file used by scripts
-# 07 (TF GSEA) and 09 (2D annotation enrichment). Previously this script
-# read the un-updated "Supp Table 3.xlsx", so Table E gene set counts
-# were not guaranteed to match those in the other two scripts - fixed
-# here so all three draw from the same source.
+# Reads "Supp Table 3 updated.xlsx" (output of 00_add_dot6_tod6.R),
+# matching the file used by scripts 07 and 09 so all three draw from
+# the same source.
 supp_path <- file.path(tables_dir, "Supp Table 3 updated.xlsx")
 
 table_a <- read_excel(supp_path, sheet = "Table-S3a")
@@ -67,8 +63,7 @@ cat("Table E dimensions:", nrow(table_e), "genes x", ncol(table_e), "columns\n")
 
 ```{r build-genesets-table-a}
 # Table A gene sets: for each TF, collect genes where binding = 1.
-# Minimum 5 bound genes per TF (matching Adriana's minGSSize = 5 from
-# her original mitch analysis).
+# Minimum 5 bound genes per TF.
 tf_cols_a <- colnames(table_a)[-1]   # drop gene_id column
 
 genesets_a <- map(tf_cols_a, function(tf) {
@@ -152,11 +147,8 @@ cat("Table E:", length(genesets_e_activated), "direct activated gene sets |",
 
 ```{r check-dot6-tod6-table-e}
 # Diagnostic: confirm whether Dot6_Tod6 clears Table E's >= 5 gene
-# threshold, and if so, how many genes it has non-NA log2FC for. Table
-# E is the intersection of Table A (binding) and Table C (regulation),
-# so Dot6_Tod6 - added to Tables A and C by 00_add_dot6_tod6.R - is not
-# guaranteed to carry through to Table E; this makes the outcome
-# explicit rather than inferred from its absence in the plots.
+# threshold, and how many genes it has non-NA log2FC for. Table E is
+# the intersection of Table A and Table C, so this isn't guaranteed.
 dot6_tod6_e_activated <- sum(map_int(genesets_e_activated, length) >= 5 &
                               str_detect(names(genesets_e_activated), "Dot6_Tod6"))
 cat("Dot6_Tod6 direct activated set present in Table E:",
@@ -184,15 +176,11 @@ cat("PCA genes found in Table E targets:", overlap_e, "\n")
 
 ```{r run-mitch-tf}
 # Run mitch for all three table-derived gene set collections.
-# priority = "effect" ranks by s.dist (effect size), matching Adriana's
-# original mitch TF enrichment approach.
+# priority = "effect" ranks by s.dist (effect size).
 #
-# Returns both the full (unfiltered) and significant (p.adjustMANOVA 
-# 0.05) results as a list, so a gene set that doesn't clear the FDR
-# threshold - such as Dot6_Tod6 in Table E, if that's what's
-# happening - can still be inspected without a second mitch_calc()
-# call. "sig" is what downstream save/plot steps use, matching the
-# previous behaviour of this script.
+# Returns both full (unfiltered) and significant (p.adjustMANOVA < 0.05)
+# results as a list, so a gene set that doesn't clear FDR can still be
+# inspected. "sig" is what downstream save/plot steps use.
 run_mitch_tf <- function(genesets, label) {
   cat("Running mitch:", label, "\n")
   result <- mitch_calc(
@@ -219,32 +207,24 @@ mitch_tf_a <- mitch_tf_a_res$sig
 mitch_tf_c <- mitch_tf_c_res$sig
 mitch_tf_e <- mitch_tf_e_res$sig
 
-# Total tested (not just significant) is the figure quoted in the
-# Results text alongside script 09's Cox & Mann output - checking here
-# that the two agree now both scripts read the same source file.
+# Total tested (not just significant) is quoted in the Results text
+# alongside script 09's output - check the two agree.
 cat("\nTable E gene sets tested (mitch):", length(genesets_e), "\n")
 cat("Compare against script 09's '2D annotation enrichment - TF direct",
     "targets / Table E' tested count before finalising the Results text.\n")
 ```
 
 ```{r check-dot6-tod6-mitch-result}
-# Follow-up to the earlier Dot6_Tod6 diagnostic: 98 genes had non-NA
-# Dot6_Tod6 log2FC in Table E, comfortably above the >= 5 gene set
-# threshold, so the gene set should have been tested by mitch_calc()
-# above. Its absence from the plotted top-20/labelled-outlier figures
-# is therefore expected to be either (a) not significant at FDR < 0.05,
-# or (b) significant but not among the top 20 by effect size. Pulling
-# its row directly from the full (unfiltered) result distinguishes
-# between the two, using the "full" table returned by run_mitch_tf()
-# rather than a second mitch_calc() call.
+# Follow-up: 98 genes had non-NA Dot6_Tod6 log2FC in Table E, above
+# the >= 5 gene threshold, so the set should have been tested. Its
+# absence from the plotted figures is either (a) not significant, or
+# (b) significant but outside the top 20 by effect size.
 dot6_tod6_tf_e <- mitch_tf_e_res$full %>%
   filter(str_detect(set, "Dot6_Tod6"))
 
 if (nrow(dot6_tod6_tf_e) == 0) {
-  cat("No Dot6_Tod6 gene set found in Table E mitch results ",
-      "(did not clear the >= 5 gene threshold during gene set ",
-      "construction, despite 98 genes with non-NA log2FC - check ",
-      "genesets_e names directly if this is unexpected)\n", sep = "")
+  cat("No Dot6_Tod6 gene set found in Table E mitch results",
+      "(did not clear the >= 5 gene threshold)\n")
 } else {
   cat("Dot6_Tod6 gene set(s) found in Table E mitch results:\n")
   print(dot6_tod6_tf_e %>% dplyr::select(set, s.PC1, s.PC2, p.adjustMANOVA))
@@ -276,61 +256,39 @@ if (nrow(dot6_tod6_tf_e) == 0) {
 ```
 
 ```{r check-dot6-tod6-table-c}
-# Table C's PC1 top-20 plot (Image 6 from the review round) lists
-# "Dot6_Tod6_activated" as a y-axis category with no point drawn at
-# that row - unlike Table E, this isn't a ranking/labelling problem,
-# since the category shouldn't appear in a slice_head(n=20) selection
-# at all unless it has a value. Three possibilities, checked in order:
-# (1) the set isn't in mitch_tf_c_res$full at all (build_genesets_c
-#     dropped it, e.g. failed the >= 5 gene filter for Table C
-#     specifically, which uses a different gene universe than Table E);
-# (2) it's present but s.PC1/s.PC2 is NA, which ggplot silently omits
-#     from the geom_point layer while still leaving the factor level
-#     (and therefore the axis row) behind;
-# (3) it's present with a real value that happens to render off-scale
-#     or exactly under gridlines/another point.
+# Table C's PC1 top-20 plot lists "Dot6_Tod6_activated" as a y-axis
+# category with no point drawn - check whether the set is missing,
+# has an NA effect size, or is just rendering off-scale.
 dot6_tod6_tf_c <- mitch_tf_c_res$full %>%
   filter(str_detect(set, "Dot6_Tod6"))
 
 if (nrow(dot6_tod6_tf_c) == 0) {
-  cat("No Dot6_Tod6 gene set found in Table C mitch results at all - ",
-      "case (1): dropped during genesets_c construction, most likely ",
-      "the >= 5 gene minimum for Table C's own gene universe (Table C ",
-      "genes are not the same set as Table E's bound+regulated genes).\n",
-      sep = "")
+  cat("No Dot6_Tod6 gene set found in Table C mitch results - likely",
+      "dropped during genesets_c construction (>= 5 gene minimum).\n")
 } else {
   cat("Dot6_Tod6 gene set(s) found in Table C mitch results:\n")
   print(dot6_tod6_tf_c %>% dplyr::select(set, s.PC1, s.PC2, p.adjustMANOVA))
 
   na_check <- dot6_tod6_tf_c %>% filter(is.na(s.PC1) | is.na(s.PC2))
   if (nrow(na_check) > 0) {
-    cat("\n-> Case (2): NA value(s) in s.PC1/s.PC2 - point silently",
-        "dropped by ggplot but the category label persists on the",
-        "axis. Check the underlying log2FC column in table_c for",
-        "why this set produced no computable effect size.\n")
+    cat("\n-> NA value(s) in s.PC1/s.PC2 - point silently dropped by",
+        "ggplot but the axis label persists.\n")
   } else {
-    cat("\n-> Case (3): a real, non-NA value exists (printed above).",
-        "If this doesn't match the empty row seen in the plot, the",
-        "issue is in plot_tf_single()'s rendering, not the data -",
-        "check whether s.PC1 for this set happens to fall at exactly\n",
-        "the same x-position as another labelled point (overplotting),",
-        "or outside the panel's default scale.\n")
+    cat("\n-> A real, non-NA value exists (printed above) - if not",
+        "visible in the plot, check for overplotting or off-scale",
+        "rendering.\n")
   }
 }
 ```
 
 ```{r plot-function}
 # 2D scatter of s.PC1 vs s.PC2 effect sizes - the key output for TF
-# enrichment, matching Adriana's original PC1 vs PC2 TF enrichment
-# scatter plot from the meeting. Colour = significance; outliers labelled.
+# enrichment. Colour = significance; outliers labelled.
 #
-# show_title / show_subtitle: added so the dissertation-facing Table E
-# output (Figure 14) can be produced with no title/subtitle baked into
-# the image - that text now lives in the Word caption instead, and the
-# in-plot subtitle previously named a specific lab collaborator, which
-# has no place in an anonymised submission. Diagnostic calls elsewhere
-# in this script (Table A, Table C, single-PC plots) keep their default
-# TRUE/TRUE behaviour since those are for review, not for the thesis.
+# show_title / show_subtitle: lets the dissertation-facing Table E
+# output (Figure 14) render with no title/subtitle baked in (caption
+# lives in the Word doc instead). Diagnostic calls elsewhere in this
+# script keep their default TRUE/TRUE behaviour.
 plot_tf_2d <- function(df, title, n_label = 12, force_label = character(0),
                        overlay_df = NULL,
                        overlay_source_label = "Literature-curated gene sets",
@@ -357,11 +315,9 @@ plot_tf_2d <- function(df, title, n_label = 12, force_label = character(0),
     slice_max(dist, n = ceiling(n_label / 4)) %>%
     ungroup()
 
-  # Add any sets in force_label that aren't already in the top-per-quadrant
-  # selection - e.g. Dot6_Tod6, which is significant (p.adj = 2.7e-4 for
-  # the activated set) but doesn't rank into the top 3 of its quadrant by
-  # distance from origin, so would otherwise be invisible on this plot
-  # despite being a biologically important, deliberately-tested hit.
+  # Add any sets in force_label not already in the top-per-quadrant
+  # selection - e.g. a significant but low-rank hit that would
+  # otherwise be invisible despite being biologically important.
   if (length(force_label) > 0) {
     forced <- df %>%
       filter(set %in% force_label, !set %in% df_label$set) %>%
@@ -395,11 +351,9 @@ plot_tf_2d <- function(df, title, n_label = 12, force_label = character(0),
   # Overlay: literature-curated stress-signalling gene sets (RTG_targets,
   # GCN2_targets, SNF1_targets, Gis1_targets - see
   # 15_stress_signaling_with_rtg.Rmd), plotted on the same PC1/PC2 axes
-  # as Table E's own direct-target gene sets, per Matthew's request to
-  # show these together rather than as a separate figure. Distinct
-  # shape + fixed colour (not part of the continuous significance
-  # gradient above) and always labelled, since there are only ever a
-  # handful of these sets - no risk of crowding.
+  # as Table E's own direct-target gene sets. Distinct shape + fixed
+  # colour (not part of the continuous significance gradient) and
+  # always labelled, since there are only ever a handful of these sets.
   if (!is.null(overlay_df) && nrow(overlay_df) > 0) {
     overlay_df <- overlay_df %>%
       mutate(label = truncate_label(set, width = 35))
@@ -490,12 +444,9 @@ plot_tf_single(mitch_tf_c, "s.PC2", "TF enrichment - Table C, PC2 top 20")
 ```{r load-stress-signaling-overlay}
 # Literature-curated gene sets (RTG_targets, GCN2_targets, SNF1_targets,
 # Gis1_targets - see 15_stress_signaling_with_rtg.Rmd, sourced from
-# Phospho_Residues_StressSignaling.xlsx). Per Matthew's request, shown
-# as an overlay on the same Table E PC1/PC2 plot rather than as a
-# separate comparison figure, so the two RTG sources (this literature
-# list vs. Table E's own RTG1_direct_activated/RTG3_direct_activated
-# ChIP-based columns) sit side by side on one plot with different
-# sources visually distinguished.
+# Phospho_Residues_StressSignaling.xlsx), shown as an overlay on the
+# Table E PC1/PC2 plot so the two RTG sources (this literature list vs
+# Table E's own ChIP-based RTG1/RTG3 columns) sit side by side.
 stress_signaling_path <- file.path(output_dir, "tf_mitch_stress_signaling_with_rtg.txt")
 
 if (file.exists(stress_signaling_path)) {
@@ -511,10 +462,9 @@ if (file.exists(stress_signaling_path)) {
 ```
 
 ```{r plots-table-e, fig.width=10, fig.height=9}
-# show_title/show_subtitle = FALSE here: this is the dissertation-facing
-# Table E plot (Figure 14). Title and subtitle are dropped so no working
-# title or collaborator name is baked into the image - the caption is
-# written directly in the Word document instead.
+# show_title/show_subtitle = FALSE: this is the dissertation-facing
+# Table E plot (Figure 14) - caption is written directly in the Word
+# document instead.
 plot_tf_2d(mitch_tf_e,     "TF enrichment - Table E direct targets (mitch 2D)",
            n_label = 20,
            force_label = c("Dot6_Tod6_direct_activated", "Dot6_Tod6_direct_repressed"),
@@ -547,8 +497,7 @@ save_plot(plot_tf_single(mitch_tf_c, "s.PC1", "TF enrichment - Table C, PC1"),
 save_plot(plot_tf_single(mitch_tf_c, "s.PC2", "TF enrichment - Table C, PC2"),
           "tf_mitch_tableC_pc2.png")
 
-# Figure 14 (dissertation): title/subtitle suppressed, per above -
-# no working title or collaborator name baked into the saved image.
+# Figure 14 (dissertation): title/subtitle suppressed, per above.
 save_plot(plot_tf_2d(mitch_tf_e, "TF enrichment - Table E (mitch 2D)",
                      n_label = 20,
                      force_label = c("Dot6_Tod6_direct_activated", "Dot6_Tod6_direct_repressed"),

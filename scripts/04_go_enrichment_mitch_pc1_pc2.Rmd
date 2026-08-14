@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -30,15 +30,12 @@ load(file.path(project_dir, "project_colours.rda"))
 ```
 
 ```{r load-data}
-# PCA_genes_AC.txt: gene-level PC scores. Only PC1/PC2 carry
-# meaningful signal (PC4+ is noise).
+# Gene-level PC scores; only PC1/PC2 used
 pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"), show_col_types = FALSE)
 ```
 
 ```{r build-go-genesets}
-# Build GO gene sets locally from org.Sc.sgd.db. Gene set names use
-# GO term descriptions (not IDs) so plots are human-readable, fetched
-# via GO.db.
+# Build GO gene sets from org.Sc.sgd.db, labelled with GO.db term names
 cat("Building GO gene sets from org.Sc.sgd.db...\n")
 
 if (!requireNamespace("GO.db", quietly = TRUE)) {
@@ -91,11 +88,7 @@ cat("Gene sets built:",
 ```
 
 ```{r prepare-input}
-# mitch input: a data frame with rownames = gene IDs and one column
-# per contrast (PC score here). Running PC1 and PC2 as a single
-# two-contrast mitch call enables mitch's key advantage - finding
-# gene sets that respond consistently or divergently across both
-# PCs simultaneously.
+# mitch input: rownames = gene IDs, one column per contrast (PC1, PC2)
 mitch_input <- pca_genes %>%
   select(gene_id, PC1, PC2) %>%
   column_to_rownames("gene_id")
@@ -105,10 +98,7 @@ cat("Contrasts:", colnames(mitch_input), "\n")
 ```
 
 ```{r run-mitch}
-# mitch enrichment. priority = "effect" ranks results by effect size
-# (s.dist), the standard approach per mitch documentation, matching
-# what Adriana's previous student used for the TF enrichment analysis.
-# cores = 1 for reproducibility; increase for speed if needed.
+# mitch enrichment; priority = "effect" ranks by effect size (s.dist)
 cat("Running mitch enrichment (PC1 + PC2 jointly)...\n")
 
 mitch_result <- mitch_calc(
@@ -130,9 +120,7 @@ cat("Significant gene sets (p.adjustMANOVA < 0.05):", nrow(mitch_sig), "\n")
 ```
 
 ```{r plot-pc1-effect}
-# Top 20 gene sets ranked by PC1 effect size (s.PC1), coloured by
-# direction - matches the single-contrast view from scripts 01-03
-# for direct comparison.
+# Top 20 gene sets ranked by effect size, coloured by direction
 plot_mitch_single <- function(df, pc_col, title, n_top = 20) {
   if (nrow(df) == 0) {
     cat("No significant terms for:", title, "\n")
@@ -180,11 +168,7 @@ plot_mitch_single(mitch_sig, "s.PC2", "PC2 - GO enrichment (mitch, top 20 by PC2
 ```
 
 ```{r plot-2d}
-# 2D scatter of s.PC1 vs s.PC2 effect sizes - mitch's unique output,
-# unavailable from the other three methods. Gene sets in off-diagonal
-# quadrants respond to the size-dependent TOR/PKA pathway axis but not
-# the independent (mitochondrial) axis, or vice versa. Labels the most
-# extreme outliers in each quadrant.
+# 2D scatter of s.PC1 vs s.PC2 effect sizes, labelling top outliers
 plot_mitch_2d <- function(df, title, n_label = 10) {
   if (nrow(df) == 0) {
     cat("No data to plot for:", title, "\n")

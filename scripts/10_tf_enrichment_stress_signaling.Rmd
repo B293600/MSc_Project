@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -39,16 +39,10 @@ cat("PC input:", nrow(mitch_input), "genes x", ncol(mitch_input), "contrasts\n")
 ```
 
 ```{r load-genesets}
-# Stress signaling gene sets built by 00b_add_stress_signaling_genesets.R.
-# Restricted to GCN2, SNF1, and Gis1 targets (as requested) - presence/
-# absence gene sets only, no activated/repressed direction, since the
-# source data has no log2FC.
+# Stress signaling gene sets built by 00b_add_stress_signaling_genesets.R
 load(file.path(tables_dir, "stress_signaling_genesets.rda"))
 
-# Restricted to GCN2, SNF1, and Gis1 targets only (as requested) - the other
-# gene sets built by 00b (GCN2 regulators, RTG, Tod6/Dot6 literature) remain
-# available in stress_signaling_genesets.rda if needed later, but aren't
-# tested here.
+# Restricted to GCN2, SNF1, and Gis1 targets here
 genesets_stress <- stress_signaling_genesets[
   c("GCN2_targets", "SNF1_targets", "Gis1_targets")
 ]
@@ -68,10 +62,7 @@ overlap <- length(intersect(pca_gene_ids, unlist(genesets_stress)))
 cat("Genes in PCA:", length(pca_gene_ids), "\n")
 cat("PCA genes found in stress signaling gene sets:", overlap, "\n")
 
-# Per-set overlap - mitch silently drops any set with too few genes actually
-# present in the PCA data, even if the set itself looked large enough before
-# checking overlap. Checking here so a drop is visible before running mitch,
-# not discovered only by a missing row in the results afterwards.
+# Per-set overlap check (mitch silently drops sets with too few genes)
 cat("\nPer-geneset overlap with PCA data:\n")
 for (nm in names(genesets_stress)) {
   n_overlap <- length(intersect(pca_gene_ids, genesets_stress[[nm]]))
@@ -80,10 +71,7 @@ for (nm in names(genesets_stress)) {
 ```
 
 ```{r run-mitch}
-# mitch enrichment, matching script 05's approach (priority = "effect"
-# ranks by s.dist). No FDR filter applied yet since only 5 gene sets are
-# being tested (multiple testing correction is stricter with few tests,
-# so results are inspected in full rather than only the significant subset).
+# mitch enrichment; no FDR filter yet since only 5 gene sets are tested
 cat("Running mitch: stress signaling gene sets\n")
 
 mitch_stress <- mitch_calc(

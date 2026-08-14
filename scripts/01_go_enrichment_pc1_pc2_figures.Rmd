@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -96,13 +96,7 @@ ego_pc2_bottom <- run_go_enrichment(pc2_genes$bottom, all_genes_universe, "PC2 b
 
 ```{r plot-function}
 # Single-panel dot plot: top 20 terms by adjusted p-value.
-# panel_label: "A" or "B" for patchwork assembly.
-# direction_label: short biological description for y-axis title.
-#
-# CORRECTED: label sizes increased throughout (axis text, axis titles,
-# panel tag, legend) per request - previous sizes were tuned for a
-# side-by-side layout and looked small once printed/viewed at normal
-# scale.
+# panel_label: "A"/"B" for patchwork. direction_label: y-axis title.
 plot_single_panel <- function(ego, panel_label, direction_label, size_limits) {
   df <- as.data.frame(ego)
   if (nrow(df) == 0) return(NULL)
@@ -119,12 +113,7 @@ plot_single_panel <- function(ego, panel_label, direction_label, size_limits) {
   ggplot(df_top20, aes(x = neg_log10_padj, y = Description_short,
                        size = Count)) +
     geom_point(color = project_colours[["pink"]]) +
-    # CORRECTED: explicit shared limits/breaks so panel A and panel B
-    # use the identical size scale - previously each panel picked its
-    # own Count range automatically, and since the two ranges differ,
-    # patchwork's guides = "collect" couldn't merge them into one
-    # legend and instead showed two separate ones, with the second
-    # running off the edge of the combined image.
+    # Shared size limits so both panels use one merged legend
     scale_size_continuous(limits = size_limits, range = c(1, 8)) +
     labs(
       tag  = panel_label,
@@ -145,15 +134,7 @@ plot_single_panel <- function(ego, panel_label, direction_label, size_limits) {
     )
 }
 
-# Combine top and bottom panels (A above, B below) into one figure via
-# patchwork, with a shared legend. Stacked vertically (rather than
-# side-by-side) so the combined figure fills roughly one page when
-# printed, per request. Returns a plot object ready for ggsave.
-#
-# CORRECTED: computes shared size_limits across BOTH panels' Count
-# values before plotting either one, so scale_size_continuous() above
-# gets the same range in both calls and guides = "collect" can
-# actually merge them into a single legend instead of duplicating it.
+# Combines top/bottom panels (A above, B below) with a shared legend
 make_combined_figure <- function(ego_top, ego_bottom,
                                  label_top, label_bottom
                                  ) {
@@ -226,9 +207,7 @@ write_tsv(as.data.frame(ego_pc2_top),
 write_tsv(as.data.frame(ego_pc2_bottom),
           file.path(output_dir, "go_clusterprofiler_pc2_bottom10pct.txt"))
 
-# Save combined figures - now tall/stacked (A above B) rather than
-# wide/side-by-side, so width/height swapped to suit a portrait,
-# roughly one-page layout when printed.
+# Save combined figures (tall/stacked layout)
 if (!is.null(fig9)) {
   ggsave(file.path(figures_dir, "figure9_go_clusterprofiler_pc1.png"),
          plot = fig9, width = 10, height = 24, dpi = 300)

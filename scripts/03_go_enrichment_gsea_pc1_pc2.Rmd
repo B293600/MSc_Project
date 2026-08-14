@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -30,12 +30,9 @@ load(file.path(project_dir, "project_colours.rda"))
 ```
 
 ```{r establish-pc-directions}
-# Establish biological direction of PC1/PC2 by correlating sample-level
-# PC scores with mean cell volume. PC1 vs volume: Spearman r = -0.216,
-# so PC1 reflects TOR/PKA signalling state rather than cell size
-# (positive NES = active signalling, negative = inhibited). PC2 vs
-# volume: Spearman r = +0.795, so PC2 is the primary cell size axis
-# (positive NES = upregulated in large cells, negative = small cells).
+# Correlate sample-level PC scores with mean cell volume to establish
+# direction: PC1 reflects TOR/PKA signalling state; PC2 is the primary
+# cell size axis.
 pca_samples <- read_tsv(file.path(tables_dir, "PCA_samples_AC.txt"),
                         show_col_types = FALSE)
 
@@ -59,17 +56,13 @@ direction_labels <- list(
 ```
 
 ```{r load-data}
-# PCA_genes_AC.txt: gene-level PC scores. PC4 onward is noise-level
-# variance, so only PC1/PC2 are carried forward.
+# Gene-level PC scores; only PC1/PC2 used (PC4+ is noise)
 pca_genes <- read_tsv(file.path(tables_dir, "PCA_genes_AC.txt"),
                       show_col_types = FALSE)
 ```
 
 ```{r make-ranked-lists}
-# GSEA operates on all genes ranked by PC score (descending), avoiding
-# the hard 10% cutoff used in scripts 01/02. Genes at the positive end
-# of a PC contribute to positive NES; genes at the negative end
-# contribute to negative NES. Seed set before each run for reproducibility.
+# GSEA ranks all genes by PC score (avoids the hard cutoff in scripts 01/02)
 make_ranked_list <- function(df, pc_col) {
   df %>%
     select(gene_id, all_of(pc_col)) %>%
@@ -87,11 +80,7 @@ cat("PC2 ranked list:", length(ranked_pc2), "genes, range [",
 ```
 
 ```{r run-gsea-function}
-# gseGO wrapper. ont = "ALL" tests BP, MF, and CC in one run (matching
-# Adriana's approach), avoiding three separate calls to combine. The
-# .sign column from gseGO("ALL") is used downstream to split
-# positive/negative NES terms into separate panels. nPermSimple = 1000
-# for stable p-value estimates; seed set inside wrapper for reproducibility.
+# gseGO wrapper; ont = "ALL" tests BP, MF, CC together
 run_gsea_go <- function(ranked_list, label) {
   set.seed(42)
   result <- gseGO(
@@ -120,11 +109,7 @@ gsea_pc2 <- run_gsea_go(ranked_pc2, "PC2")
 ```
 
 ```{r plot-function}
-# Two-panel GSEA figure per PC: Panel A = top 20 positive-NES terms,
-# Panel B = top 20 negative-NES terms. This uses the .sign split
-# approach from Adriana's script, making directionality clear from
-# layout rather than relying on colour alone. Panels assembled with
-# patchwork, matching the figure layout convention from script 01.
+# Two-panel figure: A = top 20 positive-NES terms, B = top 20 negative-NES
 plot_gsea_panel <- function(gsea_result, sign, panel_label,
                              direction_label) {
   df <- as.data.frame(gsea_result)

@@ -6,7 +6,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-# Paths relative to this Rmd's location (Adriana_analysis/scripts/)
+# Paths relative to this file's location
 project_dir <- ".."
 load(file.path(project_dir, "project_functions.rda"))
 
@@ -27,73 +27,34 @@ load(file.path(project_dir, "project_colours.rda"))
 
 # Background
 
-Rebuild of the Bcy1-AID+PhIAA occupancy figure per Matthew's meeting
-feedback. Two changes from the previous version (script 14):
+Rebuild of the Bcy1-AID+PhIAA occupancy figure. Changes from script 14:
 
 1. Y-axis changed from log2FC(PhIAA/DMSO) to log2FC(large-PhIAA vs
-   small-PhIAA) - i.e. fold change between cell sizes within the same
-   PhIAA-treated condition, not a drug-vs-vehicle comparison. This
-   removes the need for a matched DMSO control entirely.
-2. Two separate graphs, WT+PhIAA and BCY1-AID+PhIAA, rather than one
-   figure split by facet, so each strain's relationship can be read
-   independently.
-3. Correlation switched from Pearson to Spearman, per Matthew's
-   instruction to use a rank-based approach throughout rather than
-   Pearson on ranked/near-ranked data.
+   small-PhIAA) - fold change between cell sizes within PhIAA-treated
+   cells, removing the need for a DMSO control.
+2. Two separate graphs, WT+PhIAA and BCY1-AID+PhIAA.
+3. Correlation switched from Pearson to Spearman.
 
-Both strains are drawn from the same experimental batch (exp250624),
-which contains MS69 (WT) and MS756 (Bcy1-AID) run together with matched
-PhIAA treatment at both small (1hr) and large (4.75hr) arrest - this
-avoids the batch-matching problem the DMSO-based version had, since no
-cross-batch DMSO control is needed for a small-vs-large FC.
+Both strains are drawn from the same batch (exp250624): MS69 (WT) and
+MS756 (Bcy1-AID), matched PhIAA treatment at small (1hr) and large
+(4.75hr) arrest.
 
-EXTENDED per Matthew's follow-up comment: this version adds TPM and
-synthesis rate as additional predictors alongside occupancy, matching
-the three-predictor figure described in the dissertation text (Figure
-15A/15B). Synthesis rate is:
-  - log2-transformed before correlating (previously left on a linear
-    scale in script 16, inconsistent with occupancy/TPM both already
-    being log2-transformed there).
-  - kept SEPARATE for Miller and Neymotin rather than averaged
-    together, per Matthew's specific request here - averaging two
-    estimates from different studies before correlating can mask
-    disagreement between them and isn't obviously the right choice
-    when the two methods may have different biases.
+EXTENDED: adds TPM and synthesis rate as additional predictors
+alongside occupancy (Figure 15A/15B). Synthesis rate is log2-
+transformed and kept separate for Miller and Neymotin (not averaged).
 
-WT sample identification is UNCHANGED from the previous version of
-this script - the exp250624/strain_id/arrest-label matching logic
-below was already carefully audited (see the ASSUMPTIONS note and the
-printed 4-row sanity check), and no contamination pattern like the one
-found in script 17 (Torin/Rapa/1NMPP1/ATC misclassified as WT) applies
-here, since this script doesn't classify samples into a "WT" bucket
-by drug treatment at all - it identifies exactly two strains
-(MS69/MS756) in one specific batch (exp250624) by strain_id directly.
-Still worth confirming the printed sample table shows exactly 4 rows
-before trusting this.
-
-ASSUMPTIONS MADE BELOW THAT NEED CHECKING:
-- Cell size group (small/large) is determined from the arrest column,
-  which uses inconsistent label formats across samples: MS69's large
-  sample is labelled "4.75hr G1 arrest" (numeric), while MS756's is
-  labelled "Large G1 arrest" (categorical), for what is nominally the
-  same timepoint. Both patterns are matched explicitly. Confirmed
-  working for both strains in exp250624 - see the printed sample table
-  below, which should show exactly 4 rows.
-- "WT" = strain_id "MS69", "Bcy1-AID" = strain_id "MS756" (not MS756c2,
-  which appears in a different, later experiment and was not part of
-  the exp250624 batch).
-- Restricting to experiment "exp250624" specifically (rather than
-  pooling all PhIAA-treated MS69/MS756 samples across every batch) is
-  done via string matching on the sample column, since this is the one
-  batch containing both strains run together under matched conditions.
-  If a dedicated experiment ID column exists in df_sc_final.txt beyond
-  what's embedded in the sample name, this should be used instead -
-  check column names before running.
+ASSUMPTIONS:
+- Cell size (small/large) from the arrest column, which uses different
+  label formats per strain: MS69's large sample is "4.75hr G1 arrest",
+  MS756's is "Large G1 arrest". Both patterns matched explicitly.
+- "WT" = strain_id MS69, "Bcy1-AID" = strain_id MS756 (not MS756c2,
+  which isn't in this batch).
+- Restricted to batch "exp250624" via string matching on the sample
+  column.
 
 ```{r load-occupancy}
-# Reuses the same averaged occupancy calculation as script 13a/13b -
-# log2(mean RNAPII occupancy + 1) across the 6 available experiments
-# (A, B, C, EFG, H, J), requiring at least 4 of 6 present per gene.
+# Same averaged occupancy calculation as script 13a/13b: log2(mean
+# occupancy + 1) across 6 experiments, requiring >= 4 of 6 present.
 occupancy_path <- file.path(
   tables_dir,
   "210601_gene_annotation_RPB_occupancy.txt"
@@ -124,7 +85,7 @@ cat("Genes with usable occupancy data (>= 4 of 6 experiments):",
 
 ```{r load-synth-rate}
 ## Synthesis rate: Miller and Neymotin kept SEPARATE (not averaged),
-## each log2-transformed before correlating, per Matthew's comment.
+## each log2-transformed before correlating.
 ## filter(> 0) before log2() since log2 of zero/negative is undefined.
 synth_rate <- occupancy_raw %>%
   select(systematic_name, miller_synth_rate, neymotin_synth_rate) %>%
@@ -148,17 +109,11 @@ cat("Genes with Neymotin synthesis rate (log2):", nrow(synth_rate_neymotin), "\n
 df_sc_final <- read_tsv(file.path(tables_dir, "df_sc_final.txt"),
                         show_col_types = FALSE)
 
-# Restrict to the exp250624 batch specifically, both strains, PhIAA
-# treatment only (no DMSO needed for this comparison).
+# Restrict to exp250624, both strains, PhIAA only.
 #
-# Cell size group is determined from the arrest column, which uses two
-# different label formats depending on the sample: some rows give a
-# numeric duration ("4.75hr G1 arrest"), others give a categorical
-# label ("Large G1 arrest") for what is nominally the same timepoint -
-# confirmed by direct inspection that MS756's exp250624 large-cell
-# sample uses "Large G1 arrest" specifically, while MS69's equivalent
-# sample uses "4.75hr G1 arrest". Both patterns are matched below so
-# neither strain is silently dropped.
+# Cell size from the arrest column: MS756 uses "Large G1 arrest",
+# MS69 uses "4.75hr G1 arrest" for the same timepoint. Both patterns
+# matched below.
 exp250624_samples <- df_sc_final %>%
   filter(strain_id %in% c("MS69", "MS756"),
          condition == "PhIAA",
@@ -178,17 +133,14 @@ exp250624_samples <- df_sc_final %>%
   ) %>%
   filter(!is.na(strain_group), !is.na(cell_size_group))
 
-cat("exp250624 PhIAA-treated samples identified (should be exactly 4 rows",
-    "- WT small, WT large, Bcy1-AID small, Bcy1-AID large):\n")
+cat("exp250624 PhIAA-treated samples identified (expect 4 rows):\n")
 print(exp250624_samples %>%
         distinct(sample, strain_id, strain_group, arrest, arrest_hours,
                  cell_size_group, mean_cell_volume))
 ```
 
 ```{r compute-small-large-log2fc}
-# Mean TPMsc per gene x strain x cell size (averaging any replicate
-# samples within exp250624), then log2FC(large/small) within each
-# strain separately.
+# Mean TPMsc per gene x strain x cell size, then log2FC(large/small)
 mean_tpm_by_group <- exp250624_samples %>%
   group_by(gene_id, strain_group, cell_size_group) %>%
   summarise(mean_tpmsc = mean(TPMsc, na.rm = TRUE), .groups = "drop")
@@ -205,18 +157,11 @@ print(table(log2fc_small_large$strain_group))
 ```{r compute-tpm-baseline}
 ## TPM baseline predictor: mean small-cell TPMsc per gene x strain.
 ##
-## CORRECTED: originally used mean(small, large) as the baseline, but
-## that is mathematically coupled to the outcome variable itself
-## (log2fc_large_small = log2(large) - log2(small)) - correlating a
-## baseline built from both small AND large values against a fold
-## change computed from the same two values introduces circularity
-## that can distort the correlation in either direction. Confirmed
-## empirically: the blended baseline gave WT r = +0.095 (sign-flipped
-## from the original script's -0.114), but an independent small-cell-
-## only baseline recovers r = -0.114, matching the original result
-## almost exactly. Using small-cell TPM only here, since it represents
-## the pre-fold-change baseline state and is independent of the
-## large-cell value used in the outcome.
+## Uses small-cell TPM only, not mean(small, large) - the latter is
+## mathematically coupled to the outcome (log2fc_large_small =
+## log2(large) - log2(small)), introducing circularity. Small-cell-only
+## baseline gives WT r = -0.114; the blended baseline sign-flips to
+## +0.095.
 tpm_baseline <- exp250624_samples %>%
   filter(cell_size_group == "small") %>%
   group_by(gene_id, strain_group) %>%
@@ -229,12 +174,10 @@ print(table(tpm_baseline$strain_group))
 ```
 
 ```{r join-predictors}
-## Join all three predictors (occupancy, Miller synth rate, Neymotin
-## synth rate) plus TPM baseline against log2fc_large_small, per
-## strain. Occupancy and synthesis rate are gene-level only (no
-## strain dimension), so the same value is joined to both strains;
-## TPM baseline is strain-specific since it's computed from each
-## strain's own exp250624 samples.
+## Join predictors (occupancy, Miller/Neymotin synth rate, TPM
+## baseline) against log2fc_large_small, per strain. Occupancy and
+## synth rate are gene-level only (same value joined to both strains);
+## TPM baseline is strain-specific.
 occ_fc <- log2fc_small_large %>%
   inner_join(occupancy, by = "gene_id") %>%
   inner_join(tpm_baseline, by = c("gene_id", "strain_group"))
@@ -255,10 +198,9 @@ print(table(neymotin_fc$strain_group))
 
 ```{r define-plot-function}
 # Binned mean overlay, matching the convention used in scripts 13a/13b,
-# plus Spearman correlation per Matthew's instruction to use a
-# rank-based approach rather than Pearson. Generalised to take any
-# predictor column, so the same function builds the occupancy, TPM,
-# and both synthesis-rate panels.
+# plus Spearman correlation, using a rank-based approach rather than
+# Pearson. Generalised to take any predictor column, so the same
+# function builds the occupancy, TPM, and both synthesis-rate panels.
 n_bins <- 30
 
 plot_predictor_vs_fc <- function(df, predictor_col, x_lab, strain_label, point_colour) {
@@ -374,9 +316,8 @@ print(p_bcy1_neymotin)
 ```
 
 ```{r summary-table}
-## Direct numeric summary of all eight correlations - the ggplot
-## subtitles show these too, but only as rendered plot text, not as
-## console output that's easy to copy/compare.
+## Direct numeric summary of all eight correlations (console output,
+## easy to copy/compare vs the plot subtitles)
 summarise_r <- function(df, predictor_col, strain, predictor_label) {
   ct <- cor.test(df[[predictor_col]], df$log2fc_large_small, method = "spearman")
   tibble(strain = strain, predictor = predictor_label,
